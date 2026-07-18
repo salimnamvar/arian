@@ -43,7 +43,7 @@ class ContextBuilderSettings(BaseSettings):
             ContextConfig: Immutable domain config.
         """
         result: ContextConfig = ContextConfig(
-            inputs=self.inputs,
+            inputs=tuple(self.inputs),
             extensions=frozenset(self.extensions),
             exclude=frozenset(self.exclude),
             mode=self.mode,

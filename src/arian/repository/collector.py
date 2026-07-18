@@ -11,7 +11,7 @@ from pathlib import Path
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
 from arian.infrastructure.gitignore_filter import PathFilter
-from arian.renderer.language import detect_language
+from arian.services.language import detect_language
 
 
 class FilesystemCollector:
@@ -20,7 +20,6 @@ class FilesystemCollector:
     Attributes:
         _extensions (frozenset[str]): File extensions to include.
         _filter (PathFilter): Path filter instance.
-        _emitted (set[Path]): Set of already emitted paths.
     """
 
     def __init__(
@@ -38,7 +37,6 @@ class FilesystemCollector:
         """
         self._extensions = a_extensions
         self._filter = PathFilter(a_exclude)
-        self._emitted: set[Path] = set()
         self._tokenizer = a_tokenizer
 
     def collect(self, a_inputs: list[str]) -> list[Document]:
@@ -53,17 +51,17 @@ class FilesystemCollector:
         Raises:
             InputNotFoundError: If an input path does not exist.
         """
-        self._emitted.clear()
         documents: list[Document] = []
+        emitted: set[Path] = set()
 
         for path_str in a_inputs:
             path: Path = Path(path_str)
             if path.is_file():
-                doc: Document | None = self._collect_file(path)
+                doc: Document | None = self._collect_file(path, emitted)
                 if doc:
                     documents.append(doc)
             elif path.is_dir():
-                documents.extend(self._collect_directory(path))
+                documents.extend(self._collect_directory(path, emitted))
             else:
                 msg = f"Input path not found: {path_str}"
                 raise InputNotFoundError(
@@ -73,11 +71,12 @@ class FilesystemCollector:
 
         return documents
 
-    def _collect_file(self, a_path: Path) -> Document | None:
+    def _collect_file(self, a_path: Path, a_emitted: set[Path]) -> Document | None:
         """Collect single file.
 
         Args:
             a_path: Path to file.
+            a_emitted: Set of already emitted paths (for dedup).
 
         Returns:
             Document if collected, None otherwise.
@@ -86,12 +85,12 @@ class FilesystemCollector:
             return None
 
         resolved: Path = a_path.resolve()
-        if resolved in self._emitted:
+        if resolved in a_emitted:
             return None
 
         try:
             content: str = a_path.read_text(encoding="utf-8", errors="ignore")
-            self._emitted.add(resolved)
+            a_emitted.add(resolved)
             return Document(
                 path=str(a_path),
                 content=content,
@@ -101,11 +100,12 @@ class FilesystemCollector:
         except OSError:
             return None
 
-    def _collect_directory(self, a_directory: Path) -> list[Document]:
+    def _collect_directory(self, a_directory: Path, a_emitted: set[Path]) -> list[Document]:
         """Recursively collect from directory.
 
         Args:
             a_directory: Directory to collect from.
+            a_emitted: Set of already emitted paths (for dedup).
 
         Returns:
             List[Document]: Collected documents.
@@ -129,15 +129,15 @@ class FilesystemCollector:
         other_dirs: list[Path] = [e for e in entries if e.is_dir() and e.name != "common"]
 
         for f in readme_files:
-            if doc := self._collect_file(f):
+            if doc := self._collect_file(f, a_emitted):
                 documents.append(doc)
         for d in common_dirs:
-            documents.extend(self._collect_directory(d))
+            documents.extend(self._collect_directory(d, a_emitted))
         for f in other_files:
-            if doc := self._collect_file(f):
+            if doc := self._collect_file(f, a_emitted):
                 documents.append(doc)
         for d in other_dirs:
             if self._filter.should_include(d):
-                documents.extend(self._collect_directory(d))
+                documents.extend(self._collect_directory(d, a_emitted))
 
         return documents
