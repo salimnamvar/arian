@@ -11,6 +11,7 @@ from arian.domain.exceptions import ProjectBaseError
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 
 __all__ = [
     "ContextBuilderError",
@@ -18,6 +19,7 @@ __all__ = [
     "ContextResult",
     "Document",
     "InputNotFoundError",
+    "InputSpec",
     "NoDocumentsError",
     "OutputMode",
     "ProjectBaseError",

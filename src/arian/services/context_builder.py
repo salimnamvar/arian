@@ -14,6 +14,7 @@ from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 from arian.renderers.protocols import RendererProtocol
 from arian.repositories.protocols import CollectorProtocol
 from arian.repositories.protocols import WriterProtocol
@@ -76,32 +77,149 @@ class ContextBuilderService:
 
         if not documents:
             logger.warning("No documents collected from inputs")
+            input_names: str = ", ".join(spec.path for spec in self._config.inputs)
             msg = "No documents collected from inputs"
             raise NoDocumentsError(
                 msg,
                 a_resource_type="input_path",
-                a_resource_name=", ".join(self._config.inputs),
+                a_resource_name=input_names,
             )
 
-        documents = sorted(documents, key=lambda d: d.path)
+        documents = self._tag_documents(documents, self._config.inputs)
+        tagged_groups: dict[str, list[Document]] = self._group_by_tag(documents)
 
         total_tokens: int = sum(d.tokens for d in documents)
         logger.info("Collected %d documents (%d tokens)", len(documents), total_tokens)
 
+        out_path: Path = Path(self._config.output_path)
+        result: ContextResult = await self._build_per_tag(tagged_groups, out_path)
+        return result
+
+    def _tag_documents(
+        self,
+        a_documents: list[Document],
+        a_inputs: tuple[InputSpec, ...],
+    ) -> list[Document]:
+        """Match each document to its InputSpec by path prefix and apply tags.
+
+        Longer matching prefixes win so nested inputs are preferred.
+
+        Args:
+            a_documents: Collected documents.
+            a_inputs: Input specifications used for collection.
+
+        Returns:
+            Documents with tags applied from matching InputSpecs.
+        """
+        sorted_specs: list[InputSpec] = sorted(
+            a_inputs,
+            key=lambda s: len(str(Path(s.path).resolve())),
+            reverse=True,
+        )
+        tagged: list[Document] = []
+        for doc in a_documents:
+            doc_path: str = str(Path(doc.path).resolve())
+            matched_tag: str = doc.tag
+            for spec in sorted_specs:
+                spec_path: str = str(Path(spec.path).resolve())
+                if doc_path == spec_path or doc_path.startswith(spec_path.rstrip("/") + "/"):
+                    matched_tag = spec.tag
+                    break
+            if matched_tag != doc.tag:
+                tagged.append(
+                    Document(
+                        path=doc.path,
+                        content=doc.content,
+                        tokens=doc.tokens,
+                        language=doc.language,
+                        tag=matched_tag,
+                    ),
+                )
+            else:
+                tagged.append(doc)
+        return tagged
+
+    def _group_by_tag(self, a_documents: list[Document]) -> dict[str, list[Document]]:
+        """Group documents by their tag.
+
+        Args:
+            a_documents: Documents to group.
+
+        Returns:
+            Mapping of tag to documents in that group.
+        """
+        groups: dict[str, list[Document]] = {}
+        for doc in a_documents:
+            groups.setdefault(doc.tag, []).append(doc)
+        return groups
+
+    async def _build_per_tag(
+        self,
+        a_groups: dict[str, list[Document]],
+        a_output_path: Path,
+    ) -> ContextResult:
+        """Build output for each tag group.
+
+        Args:
+            a_groups: Documents grouped by tag.
+            a_output_path: Base output path.
+
+        Returns:
+            Merged ContextResult across all tag groups.
+        """
+        results: list[ContextResult] = []
+        for tag in sorted(a_groups.keys()):
+            docs: list[Document] = sorted(a_groups[tag], key=lambda d: d.path)
+            tag_result: ContextResult = await self._build_single_tag(tag, docs, a_output_path)
+            results.append(tag_result)
+
+        all_paths: list[str] = []
+        total_files: int = 0
+        total_tokens: int = 0
+        total_chunks: int = 0
+        for r in results:
+            all_paths.extend(r.output_paths)
+            total_files += r.total_files
+            total_tokens += r.total_tokens
+            total_chunks += r.chunks
+
+        merged: ContextResult = ContextResult(
+            output_paths=tuple(all_paths),
+            total_files=total_files,
+            total_tokens=total_tokens,
+            chunks=max(total_chunks, 1),
+        )
+        return merged
+
+    async def _build_single_tag(
+        self,
+        a_tag: str,
+        a_docs: list[Document],
+        a_output_path: Path,
+    ) -> ContextResult:
+        """Build output for a single tag group.
+
+        Args:
+            a_tag: Tag name (empty string for untagged).
+            a_docs: Documents in this tag group.
+            a_output_path: Base output path.
+
+        Returns:
+            ContextResult for this tag group.
+        """
         chunks: list[list[Document]]
         if self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is not None:
-            chunks = self._split_documents(documents, self._config.max_tokens)
+            chunks = self._split_documents(a_docs, self._config.max_tokens)
         else:
-            chunks = [documents]
+            chunks = [a_docs]
 
-        logger.debug("Split into %d chunk(s)", len(chunks))
-
-        out_path: Path = Path(self._config.output_path)
+        logger.debug("Tag %r: %d docs, %d chunk(s)", a_tag, len(a_docs), len(chunks))
 
         result: ContextResult = await self._render_and_write(
-            a_documents=documents,
+            a_documents=a_docs,
             a_chunks=chunks,
-            a_output_path=out_path,
+            a_output_path=a_output_path,
+            a_tag=a_tag,
         )
         return result
 
@@ -148,11 +266,36 @@ class ContextBuilderService:
 
         return chunks
 
+    def _make_output_path(self, a_base: Path, a_tag: str, a_index: int | None = None) -> Path:
+        """Build an output path including optional tag and chunk index.
+
+        Args:
+            a_base: Base output path from config.
+            a_tag: Tag name (empty for untagged).
+            a_index: Optional 1-based chunk index for split outputs.
+
+        Returns:
+            Resolved output file path.
+        """
+        result: Path
+        if a_base.suffix == ".md" and a_index is None and not a_tag:
+            result = a_base
+        else:
+            directory: Path = a_base if a_base.suffix != ".md" else a_base.parent
+            parts: list[str] = ["merged"]
+            if a_tag:
+                parts.append(a_tag)
+            if a_index is not None:
+                parts.append(str(a_index))
+            result = directory / (".".join(parts) + ".md")
+        return result
+
     async def _render_and_write(
         self,
         a_documents: list[Document],
         a_chunks: list[list[Document]],
         a_output_path: Path,
+        a_tag: str = "",
     ) -> ContextResult:
         """Render documents and write to output files.
 
@@ -160,6 +303,7 @@ class ContextBuilderService:
             a_documents: All collected documents.
             a_chunks: Document chunks.
             a_output_path: Output path.
+            a_tag: Tag for this group (affects output naming).
 
         Returns:
             ContextResult with output information.
@@ -170,11 +314,11 @@ class ContextBuilderService:
 
         result: ContextResult
         if self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is None:
-            result = await self._render_aggregate_single(a_documents, a_output_path, total_tokens)
+            result = await self._render_aggregate_single(a_documents, a_output_path, total_tokens, a_tag)
         elif self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is not None:
-            result = await self._render_aggregate_split(a_chunks, a_output_path, total_tokens)
+            result = await self._render_aggregate_split(a_chunks, a_output_path, total_tokens, a_tag)
         else:
-            result = await self._render_separate(a_chunks, a_output_path, total_tokens)
+            result = await self._render_separate(a_chunks, a_output_path, total_tokens, a_tag)
 
         return result
 
@@ -183,6 +327,7 @@ class ContextBuilderService:
         a_documents: list[Document],
         a_output_path: Path,
         a_total_tokens: int,
+        a_tag: str = "",
     ) -> ContextResult:
         """Write single aggregated output.
 
@@ -190,14 +335,13 @@ class ContextBuilderService:
             a_documents: All documents to render.
             a_output_path: Output path.
             a_total_tokens: Total token count.
+            a_tag: Tag for this group.
 
         Returns:
             ContextResult.
         """
         content: str = self._renderer.render(a_documents)
-        output_path: Path = a_output_path
-        if output_path.suffix != ".md":
-            output_path = output_path / "merged.md"
+        output_path: Path = self._make_output_path(a_output_path, a_tag)
 
         written: Path = await self._writer.write(content, output_path)
         logger.debug("Wrote %s", written)
@@ -214,6 +358,7 @@ class ContextBuilderService:
         a_chunks: list[list[Document]],
         a_output_path: Path,
         a_total_tokens: int,
+        a_tag: str = "",
     ) -> ContextResult:
         """Write aggregated output split by tokens.
 
@@ -221,6 +366,7 @@ class ContextBuilderService:
             a_chunks: Document chunks.
             a_output_path: Output directory.
             a_total_tokens: Total token count.
+            a_tag: Tag for this group.
 
         Returns:
             ContextResult.
@@ -228,7 +374,7 @@ class ContextBuilderService:
         write_tasks: list[asyncio.Task[Path]] = []
         for i, chunk in enumerate(a_chunks, start=1):
             content: str = self._renderer.render(chunk)
-            numbered_path: Path = a_output_path / f"merged.{i}.md"
+            numbered_path: Path = self._make_output_path(a_output_path, a_tag, a_index=i)
             write_tasks.append(asyncio.create_task(self._writer.write(content, numbered_path)))
 
         written_paths: list[Path] = list(await asyncio.gather(*write_tasks))
@@ -248,13 +394,15 @@ class ContextBuilderService:
         a_chunks: list[list[Document]],
         a_output_path: Path,
         a_total_tokens: int,
+        a_tag: str = "",
     ) -> ContextResult:
-        """Write separate mode output (one file per input).
+        """Write separate mode output (one file per input group).
 
         Args:
             a_chunks: Document chunks (one per input).
             a_output_path: Output directory.
             a_total_tokens: Total token count.
+            a_tag: Tag for this group.
 
         Returns:
             ContextResult.
@@ -265,9 +413,13 @@ class ContextBuilderService:
             if not chunk:
                 continue
             first_doc: Document = chunk[0]
-            stem: str = Path(first_doc.path).stem or Path(first_doc.path).name
+            if a_tag:
+                stem: str = a_tag
+            else:
+                stem = Path(first_doc.path).stem or Path(first_doc.path).name
             content: str = self._renderer.render(chunk)
-            out_path: Path = a_output_path / f"{stem}.md"
+            directory: Path = a_output_path if a_output_path.suffix != ".md" else a_output_path.parent
+            out_path: Path = directory / f"{stem}.md"
             write_coros.append(asyncio.create_task(self._writer.write(content, out_path)))
 
         written_paths: list[Path] = list(await asyncio.gather(*write_coros)) if write_coros else []

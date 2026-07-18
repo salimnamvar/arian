@@ -3,6 +3,7 @@
 Domain entities for the context builder application.
 
 Classes:
+    InputSpec: Tagged input path specification.
     Document: A single document to include in context.
     ContextConfig: Configuration for context building.
     ContextResult: Result of context building operation.
@@ -17,6 +18,19 @@ from arian.domain.enums import OutputMode
 
 
 @dataclass(frozen=True)
+class InputSpec:
+    """Tagged input path specification.
+
+    Attributes:
+        path (str): Filesystem path (file or directory).
+        tag (str): Optional grouping tag for output organization.
+    """
+
+    path: str = field(metadata={"description": "Filesystem path (file or directory)"})
+    tag: str = field(default="", metadata={"description": "Optional grouping tag"})
+
+
+@dataclass(frozen=True)
 class Document:
     """A single document to include in context.
 
@@ -25,12 +39,14 @@ class Document:
         content (str): File content.
         tokens (int): Token count of content.
         language (str): Detected language from extension.
+        tag (str): Grouping tag from InputSpec.
     """
 
     path: str = field(metadata={"description": "Source file path"})
     content: str = field(default="", metadata={"description": "File content"})
     tokens: int = field(default=0, metadata={"description": "Token count of content"})
     language: str = field(default="", metadata={"description": "Detected language from extension"})
+    tag: str = field(default="", metadata={"description": "Grouping tag from InputSpec"})
 
 
 @dataclass(frozen=True)
@@ -38,7 +54,7 @@ class ContextConfig:
     """Configuration for context building.
 
     Attributes:
-        inputs (tuple[str, ...]): Input paths to process.
+        inputs (tuple[InputSpec, ...]): Tagged input paths to process.
         extensions (frozenset[str]): File extensions to include.
         exclude (frozenset[str]): Directory names to exclude.
         mode (OutputMode): Output mode (separate or aggregate).
@@ -46,7 +62,7 @@ class ContextConfig:
         max_tokens (int | None): Maximum tokens per chunk.
     """
 
-    inputs: tuple[str, ...] = field(metadata={"description": "Input paths to process"})
+    inputs: tuple[InputSpec, ...] = field(metadata={"description": "Tagged input paths to process"})
     extensions: frozenset[str] = field(metadata={"description": "File extensions to include"})
     exclude: frozenset[str] = field(metadata={"description": "Directory names to exclude"})
     mode: OutputMode = field(metadata={"description": "Output mode (separate or aggregate)"})

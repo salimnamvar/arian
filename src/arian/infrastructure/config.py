@@ -17,6 +17,7 @@ from pydantic_settings import SettingsConfigDict
 
 from arian.domain.enums import OutputMode
 from arian.domain.models import ContextConfig
+from arian.domain.models import InputSpec
 
 
 class LoggingConfig(BaseModel):
@@ -65,11 +66,37 @@ DEFAULT_EXCLUDE: list[str] = [
 ]
 
 
+def parse_input_spec(a_raw: str) -> InputSpec:
+    """Parse a raw input string into an InputSpec.
+
+    Supports ``path:tag`` syntax (e.g. ``src/:core``). Plain paths yield an
+    empty tag.
+
+    Args:
+        a_raw: Raw CLI or config input string.
+
+    Returns:
+        Parsed InputSpec with path and optional tag.
+    """
+    result: InputSpec
+    if ":" in a_raw:
+        path_part: str
+        tag_part: str
+        path_part, tag_part = a_raw.rsplit(":", 1)
+        if path_part and not (len(path_part) == 1 and path_part.isalpha()):
+            result = InputSpec(path=path_part, tag=tag_part)
+        else:
+            result = InputSpec(path=a_raw, tag="")
+    else:
+        result = InputSpec(path=a_raw, tag="")
+    return result
+
+
 class ContextBuilderSettings(BaseSettings):
     """Settings for context builder via CLI or environment.
 
     Attributes:
-        inputs (List[str]): Input paths to process.
+        inputs (List[str]): Input paths to process (optionally path:tag).
         output (str): Output path or directory.
         mode (OutputMode): Output mode (separate or aggregate).
         exclude (List[str]): Directory names to exclude.
@@ -89,11 +116,14 @@ class ContextBuilderSettings(BaseSettings):
     def to_domain(self) -> ContextConfig:
         """Convert to domain configuration.
 
+        Parses tagged input strings (``path:tag``) into InputSpec values.
+
         Returns:
             ContextConfig: Immutable domain config.
         """
+        parsed_inputs: tuple[InputSpec, ...] = tuple(parse_input_spec(raw) for raw in self.inputs)
         result: ContextConfig = ContextConfig(
-            inputs=tuple(self.inputs),
+            inputs=parsed_inputs,
             extensions=frozenset(self.extensions),
             exclude=frozenset(self.exclude),
             mode=self.mode,

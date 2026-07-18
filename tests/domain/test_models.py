@@ -6,6 +6,7 @@ from arian.domain.enums import OutputMode
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 
 
 def test_document_defaults() -> None:
@@ -14,6 +15,7 @@ def test_document_defaults() -> None:
     assert doc.content == ""
     assert doc.tokens == 0
     assert doc.language == ""
+    assert doc.tag == ""
 
 
 def test_document_immutability() -> None:
@@ -37,10 +39,30 @@ def test_document_ordering() -> None:
     assert result[1].path == "b.py"
 
 
+def test_document_with_tag() -> None:
+    """Test Document with tag field."""
+    doc = Document(path="a.py", tag="core")
+    assert doc.tag == "core"
+
+
+def test_input_spec_defaults() -> None:
+    """Test InputSpec default tag is empty."""
+    spec = InputSpec(path="src/")
+    assert spec.path == "src/"
+    assert spec.tag == ""
+
+
+def test_input_spec_with_tag() -> None:
+    """Test InputSpec with tag."""
+    spec = InputSpec(path="src/", tag="core")
+    assert spec.path == "src/"
+    assert spec.tag == "core"
+
+
 def test_context_config_defaults() -> None:
     """Test ContextConfig default max_tokens."""
     config = ContextConfig(
-        inputs=("test.py",),
+        inputs=(InputSpec(path="test.py"),),
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=OutputMode.SEPARATE,

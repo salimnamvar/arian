@@ -11,6 +11,7 @@ from arian.domain.enums import OutputMode
 from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 from arian.services.context_builder import ContextBuilderService
 
 
@@ -21,7 +22,7 @@ class MockCollector:
         """Initialize with documents to return."""
         self._documents = a_documents
 
-    async def collect(self, a_inputs: list[str]) -> list[Document]:
+    async def collect(self, a_inputs: list[InputSpec]) -> list[Document]:
         """Return mock documents."""
         return self._documents
 
@@ -57,10 +58,12 @@ def _make_service(
     a_docs: list[Document],
     a_output: str = "output.md",
     a_max_tokens: int | None = None,
+    a_inputs: tuple[InputSpec, ...] | None = None,
 ) -> tuple[ContextBuilderService, MockWriter, MockRenderer]:
     """Create a service with mock dependencies."""
+    inputs = a_inputs if a_inputs is not None else (InputSpec(path="src/"),)
     config = ContextConfig(
-        inputs=("src/",),
+        inputs=inputs,
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=a_mode,
@@ -141,6 +144,43 @@ def test_context_builder_service_no_documents() -> None:
     with pytest.raises(NoDocumentsError) as exc_info:
         service.build()
     assert "No documents collected" in exc_info.value.message
+
+
+def test_context_builder_tagged_groups() -> None:
+    """Test that tagged inputs produce separate output groups."""
+    docs = [
+        Document(path="src/a.py", content="a", tokens=10, tag="core"),
+        Document(path="tests/b.py", content="b", tokens=10, tag="tests"),
+    ]
+    service, writer, _r = _make_service(
+        OutputMode.AGGREGATE,
+        docs,
+        a_output="output/",
+        a_inputs=(
+            InputSpec(path="src/", tag="core"),
+            InputSpec(path="tests/", tag="tests"),
+        ),
+    )
+
+    result = service.build()
+    assert result.total_files == 2
+    assert len(writer.written) == 2
+    paths = [str(p) for _, p in writer.written]
+    assert any("core" in p for p in paths)
+    assert any("tests" in p for p in paths)
+
+
+def test_group_by_tag() -> None:
+    """Test document grouping by tag."""
+    docs = [
+        Document(path="a.py", content="a", tokens=1, tag="core"),
+        Document(path="b.py", content="b", tokens=1, tag="core"),
+        Document(path="c.py", content="c", tokens=1, tag="tests"),
+    ]
+    service, _w, _r = _make_service(OutputMode.AGGREGATE, docs)
+    groups = service._group_by_tag(docs)
+    assert len(groups["core"]) == 2
+    assert len(groups["tests"]) == 1
 
 
 def test_split_documents_no_limit() -> None:

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 
 
 class CollectorProtocol(Protocol):
@@ -17,11 +18,11 @@ class CollectorProtocol(Protocol):
     Protocol for document collection implementations.
     """
 
-    async def collect(self, a_inputs: list[str]) -> list[Document]:
-        """Collect documents from input paths.
+    async def collect(self, a_inputs: list[InputSpec]) -> list[Document]:
+        """Collect documents from input specifications.
 
         Args:
-            a_inputs: List of input paths (files or directories).
+            a_inputs: List of input specifications with paths and tags.
 
         Returns:
             List of collected documents.

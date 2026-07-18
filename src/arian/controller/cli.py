@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
     inputs: list[str] = typer.Argument(
         default_factory=lambda: ContextBuilderSettings().inputs,
-        help="Input paths to include.",
+        help='Input paths (optionally path:tag, e.g. "src/:core").',
     ),
     output: str = typer.Option(".tmp", "-o", "--output", help="Output location"),
     mode: str = typer.Option("separate", "--mode", case_sensitive=False, help="separate or aggregate"),
@@ -62,13 +62,14 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
         )
 
         resolved_path: Path = resolve_output_path(settings.output)
+        base_config: ContextConfig = settings.to_domain()
         domain_config: ContextConfig = ContextConfig(
-            inputs=tuple(settings.inputs),
-            extensions=frozenset(settings.extensions),
-            exclude=frozenset(settings.exclude),
-            mode=settings.mode,
+            inputs=base_config.inputs,
+            extensions=base_config.extensions,
+            exclude=base_config.exclude,
+            mode=base_config.mode,
             output_path=str(resolved_path),
-            max_tokens=settings.max_tokens,
+            max_tokens=base_config.max_tokens,
         )
 
         collector = FilesystemCollector(

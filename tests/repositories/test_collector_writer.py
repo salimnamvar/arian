@@ -9,6 +9,7 @@ import pytest
 
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
+from arian.domain.models import InputSpec
 from arian.repositories.collector import FilesystemCollector
 from arian.repositories.writer import FileWriter
 
@@ -24,12 +25,15 @@ def test_filesystem_collector_single_file(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = asyncio.run(collector.collect([str(test_file)]))
+    result: list[Document] = asyncio.run(
+        collector.collect([InputSpec(path=str(test_file), tag="unit")]),
+    )
     assert len(result) == 1
     assert result[0].path == str(test_file)
     assert result[0].content == "print('hello')"
     assert result[0].tokens == len("print('hello')")
     assert result[0].language == "python"
+    assert result[0].tag == "unit"
 
 
 def test_filesystem_collector_directory(tmp_path: Path) -> None:
@@ -45,7 +49,7 @@ def test_filesystem_collector_directory(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = asyncio.run(collector.collect([str(tmp_path)]))
+    result: list[Document] = asyncio.run(collector.collect([InputSpec(path=str(tmp_path))]))
     paths: list[str] = [d.path for d in result]
     assert len(result) == 2
     assert str(tmp_path / "file1.py") in paths
@@ -66,7 +70,7 @@ def test_filesystem_collector_excluded_directory(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = asyncio.run(collector.collect([str(tmp_path)]))
+    result: list[Document] = asyncio.run(collector.collect([InputSpec(path=str(tmp_path))]))
     assert len(result) == 1
     assert result[0].path == str(tmp_path / "current.py")
 
@@ -80,7 +84,7 @@ def test_filesystem_collector_missing_path(tmp_path: Path) -> None:
     )
 
     with pytest.raises(InputNotFoundError) as exc_info:
-        asyncio.run(collector.collect([str(tmp_path / "nonexistent")]))
+        asyncio.run(collector.collect([InputSpec(path=str(tmp_path / "nonexistent"))]))
     assert "nonexistent" in exc_info.value.message
 
 
@@ -95,7 +99,7 @@ def test_filesystem_collector_unsupported_extension(tmp_path: Path) -> None:
         a_tokenizer=len,
     )
 
-    result: list[Document] = asyncio.run(collector.collect([str(test_file)]))
+    result: list[Document] = asyncio.run(collector.collect([InputSpec(path=str(test_file))]))
     assert len(result) == 0
 
 
