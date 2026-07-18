@@ -12,6 +12,7 @@ from arian.bootstrap.logging import configure_logging
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
 from arian.infrastructure.config import LoggingConfig
+from arian.infrastructure.ignore.default_patterns import DEFAULT_EXCLUDES
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.renderers.markdown.renderer import MarkdownRenderer
 from arian.repositories.filesystem.collector import FileCollector
@@ -27,9 +28,6 @@ app: typer.Typer = typer.Typer(help="Repository intelligence and context plannin
 logger: logging.Logger = logging.getLogger(__name__)
 
 _DEFAULT_EXTENSIONS: frozenset[str] = frozenset({".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json"})
-_DEFAULT_EXCLUDE: frozenset[str] = frozenset(
-    {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", "node_modules", ".venv", ".tmp", ".tmp1"}
-)
 
 
 @app.command()  # a-prefix-ignore: Typer CLI public names
@@ -64,7 +62,7 @@ def context(  # a-prefix-ignore: Typer CLI public names
     classifier: FileClassifier = FileClassifier()
     collector: FileCollector = FileCollector(
         a_extensions=_DEFAULT_EXTENSIONS,
-        a_exclude=_DEFAULT_EXCLUDE,
+        a_exclude=DEFAULT_EXCLUDES,
         a_classifier=classifier,
     )
     index: MemoryRepositoryIndex = MemoryRepositoryIndex()

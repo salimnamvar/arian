@@ -10,6 +10,7 @@ from arian.domain.context.models import MaterializedChunk
 from arian.domain.context.models import MaterializedFile
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
+from arian.domain.shared.enums import TokenBudget
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,14 @@ class ContextMaterializer:
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
+        a_budget: TokenBudget | None = None,  # noqa: ARG002 — reserved for overflow handling
     ) -> tuple[MaterializedChunk, ...]:
         """Apply compression levels from plan to actual file content.
 
         Args:
             a_plan: Context plan with compression decisions.
             a_content: Mapping of file path to FileContent.
+            a_budget: Optional token budget for overflow handling.
 
         Returns:
             Tuple of MaterializedChunk with compressed content.
@@ -65,19 +68,7 @@ class ContextMaterializer:
                     logger.warning("No content for planned file: %s", planned_file.path)
                     continue
 
-                compressed_content: str
-                is_overflow: bool = False
-
-                if planned_file.compression == CompressionLevel.FULL:
-                    compressed_content = content_obj.content
-                elif planned_file.compression == CompressionLevel.SUMMARY:
-                    compressed_content = self._analyzer.compress(content_obj.content, CompressionLevel.SUMMARY)
-                elif planned_file.compression == CompressionLevel.SIGNATURES:
-                    compressed_content = self._analyzer.compress(content_obj.content, CompressionLevel.SIGNATURES)
-                elif planned_file.compression == CompressionLevel.STRUCTURE:
-                    compressed_content = self._analyzer.compress(content_obj.content, CompressionLevel.STRUCTURE)
-                else:
-                    compressed_content = content_obj.content
+                compressed_content: str = self._compress(content_obj.content, planned_file.compression)
 
                 materialized_files.append(
                     MaterializedFile(
@@ -87,7 +78,7 @@ class ContextMaterializer:
                         compression=planned_file.compression,
                         content=compressed_content,
                         tokens=planned_file.tokens,
-                        is_overflow=is_overflow,
+                        is_overflow=False,
                     )
                 )
                 chunk_tokens += planned_file.tokens
@@ -102,14 +93,37 @@ class ContextMaterializer:
                     )
                 )
 
-        materialized_chunks.extend(
-            MaterializedChunk(
-                files=(overflow_file,),
-                token_count=overflow_file.tokens,
-                chunk_index=len(materialized_chunks) + i,
-                header="Overflow",
+        for i, overflow_file in enumerate(overflow_files):
+            materialized_chunks.append(
+                MaterializedChunk(
+                    files=(overflow_file,),
+                    token_count=overflow_file.tokens,
+                    chunk_index=len(materialized_chunks) + i,
+                    header="Overflow",
+                )
             )
-            for i, overflow_file in enumerate(overflow_files)
-        )
 
         return tuple(materialized_chunks)
+
+    def _compress(self, a_content: str, a_level: CompressionLevel) -> str:
+        """Compress content according to level.
+
+        Args:
+            a_content: Raw content.
+            a_level: Compression level.
+
+        Returns:
+            Compressed content string.
+        """
+        result: str
+        if a_level == CompressionLevel.FULL:
+            result = a_content
+        elif a_level == CompressionLevel.SIGNATURES:
+            result = self._analyzer.compress(a_content, CompressionLevel.SIGNATURES)
+        elif a_level == CompressionLevel.STRUCTURE:
+            result = self._analyzer.compress(a_content, CompressionLevel.STRUCTURE)
+        elif a_level == CompressionLevel.SUMMARY:
+            result = self._analyzer.compress(a_content, CompressionLevel.SUMMARY)
+        else:
+            result = a_content
+        return result

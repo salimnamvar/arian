@@ -16,6 +16,20 @@ from arian.services.classifier.file_classifier import FileClassifier
 
 logger = logging.getLogger(__name__)
 
+_ROLE_ORDER: dict[FileRole, int] = {
+    FileRole.README: 0,
+    FileRole.DOCUMENTATION: 1,
+    FileRole.ENTRY_POINT: 2,
+    FileRole.CONFIGURATION: 3,
+    FileRole.DOMAIN: 4,
+    FileRole.SERVICE: 5,
+    FileRole.INFRASTRUCTURE: 6,
+    FileRole.UTILITY: 7,
+    FileRole.TEST: 8,
+    FileRole.GENERATED: 9,
+    FileRole.UNKNOWN: 10,
+}
+
 _TASK_FILE_BOOST: dict[ContextTask, dict[FileRole, int]] = {
     ContextTask.BUG_FIX: {
         FileRole.TEST: -3,
@@ -137,7 +151,7 @@ class ContextPlanner:
                 )
             )
 
-        planned.sort(key=lambda f: (f.importance, f.path))
+        planned.sort(key=lambda f: (f.importance, _ROLE_ORDER.get(f.role, 10), f.path))
         return planned
 
     def _adjust_importance(
