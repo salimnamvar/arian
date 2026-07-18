@@ -18,12 +18,18 @@ Formatting policy
 -----------------
 Logging format is selected internally by severity:
 
-    Diagnostic (< INFO):  LEVEL pathname:lineno : MESSAGE
-    Operational (>= INFO): LEVEL : MESSAGE
+    Diagnostic (< INFO):  LEVEL WHEN WHERE RESOURCE : MESSAGE
+    Operational (>= INFO): LEVEL WHEN RESOURCE : MESSAGE
+
+WHERE = filename:lineno (diagnostic only)
+WHEN = UTC ISO-8601 timestamp
+RESOURCE = optional extra field (e.g. ``resource="model_id=bert"``)
 """
 
 from __future__ import annotations
 
+from datetime import UTC
+from datetime import datetime
 import logging
 import logging.config
 import logging.handlers
@@ -39,50 +45,64 @@ _PROPAGATING_LOGGERS = (APPLICATION_LOGGER_NAME,)
 _MODULE = "arian.bootstrap.logging"
 
 
-class DiagnosticFormatter(logging.Formatter):
-    """Format for DEBUG-level records: LEVEL pathname:lineno : MESSAGE."""
+def _format_utc_timestamp(a_epoch_seconds: float) -> str:
+    """Format Unix epoch seconds as canonical UTC ISO-8601 (microseconds + Z).
 
-    def format(  # a-prefix-ignore: stdlib Formatter.signature
+    Args:
+        a_epoch_seconds: Unix epoch timestamp.
+
+    Returns:
+        Formatted string like ``2026-07-18T23:45:12.345678Z``.
+    """
+    dt: datetime = datetime.fromtimestamp(a_epoch_seconds, tz=UTC)
+    return dt.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+class IsoUtcFormatter(logging.Formatter):
+    """UTC ISO-8601 timestamp formatter."""
+
+    def formatTime(  # a-prefix-ignore: stdlib Formatter.signature  # noqa: N802
         self,
         record: logging.LogRecord,
+        datefmt: str | None = None,  # noqa: ARG002 — required by Formatter API
     ) -> str:
-        """Format record as diagnostic line with file location.
+        """Format record creation time as canonical UTC ISO form.
 
         Args:
             record: Log record to format.
+            datefmt: Unused, required by Formatter API.
 
         Returns:
-            Formatted string with level, pathname, lineno, and message.
+            UTC ISO-8601 timestamp string.
         """
-        return f"{record.levelname} {record.pathname}:{record.lineno} : {record.getMessage()}"
+        return _format_utc_timestamp(record.created)
 
 
-class OperationalFormatter(logging.Formatter):
-    """Format for INFO+ records: LEVEL : MESSAGE."""
+class ResourceFilter(logging.Filter):
+    """Inject format-safe ``resource`` attribute; always admit the record."""
 
-    def format(  # a-prefix-ignore: stdlib Formatter.signature
-        self,
-        record: logging.LogRecord,
-    ) -> str:
-        """Format record as operational line with level and message.
+    def filter(self, record: logging.LogRecord) -> bool:  # a-prefix-ignore: stdlib Filter.signature
+        """Attach a format-safe ``resource`` attribute; always admit the record.
 
         Args:
-            record: Log record to format.
+            record: Log record to filter.
 
         Returns:
-            Formatted string with level and message only.
+            Always True.
         """
-        return f"{record.levelname} : {record.getMessage()}"
+        resource = getattr(record, "resource", None)
+        if resource:
+            record.resource = f" {resource}"
+        else:
+            record.resource = ""
+        return True
 
 
 class DiagnosticLevelFilter(logging.Filter):
-    """Admit DEBUG-level records only (< INFO)."""
+    """Admit Diagnostic (< INFO) records only."""
 
-    def filter(  # a-prefix-ignore: stdlib Filter.signature
-        self,
-        record: logging.LogRecord,
-    ) -> bool:
-        """Return True for diagnostic levels only.
+    def filter(self, record: logging.LogRecord) -> bool:  # a-prefix-ignore: stdlib Filter.signature
+        """Return True for Diagnostic (< INFO) levels only.
 
         Args:
             record: Log record to filter.
@@ -107,16 +127,21 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
         "version": 1,
         "disable_existing_loggers": False,
         "filters": {
+            "resource": {
+                "()": f"{_MODULE}.ResourceFilter",
+            },
             "diagnostic_level": {
                 "()": f"{_MODULE}.DiagnosticLevelFilter",
             },
         },
         "formatters": {
             "diagnostic": {
-                "()": f"{_MODULE}.DiagnosticFormatter",
+                "()": f"{_MODULE}.IsoUtcFormatter",
+                "format": "%(levelname)s %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
             "operational": {
-                "()": f"{_MODULE}.OperationalFormatter",
+                "()": f"{_MODULE}.IsoUtcFormatter",
+                "format": "%(levelname)s %(asctime)s%(resource)s : %(message)s",
             },
         },
         "handlers": {
@@ -124,13 +149,14 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
                 "class": "logging.StreamHandler",
                 "level": "NOTSET",
                 "formatter": "diagnostic",
-                "filters": ["diagnostic_level"],
+                "filters": ["diagnostic_level", "resource"],
                 "stream": "ext://sys.stderr",
             },
             "console_ops": {
                 "class": "logging.StreamHandler",
                 "level": "INFO",
                 "formatter": "operational",
+                "filters": ["resource"],
                 "stream": "ext://sys.stderr",
             },
         },
