@@ -11,7 +11,7 @@ from pathlib import Path
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
 from arian.infrastructure.gitignore_filter import PathFilter
-from arian.services.language import detect_language
+from arian.infrastructure.language import detect_language
 
 
 class FilesystemCollector:

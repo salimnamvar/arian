@@ -6,7 +6,7 @@ from pathlib import Path
 
 from arian.domain.models import Document
 from arian.renderer.markdown import MarkdownRenderer
-from arian.services.language import detect_language
+from arian.infrastructure.language import detect_language
 
 
 def test_markdown_renderer_render_empty() -> None:

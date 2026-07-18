@@ -1,7 +1,4 @@
-"""Language detection for document services.
-
-Maps file extensions to language identifiers for syntax highlighting.
-"""
+"""Language detection for document rendering."""
 
 from __future__ import annotations
 
@@ -18,26 +15,20 @@ def detect_language(a_path: Path) -> str:
         Detected language identifier or empty string.
     """
     lang_map: dict[str, str] = {
-        # Python
         ".py": "python",
         ".pyx": "python",
         ".pyw": "python",
-        # JavaScript/TypeScript
         ".js": "javascript",
         ".jsx": "jsx",
         ".ts": "typescript",
         ".tsx": "tsx",
         ".mjs": "javascript",
         ".cjs": "javascript",
-        # Go
         ".go": "go",
-        # Rust
         ".rs": "rust",
-        # Java/Kotlin
         ".java": "java",
         ".kt": "kotlin",
         ".kts": "kotlin",
-        # C/C++
         ".c": "c",
         ".cpp": "cpp",
         ".cc": "cpp",
@@ -45,30 +36,22 @@ def detect_language(a_path: Path) -> str:
         ".h": "c",
         ".hpp": "cpp",
         ".hxx": "cpp",
-        # C#
         ".cs": "csharp",
-        # Ruby
         ".rb": "ruby",
-        # PHP
         ".php": "php",
         ".phtml": "php",
-        # Swift
         ".swift": "swift",
-        # Shell
         ".sh": "bash",
         ".bash": "bash",
         ".zsh": "bash",
         ".fish": "fish",
-        # SQL
         ".sql": "sql",
-        # HTML/CSS
         ".html": "html",
         ".htm": "html",
         ".css": "css",
         ".scss": "scss",
         ".sass": "sass",
         ".less": "less",
-        # Markup/Structured
         ".md": "markdown",
         ".markdown": "markdown",
         ".rst": "rst",
@@ -80,19 +63,14 @@ def detect_language(a_path: Path) -> str:
         ".toml": "toml",
         ".xml": "xml",
         ".svg": "svg",
-        # Documentation
         ".puml": "puml",
         ".plantuml": "puml",
-        # Docker
         ".dockerfile": "dockerfile",
-        # Make
         ".mk": "makefile",
         ".makefile": "makefile",
-        # Config
         ".ini": "ini",
         ".cfg": "ini",
         ".env": "dotenv",
-        # Other
         ".gradle": "gradle",
         ".scala": "scala",
         ".r": "r",
