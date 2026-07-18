@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from arian.domain.enums import OutputMode
+from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
@@ -54,9 +55,21 @@ class ContextBuilderService:
 
         Returns:
             ContextResult: Result of the operation.
+
+        Raises:
+            NoDocumentsError: If no documents were collected from inputs.
         """
         # Collect documents
         documents: list[Document] = self._collector.collect(self._config.inputs)
+
+        # Check for empty results
+        if not documents:
+            msg = "No documents collected from inputs"
+            raise NoDocumentsError(
+                msg,
+                a_resource_type="input_path",
+                a_resource_name=", ".join(self._config.inputs),
+            )
 
         # Order documents
         documents = sorted(documents, key=lambda d: d.path)

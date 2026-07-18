@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 from pathlib import Path
 
+from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
 from arian.repository.collector import FilesystemCollector
 from arian.repository.writer import FileWriter
@@ -68,6 +70,19 @@ def test_filesystem_collector_excluded_directory(tmp_path: Path) -> None:
     assert result[0].path == str(tmp_path / "current.py")
 
 
+def test_filesystem_collector_missing_path(tmp_path: Path) -> None:
+    """Test that non-existent path raises InputNotFoundError."""
+    collector = FilesystemCollector(
+        a_extensions=frozenset([".py"]),
+        a_exclude=frozenset([]),
+        a_tokenizer=len,
+    )
+
+    with pytest.raises(InputNotFoundError) as exc_info:
+        collector.collect([str(tmp_path / "nonexistent")])
+    assert "nonexistent" in exc_info.value.message
+
+
 def test_filesystem_collector_unsupported_extension(tmp_path: Path) -> None:
     """Test that unsupported extensions are skipped."""
     test_file: Path = tmp_path / "test.rs"
@@ -76,22 +91,10 @@ def test_filesystem_collector_unsupported_extension(tmp_path: Path) -> None:
     collector = FilesystemCollector(
         a_extensions=frozenset([".py"]),
         a_exclude=frozenset([]),
-        a_tokenizer=lambda s: len(s),
+        a_tokenizer=len,
     )
 
     result: list[Document] = collector.collect([str(test_file)])
-    assert len(result) == 0
-
-
-def test_filesystem_collector_missing_directory(tmp_path: Path) -> None:
-    """Test graceful handling of non-existent path."""
-    collector = FilesystemCollector(
-        a_extensions=frozenset([".py"]),
-        a_exclude=frozenset([]),
-        a_tokenizer=lambda s: len(s),
-    )
-
-    result: list[Document] = collector.collect([str(tmp_path / "nonexistent")])
     assert len(result) == 0
 
 

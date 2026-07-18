@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 from pathlib import Path
 
 from arian.domain.enums import OutputMode
+from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import Document
 from arian.service.context_builder import ContextBuilderService
@@ -141,3 +143,29 @@ def test_context_builder_service_with_max_tokens() -> None:
     result = service.build()
     # With max_tokens=50, should split into chunks
     assert result.total_files == 3
+
+
+def test_context_builder_service_no_documents() -> None:
+    """Test ContextBuilderService raises NoDocumentsError when no docs collected."""
+    config = ContextConfig(
+        inputs=["nonexistent/"],
+        extensions=frozenset([".py"]),
+        exclude=frozenset([".git"]),
+        mode=OutputMode.AGGREGATE,
+        output_path="output.md",
+    )
+    collector = MockCollector([])
+    writer = MockWriter()
+    renderer = MockRenderer()
+
+    service = ContextBuilderService(
+        a_config=config,
+        a_collector=collector,
+        a_writer=writer,
+        a_renderer=renderer,
+        a_tokenizer=len,
+    )
+
+    with pytest.raises(NoDocumentsError) as exc_info:
+        service.build()
+    assert "No documents collected" in exc_info.value.message

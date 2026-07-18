@@ -40,8 +40,11 @@ def build(
     max_tokens: int | None = typer.Option(None, "--max-tokens", help="Max tokens per chunk"),
 ) -> None:
     """Build context for LLM consumption."""
+    # Filter out command name from variadic positional args (click quirk)
+    a_inputs: list[str] = [p for p in inputs if p != "build"]
+
     settings = ContextBuilderSettings(
-        inputs=inputs,
+        inputs=a_inputs,
         output=output,
         mode=OutputMode.AGGREGATE if mode == "aggregate" else OutputMode.SEPARATE,
         exclude=exclude,

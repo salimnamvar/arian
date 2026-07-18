@@ -65,8 +65,9 @@ class FilesystemCollector:
             elif path.is_dir():
                 documents.extend(self._collect_directory(path))
             else:
+                msg = f"Input path not found: {path_str}"
                 raise InputNotFoundError(
-                    f"Input path not found: {path_str}",
+                    msg,
                     a_resource_name=path_str,
                 )
 
