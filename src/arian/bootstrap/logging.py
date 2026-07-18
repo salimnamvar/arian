@@ -24,6 +24,14 @@ Logging format is selected internally by severity:
 WHERE = filename:lineno (diagnostic only)
 WHEN = UTC ISO-8601 timestamp
 RESOURCE = optional extra field (e.g. ``resource="model_id=bert"``)
+
+File logging
+------------
+When ``LoggingConfig.log_dir`` is set, logs are written to:
+    <log_dir>/arian.log
+
+Files rotate at ``max_bytes`` with ``backup_count`` backups.
+Log directory is created automatically if it does not exist.
 """
 
 from __future__ import annotations
@@ -33,6 +41,7 @@ from datetime import datetime
 import logging
 import logging.config
 import logging.handlers
+from pathlib import Path
 import queue
 from typing import Any
 
@@ -114,7 +123,12 @@ class DiagnosticLevelFilter(logging.Filter):
 
 
 def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
-    """Build dictConfig: named loggers propagate to root; root owns two handlers.
+    """Build dictConfig: named loggers propagate to root; root owns handlers.
+
+    Handlers:
+        console_debug: diagnostic (< INFO) to stderr
+        console_ops: operational (>= INFO) to stderr
+        file: all levels to rotating file (if log_dir is set)
 
     Args:
         a_config: Validated logging configuration.
@@ -123,6 +137,43 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
         Dictionary suitable for logging.config.dictConfig.
     """
     level: str = a_config.level
+
+    handlers: dict[str, dict[str, Any]] = {
+        "console_debug": {
+            "class": "logging.StreamHandler",
+            "level": "NOTSET",
+            "formatter": "diagnostic",
+            "filters": ["diagnostic_level", "resource"],
+            "stream": "ext://sys.stderr",
+        },
+        "console_ops": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "operational",
+            "filters": ["resource"],
+            "stream": "ext://sys.stderr",
+        },
+    }
+
+    root_handlers: list[str] = ["console_debug", "console_ops"]
+
+    if a_config.log_dir is not None:
+        log_dir: Path = a_config.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file: Path = log_dir / "arian.log"
+
+        handlers["file"] = {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "NOTSET",
+            "formatter": "file",
+            "filters": ["resource"],
+            "filename": str(log_file),
+            "maxBytes": a_config.max_bytes,
+            "backupCount": a_config.backup_count,
+            "encoding": "utf-8",
+        }
+        root_handlers.append("file")
+
     return {
         "version": 1,
         "disable_existing_loggers": False,
@@ -143,23 +194,12 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
                 "()": f"{_MODULE}.IsoUtcFormatter",
                 "format": "%(levelname)s %(asctime)s%(resource)s : %(message)s",
             },
-        },
-        "handlers": {
-            "console_debug": {
-                "class": "logging.StreamHandler",
-                "level": "NOTSET",
-                "formatter": "diagnostic",
-                "filters": ["diagnostic_level", "resource"],
-                "stream": "ext://sys.stderr",
-            },
-            "console_ops": {
-                "class": "logging.StreamHandler",
-                "level": "INFO",
-                "formatter": "operational",
-                "filters": ["resource"],
-                "stream": "ext://sys.stderr",
+            "file": {
+                "()": f"{_MODULE}.IsoUtcFormatter",
+                "format": "%(levelname)s %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
         },
+        "handlers": handlers,
         "loggers": {
             name: {
                 "level": level,
@@ -170,7 +210,7 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
         },
         "root": {
             "level": "WARNING",
-            "handlers": ["console_debug", "console_ops"],
+            "handlers": root_handlers,
         },
     }
 
