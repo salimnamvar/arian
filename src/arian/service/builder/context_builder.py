@@ -59,6 +59,8 @@ class ContextBuilder:
         a_task: ContextTask,
         a_budget: TokenBudget,
         a_query: str | None = None,
+        a_root: Path | None = None,
+        a_input_paths: list[Path] | None = None,
     ) -> ContextPlan:
         """Build a context plan from a repository path.
 
@@ -69,13 +71,24 @@ class ContextBuilder:
             a_task: The context task type.
             a_budget: Token budget constraints.
             a_query: Optional query for relevance matching.
+            a_root: Root for computing relative paths. Defaults to a_path.
+            a_input_paths: Optional list of specific input paths to scan.
 
         Returns:
             ContextPlan with chunks and metadata.
         """
         logger.info("Building context for task=%s, path=%s", a_task.value, a_path)
 
-        files: list[RepositoryFile] = await self._collector.collect(a_path)
+        root: Path = a_root if a_root is not None else a_path
+        files: list[RepositoryFile] = []
+        seen: set[str] = set()
+        sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
+        for source in sources:
+            collected = await self._collector.collect(source, a_root=root)
+            for f in collected:
+                if f.path not in seen:
+                    files.append(f)
+                    seen.add(f.path)
         logger.debug("Collected %d files", len(files))
 
         for repo_file in files:
@@ -104,7 +117,7 @@ class ContextBuilder:
             a_root: Repository root path.
 
         Returns:
-            Mapping of file path to FileContent.
+            Mapping of relative file path to FileContent.
         """
         content_map: dict[str, FileContent] = {}
         load_tasks: list[asyncio.Task[FileContent | None]] = []
@@ -113,7 +126,9 @@ class ContextBuilder:
             for planned_file in chunk.files:
                 if planned_file.path not in content_map:
                     load_tasks.append(
-                        asyncio.create_task(self._load_single(a_root / planned_file.path)),
+                        asyncio.create_task(
+                            self._load_single(a_root / planned_file.path, planned_file.path),
+                        ),
                     )
 
         results: list[FileContent | None] = list(await asyncio.gather(*load_tasks))
@@ -142,11 +157,12 @@ class ContextBuilder:
         logger.debug("Materialized %d chunks", len(result))
         return result
 
-    async def _load_single(self, a_path: Path) -> FileContent | None:
+    async def _load_single(self, a_path: Path, a_rel_path: str) -> FileContent | None:
         """Load content from a single file.
 
         Args:
             a_path: Full path to the file.
+            a_rel_path: Relative path for the content map key.
 
         Returns:
             FileContent if successful, None on error.
@@ -162,7 +178,7 @@ class ContextBuilder:
                 lambda: hashlib.sha256(content.encode()).hexdigest()[:16],
             )
             result = FileContent(
-                path=str(a_path),
+                path=a_rel_path,
                 content=content,
                 hash=content_hash,
             )

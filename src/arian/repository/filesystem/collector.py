@@ -46,18 +46,24 @@ class FileCollector:
         self._filter: PathFilter = PathFilter(a_exclude)
         self._classifier: FileClassifierProtocol | None = a_classifier
 
-    async def collect(self, a_path: Path) -> list[RepositoryFile]:
+    async def collect(
+        self,
+        a_path: Path,
+        a_root: Path | None = None,
+    ) -> list[RepositoryFile]:
         """Collect file metadata from a directory path.
 
         Args:
             a_path: Root directory to scan.
+            a_root: Root for computing relative paths. Defaults to a_path.
 
         Returns:
             List of RepositoryFile metadata objects.
         """
+        root: Path = a_root if a_root is not None else a_path
         files: list[RepositoryFile] = []
         emitted: set[Path] = set()
-        await self._collect_directory(a_path, files, emitted)
+        await self._collect_directory(a_path, files, emitted, root)
         logger.debug("Collected %d files from %s", len(files), a_path)
         return files
 
@@ -66,6 +72,7 @@ class FileCollector:
         a_directory: Path,
         a_files: list[RepositoryFile],
         a_emitted: set[Path],
+        a_root: Path,
     ) -> None:
         """Recursively collect files from a directory.
 
@@ -73,6 +80,7 @@ class FileCollector:
             a_directory: Directory to scan.
             a_files: Accumulator for collected files.
             a_emitted: Set of already-emitted paths for deduplication.
+            a_root: Root for computing relative paths.
         """
         entries: list[Path]
 
@@ -87,9 +95,9 @@ class FileCollector:
         for entry in entries:
             if entry.is_dir():
                 if self._filter.should_include(entry):
-                    await self._collect_directory(entry, a_files, a_emitted)
+                    await self._collect_directory(entry, a_files, a_emitted, a_root)
             elif entry.is_file():
-                repo_file: RepositoryFile | None = await self._collect_file(entry, a_emitted)
+                repo_file: RepositoryFile | None = await self._collect_file(entry, a_emitted, a_root)
                 if repo_file is not None:
                     a_files.append(repo_file)
 
@@ -97,12 +105,14 @@ class FileCollector:
         self,
         a_path: Path,
         a_emitted: set[Path],
+        a_root: Path,
     ) -> RepositoryFile | None:
         """Collect metadata for a single file.
 
         Args:
             a_path: Path to the file.
             a_emitted: Set of already-emitted paths for deduplication.
+            a_root: Root for computing relative paths.
 
         Returns:
             RepositoryFile if collected, None if skipped.
@@ -129,8 +139,9 @@ class FileCollector:
                 role: FileRole = FileRole.UNKNOWN
                 if self._classifier is not None:
                     role = self._classifier.get_role(str(a_path))
+                rel_path: str = str(a_path.relative_to(a_root))
                 result = RepositoryFile(
-                    path=str(a_path),
+                    path=rel_path,
                     language=language,
                     role=role,
                     tokens=tokens,

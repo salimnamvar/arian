@@ -10,6 +10,7 @@ from pathlib import Path
 import typer
 
 from arian.bootstrap.logging import configure_logging
+from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
 from arian.infrastructure.config import LoggingConfig
@@ -43,8 +44,10 @@ def context(  # a-prefix-ignore: Typer CLI public names
     output: str = typer.Option(".tmp", "-o", "--output", help="Output file path"),
     max_tokens: int = typer.Option(5000, "--max-tokens", help="Maximum tokens for context"),
     per_chunk: int = typer.Option(4000, "--per-chunk", help="Target tokens per chunk"),
+    scope: str = typer.Option("merged", "--scope", help="Scope mode: merged (default) or separate"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug logging"),
     async_logging: bool = typer.Option(False, "--async-logging", help="Enable async logging via queue"),
+    paths: list[str] = typer.Argument(default=None, help="Directories or files to include (default: cwd)"),
 ) -> None:
     """Generate task-aware context from a repository."""
     listener: logging.handlers.QueueListener | None = configure_logging(
@@ -61,9 +64,16 @@ def context(  # a-prefix-ignore: Typer CLI public names
             logger.exception(msg)
             raise typer.Exit(code=1) from None
 
+        if scope not in ("merged", "separate"):
+            msg = f"Invalid scope: {scope}. Valid scopes: merged, separate"
+            logger.error(msg)
+            raise typer.Exit(code=1) from None
+
         budget: TokenBudget = TokenBudget(max_tokens=max_tokens, per_chunk_target=per_chunk)
         root: Path = Path.cwd()
         output_path: Path = resolve_output_path(output)
+
+        input_paths: list[Path] = [root / p for p in paths] if paths else [root]
 
         classifier: FileClassifier = FileClassifier()
         collector: FileCollector = FileCollector(
@@ -82,31 +92,74 @@ def context(  # a-prefix-ignore: Typer CLI public names
             a_materializer=materializer,
         )
 
-        plan = asyncio.run(
-            builder.build(
-                a_path=root,
-                a_task=task_enum,
-                a_budget=budget,
-                a_query=query,
+        if scope == "separate":
+            for input_path in input_paths:
+                if not input_path.exists():
+                    logger.error("Path does not exist: %s", input_path)
+                    raise typer.Exit(code=1) from None
+                plan = asyncio.run(
+                    builder.build(
+                        a_path=input_path,
+                        a_task=task_enum,
+                        a_budget=budget,
+                        a_query=query,
+                        a_root=root,
+                    )
+                )
+                content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=input_path))
+                materialized = builder.materialize(plan, content_map)
+                renderer: MarkdownRenderer = MarkdownRenderer()
+                rendered: str = renderer.render(materialized, plan)
+                rel_name = input_path.relative_to(root) if input_path != root else Path()
+                sep_output = output_path.parent / f"{rel_name}_context.md"
+                sep_output.parent.mkdir(parents=True, exist_ok=True)
+                sep_output.write_text(rendered, encoding="utf-8")
+                logger.info("Output: %s", sep_output)
+        else:
+            if not root.exists():
+                logger.error("Path does not exist: %s", root)
+                raise typer.Exit(code=1) from None
+            plan = asyncio.run(
+                builder.build(
+                    a_path=root,
+                    a_task=task_enum,
+                    a_budget=budget,
+                    a_query=query,
+                    a_root=root,
+                    a_input_paths=input_paths if paths else None,
+                )
             )
-        )
 
-        content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
-        materialized = builder.materialize(plan, content_map)
+            repo_name = root.name
+            input_names = [str(p.relative_to(root)) if p != root else "." for p in input_paths]
+            plan = ContextPlan(
+                chunks=plan.chunks,
+                total_tokens=plan.total_tokens,
+                total_files=plan.total_files,
+                task=plan.task,
+                query=plan.query,
+                metadata={
+                    "repository": repo_name,
+                    "paths": input_names,
+                    "budget": {"max": budget.max_tokens, "per_chunk": budget.per_chunk_target},
+                    "scope": scope,
+                },
+            )
 
-        renderer: MarkdownRenderer = MarkdownRenderer()
-        rendered: str = renderer.render(materialized, plan)
+            content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
+            materialized = builder.materialize(plan, content_map)
+            renderer_final: MarkdownRenderer = MarkdownRenderer()
+            rendered_final: str = renderer_final.render(materialized, plan)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(rendered_final, encoding="utf-8")
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(rendered, encoding="utf-8")
-
-        logger.info(
-            "Context generated: %d files, %d tokens, %d chunks",
-            plan.total_files,
-            plan.total_tokens,
-            len(plan.chunks),
-        )
-        logger.info("Output: %s", output_path)
+            logger.info(
+                "Context generated: %d files, %d tokens, %d chunks",
+                plan.total_files,
+                plan.total_tokens,
+                len(plan.chunks),
+            )
+            logger.info("Output: %s", output_path)
     finally:
         if listener is not None:
             listener.stop()
