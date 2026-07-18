@@ -15,15 +15,17 @@ from pydantic import field_validator
 
 
 class LoggingConfig(BaseModel):
-    """Logging configuration — level only, validated and normalized.
+    """Logging configuration — level and transport behavior.
 
     Attributes:
         level: Application logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        async_logging: Enable async logging via QueueHandler → QueueListener.
     """
 
     model_config = ConfigDict(frozen=True)
 
     level: str = Field(default="INFO", description="Application logging level.")
+    async_logging: bool = Field(default=False, description="Enable async logging via queue.")
 
     @field_validator("level", mode="before")
     @classmethod

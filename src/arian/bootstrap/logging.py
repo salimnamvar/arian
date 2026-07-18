@@ -4,13 +4,15 @@ Project rule
 ------------
 Never instantiate, attach, or reconfigure handlers outside this module.
 Business code must only call ``logging.getLogger(__name__)`` and emit records.
-All wiring (handlers, formatters, filters) lives here.
+All wiring (handlers, formatters, filters, QueueListener) lives here.
 
 Invariants
 ----------
 1. Only the **root** logger owns output handlers.
 2. Named loggers set level, clear handlers, and **propagate** to root.
 3. ``configure_logging()`` is called **once** per process at startup.
+   A second call with ``async_logging=True`` would start another
+   QueueListener without stopping the first.
 
 Formatting policy
 -----------------
@@ -24,6 +26,8 @@ from __future__ import annotations
 
 import logging
 import logging.config
+import logging.handlers
+import queue
 from typing import Any
 
 from arian.infrastructure.config import LoggingConfig
@@ -145,12 +149,64 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
     }
 
 
-def configure_logging(a_config: LoggingConfig | None = None) -> None:
+def _replace_handlers(a_logger: logging.Logger, a_handler: logging.Handler) -> None:
+    """Replace all handlers on *a_logger* with *a_handler*.
+
+    Args:
+        a_logger: Logger to modify.
+        a_handler: Handler to install.
+    """
+    a_logger.handlers.clear()
+    a_logger.addHandler(a_handler)
+
+
+def _enable_async_logging() -> logging.handlers.QueueListener:
+    """Route root handlers through QueueHandler → QueueListener for non-blocking I/O.
+
+    Returns:
+        Running QueueListener instance.
+
+    Raises:
+        RuntimeError: If root logger has no handlers to wrap.
+    """
+    root: logging.Logger = logging.getLogger()
+    targets: list[logging.Handler] = [
+        handler for handler in root.handlers if not isinstance(handler, logging.handlers.QueueHandler)
+    ]
+    if not targets:
+        msg = "Cannot enable async logging: root logger has no handlers"
+        raise RuntimeError(msg)
+
+    log_queue: queue.SimpleQueue[logging.LogRecord] = queue.SimpleQueue()
+    queue_handler: logging.handlers.QueueHandler = logging.handlers.QueueHandler(log_queue)
+    _replace_handlers(root, queue_handler)
+
+    listener: logging.handlers.QueueListener = logging.handlers.QueueListener(
+        log_queue,
+        *targets,
+        respect_handler_level=True,
+    )
+    listener.start()
+    return listener
+
+
+def configure_logging(a_config: LoggingConfig | None = None) -> logging.handlers.QueueListener | None:
     """Apply dictConfig + captureWarnings once at process startup.
+
+    Returns a running ``QueueListener`` when async logging is enabled, else ``None``.
 
     Args:
         a_config: Logging configuration. Uses defaults if None.
+
+    Returns:
+        Running QueueListener if async_logging is enabled, None otherwise.
     """
     config: LoggingConfig = a_config or LoggingConfig()
+
     logging.config.dictConfig(_build_logging_config(config))
     logging.captureWarnings(True)
+
+    listener: logging.handlers.QueueListener | None = None
+    if config.async_logging:
+        listener = _enable_async_logging()
+    return listener

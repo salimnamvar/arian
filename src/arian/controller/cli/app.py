@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import logging.handlers
 from pathlib import Path
 
 import typer
@@ -43,61 +44,69 @@ def context(  # a-prefix-ignore: Typer CLI public names
     max_tokens: int = typer.Option(5000, "--max-tokens", help="Maximum tokens for context"),
     per_chunk: int = typer.Option(4000, "--per-chunk", help="Target tokens per chunk"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug logging"),
+    async_logging: bool = typer.Option(False, "--async-logging", help="Enable async logging via queue"),
 ) -> None:
     """Generate task-aware context from a repository."""
-    configure_logging(LoggingConfig(level="DEBUG" if verbose else "INFO"))
-    logger.info("Generating context for task=%s", task)
+    listener: logging.handlers.QueueListener | None = configure_logging(
+        LoggingConfig(level="DEBUG" if verbose else "INFO", async_logging=async_logging)
+    )
 
     try:
-        task_enum: ContextTask = ContextTask(task.lower())
-    except ValueError:
-        msg = f"Invalid task: {task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
-        logger.exception(msg)
-        raise typer.Exit(code=1) from None
+        logger.info("Generating context for task=%s", task)
 
-    budget: TokenBudget = TokenBudget(max_tokens=max_tokens, per_chunk_target=per_chunk)
-    root: Path = Path.cwd()
-    output_path: Path = resolve_output_path(output)
+        try:
+            task_enum: ContextTask = ContextTask(task.lower())
+        except ValueError:
+            msg = f"Invalid task: {task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
+            logger.exception(msg)
+            raise typer.Exit(code=1) from None
 
-    classifier: FileClassifier = FileClassifier()
-    collector: FileCollector = FileCollector(
-        a_extensions=_DEFAULT_EXTENSIONS,
-        a_exclude=DEFAULT_EXCLUDES,
-        a_classifier=classifier,
-    )
-    index: MemoryRepositoryIndex = MemoryRepositoryIndex()
-    analyzer: PythonAnalyzer = PythonAnalyzer()
-    planner: ContextPlanner = ContextPlanner(a_classifier=classifier)
-    materializer: ContextMaterializer = ContextMaterializer(a_analyzer=analyzer)
-    builder: ContextBuilder = ContextBuilder(
-        a_collector=collector,
-        a_index=index,
-        a_planner=planner,
-        a_materializer=materializer,
-    )
+        budget: TokenBudget = TokenBudget(max_tokens=max_tokens, per_chunk_target=per_chunk)
+        root: Path = Path.cwd()
+        output_path: Path = resolve_output_path(output)
 
-    plan = asyncio.run(
-        builder.build(
-            a_path=root,
-            a_task=task_enum,
-            a_budget=budget,
-            a_query=query,
+        classifier: FileClassifier = FileClassifier()
+        collector: FileCollector = FileCollector(
+            a_extensions=_DEFAULT_EXTENSIONS,
+            a_exclude=DEFAULT_EXCLUDES,
+            a_classifier=classifier,
         )
-    )
+        index: MemoryRepositoryIndex = MemoryRepositoryIndex()
+        analyzer: PythonAnalyzer = PythonAnalyzer()
+        planner: ContextPlanner = ContextPlanner(a_classifier=classifier)
+        materializer: ContextMaterializer = ContextMaterializer(a_analyzer=analyzer)
+        builder: ContextBuilder = ContextBuilder(
+            a_collector=collector,
+            a_index=index,
+            a_planner=planner,
+            a_materializer=materializer,
+        )
 
-    content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
-    materialized = builder.materialize(plan, content_map)
+        plan = asyncio.run(
+            builder.build(
+                a_path=root,
+                a_task=task_enum,
+                a_budget=budget,
+                a_query=query,
+            )
+        )
 
-    renderer: MarkdownRenderer = MarkdownRenderer()
-    rendered: str = renderer.render(materialized, plan)
+        content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
+        materialized = builder.materialize(plan, content_map)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(rendered, encoding="utf-8")
+        renderer: MarkdownRenderer = MarkdownRenderer()
+        rendered: str = renderer.render(materialized, plan)
 
-    logger.info(
-        "Context generated: %d files, %d tokens, %d chunks",
-        plan.total_files,
-        plan.total_tokens,
-        len(plan.chunks),
-    )
-    logger.info("Output: %s", output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(rendered, encoding="utf-8")
+
+        logger.info(
+            "Context generated: %d files, %d tokens, %d chunks",
+            plan.total_files,
+            plan.total_tokens,
+            len(plan.chunks),
+        )
+        logger.info("Output: %s", output_path)
+    finally:
+        if listener is not None:
+            listener.stop()
