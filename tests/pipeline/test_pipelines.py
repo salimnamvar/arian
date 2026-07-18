@@ -26,15 +26,6 @@ class MockWriter:
         self.written.append((a_content, a_path))
         return a_path
 
-    def write_numbered(self, a_chunks: list[str], a_base_path: Path) -> list[Path]:
-        """Record numbered write operation."""
-        result: list[Path] = []
-        for i, chunk in enumerate(a_chunks, start=1):
-            out_path: Path = a_base_path.parent / f"{a_base_path.stem}.{i}.md"
-            self.written.append((chunk, out_path))
-            result.append(out_path)
-        return result
-
 
 class MockRenderer:
     """Mock renderer for testing."""

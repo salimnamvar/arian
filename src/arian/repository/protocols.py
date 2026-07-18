@@ -43,15 +43,3 @@ class WriterProtocol(Protocol):
             Path that was written.
         """
         ...
-
-    def write_numbered(self, a_chunks: list[str], a_base_path: Path) -> list[Path]:
-        """Write numbered output files.
-
-        Args:
-            a_chunks: Content chunks to write.
-            a_base_path: Base path for output files.
-
-        Returns:
-            List of written paths.
-        """
-        ...

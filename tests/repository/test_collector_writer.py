@@ -116,36 +116,3 @@ def test_file_writer_creates_parent_directories(tmp_path: Path) -> None:
     result: Path = writer.write("nested content", output_path)
     assert output_path.exists()
     assert result == output_path
-
-
-def test_file_writer_numbered_files(tmp_path: Path) -> None:
-    """Test writing numbered output files."""
-    writer = FileWriter(a_base_path=tmp_path)
-    base_path: Path = tmp_path / "merged.md"
-
-    result: list[Path] = writer.write_numbered(["chunk1", "chunk2"], base_path)
-    assert len(result) == 2
-    assert result[0].name == "merged.1.md"
-    assert result[1].name == "merged.2.md"
-    assert (tmp_path / "merged.1.md").read_text() == "chunk1"
-    assert (tmp_path / "merged.2.md").read_text() == "chunk2"
-
-
-def test_file_writer_numbered_creates_parent_directories(tmp_path: Path) -> None:
-    """Test that numbered writer creates parent directories."""
-    writer = FileWriter(a_base_path=tmp_path)
-    base_path: Path = tmp_path / "subdir" / "merged.md"
-
-    result: list[Path] = writer.write_numbered(["content"], base_path)
-    assert len(result) == 1
-    assert base_path.parent.exists()
-
-
-def test_file_writer_numbered_default_suffix(tmp_path: Path) -> None:
-    """Test that numbered files get .md suffix when base has no suffix."""
-    writer = FileWriter(a_base_path=tmp_path)
-    base_path: Path = tmp_path / "output"
-
-    result: list[Path] = writer.write_numbered(["content"], base_path)
-    assert len(result) == 1
-    assert result[0].name == "output.1.md"

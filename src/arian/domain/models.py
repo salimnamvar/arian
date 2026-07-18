@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
 
 from arian.domain.enums import OutputMode
 
@@ -32,10 +31,6 @@ class Document:
     content: str = field(default="", metadata={"description": "File content"})
     tokens: int = field(default=0, metadata={"description": "Token count of content"})
     language: str = field(default="", metadata={"description": "Detected language from extension"})
-
-    def __lt__(self, other: Any) -> bool:
-        """Compare documents by path for sorting."""
-        return NotImplemented if not isinstance(other, Document) else self.path < other.path
 
 
 @dataclass(frozen=True)
