@@ -160,6 +160,7 @@ ignore = [
     "S608",    # SQL injection — test queries
     "SLF001",  # private member access — testing internals
     "T201",    # print statement — allowed in tests
+    "TC002",   # type-checking import — runtime pytest usage
 ]
 "**/__init__.py" = ["F401", "TID252"]
 "src/arian/controller/cli/app.py" = [
