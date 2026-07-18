@@ -1,5 +1,5 @@
-"""Allow running arian as a module: python -m arian."""
+"""Entry point for `python -m arian`."""
 
-from arian.controller import app
+from arian.main import main
 
-app()
+main()

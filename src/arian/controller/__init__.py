@@ -1,9 +1,7 @@
-"""Controller layer for Arian.
-
-Provides CLI interface for context building.
-"""
+"""Controller layer for Arian."""
 
 from arian.controller.cli import app
-from arian.controller.cli import build
 
-__all__ = ["app", "build"]
+__all__ = [
+    "app",
+]

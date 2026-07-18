@@ -162,7 +162,7 @@ ignore = [
     "T201",    # print statement — allowed in tests
 ]
 "**/__init__.py" = ["F401", "TID252"]
-"src/arian/controller/cli.py" = [
+"src/arian/controller/cli/app.py" = [
     "B008",    # function call in argument defaults — typer idiom
     "FBT001",  # boolean positional — CLI flags
     "FBT002",  # boolean default — CLI flags
@@ -171,7 +171,7 @@ ignore = [
     "FBT001",  # boolean positional — internal flag
     "FBT002",  # boolean default — internal flag
 ]
-"src/arian/renderers/markdown.py" = [
+"src/arian/renderers/markdown/renderer.py" = [
     "FBT001",  # boolean positional — renderer option flags
     "FBT002",  # boolean default — renderer option flags
 ]

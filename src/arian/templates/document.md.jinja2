@@ -1,0 +1,40 @@
+{% if directory_structure %}
+# Repository Structure
+
+```
+{{ directory_structure }}
+```
+
+{% endif %}
+{% if file_summary %}
+# File Summary
+
+{{ file_summary }}
+
+{% endif %}
+{% if custom_instructions %}
+# Instructions
+
+{{ custom_instructions }}
+
+{% endif %}
+{% for chunk in chunks %}
+{% if chunk.header %}
+## {{ chunk.header }}
+
+{% endif %}
+{% for file in chunk.files %}
+─── {{ file.path }} ({{ file.representation | upper }}) ───
+{% if file.content %}
+```{{ file.language }}
+{{ file.content }}
+```
+{% else %}
+{{ file.content }}
+{% endif %}
+
+{% endfor %}
+{% endfor %}
+## Summary
+Files: {{ total_files }}
+Tokens: {{ total_tokens }}

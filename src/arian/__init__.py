@@ -1,27 +1,7 @@
-"""Arian - build context for AI from source files."""
+"""Arian - repository intelligence and context planning engine."""
 
-from arian.controller import app
-from arian.controller import build
-from arian.domain import ContextConfig
-from arian.domain import ContextResult
-from arian.domain import Document
-from arian.domain import OutputMode
-from arian.infrastructure import ContextBuilderSettings
-from arian.infrastructure import count_tokens
-from arian.infrastructure import detect_language
-from arian.infrastructure import resolve_output_path
-from arian.services import ContextBuilderService
+from arian.controller.cli import app
 
 __all__ = [
-    "ContextBuilderService",
-    "ContextBuilderSettings",
-    "ContextConfig",
-    "ContextResult",
-    "Document",
-    "OutputMode",
     "app",
-    "build",
-    "count_tokens",
-    "detect_language",
-    "resolve_output_path",
 ]

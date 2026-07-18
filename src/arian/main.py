@@ -1,8 +1,8 @@
-"""Arian - main entry point."""
+"""Main entry point for Arian CLI."""
 
-from __future__ import annotations
+from arian.controller.cli import app
 
-from arian.controller import app
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the Arian CLI application."""
     app()

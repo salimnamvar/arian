@@ -1,40 +1,51 @@
 """Domain layer for Arian.
 
 Provides domain entities, enums, and exceptions.
+Zero external dependencies — only stdlib imports.
 """
 
-from arian.domain.enums import FileRole
-from arian.domain.enums import OutputMode
+from arian.domain.context import ContextChunk
+from arian.domain.context import ContextPlan
+from arian.domain.context import ContextResult
+from arian.domain.context import ContextTask
+from arian.domain.context import PlannedFile
 from arian.domain.exceptions import ContextBuilderError
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.exceptions import NoDocumentsError
 from arian.domain.exceptions import ProjectBaseError
-from arian.domain.models import FULL
-from arian.domain.models import SIGNATURES
-from arian.domain.models import STRUCTURE_ONLY
-from arian.domain.models import CompressionLevel
-from arian.domain.models import ContextConfig
-from arian.domain.models import ContextResult
-from arian.domain.models import Document
-from arian.domain.models import FileClassification
-from arian.domain.models import InputSpec
-from arian.domain.models import PatternRule
+from arian.domain.protocols import LanguageAnalyzerProtocol
+from arian.domain.repository import Dependency
+from arian.domain.repository import FileContent
+from arian.domain.repository import Module
+from arian.domain.repository import Repository
+from arian.domain.repository import RepositoryFile
+from arian.domain.repository import Symbol
+from arian.domain.shared import CompressionLevel
+from arian.domain.shared import DependencyKind
+from arian.domain.shared import FileRole
+from arian.domain.shared import SymbolKind
+from arian.domain.shared import TokenBudget
 
 __all__ = [
-    "FULL",
-    "SIGNATURES",
-    "STRUCTURE_ONLY",
     "CompressionLevel",
     "ContextBuilderError",
-    "ContextConfig",
+    "ContextChunk",
+    "ContextPlan",
     "ContextResult",
-    "Document",
-    "FileClassification",
+    "ContextTask",
+    "Dependency",
+    "DependencyKind",
+    "FileContent",
     "FileRole",
     "InputNotFoundError",
-    "InputSpec",
+    "LanguageAnalyzerProtocol",
+    "Module",
     "NoDocumentsError",
-    "OutputMode",
-    "PatternRule",
+    "PlannedFile",
     "ProjectBaseError",
+    "Repository",
+    "RepositoryFile",
+    "Symbol",
+    "SymbolKind",
+    "TokenBudget",
 ]

@@ -1,11 +1,16 @@
 """Repository layer for Arian.
 
-Provides collector and writer implementations.
+Provides file collection and indexed storage implementations.
 """
 
-from arian.repositories.collector import FilesystemCollector
-from arian.repositories.protocols import CollectorProtocol
-from arian.repositories.protocols import WriterProtocol
-from arian.repositories.writer import FileWriter
+from arian.repositories.filesystem import FileCollector
+from arian.repositories.index import MemoryRepositoryIndex
+from arian.repositories.index import RepositoryIndexProtocol
+from arian.repositories.index import SQLiteRepositoryIndex
 
-__all__ = ["CollectorProtocol", "FileWriter", "FilesystemCollector", "WriterProtocol"]
+__all__ = [
+    "FileCollector",
+    "MemoryRepositoryIndex",
+    "RepositoryIndexProtocol",
+    "SQLiteRepositoryIndex",
+]
