@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ class MockCollector:
         """Initialize with documents to return."""
         self._documents = a_documents
 
-    def collect(self, a_inputs: list[str]) -> list[Document]:
+    async def collect(self, a_inputs: list[str]) -> list[Document]:
         """Return mock documents."""
         return self._documents
 
@@ -32,7 +33,7 @@ class MockWriter:
         """Initialize mock writer."""
         self.written: list[tuple[str, Path]] = []
 
-    def write(self, a_content: str, a_path: Path) -> Path:
+    async def write(self, a_content: str, a_path: Path) -> Path:
         """Record write operation."""
         self.written.append((a_content, a_path))
         return a_path
@@ -88,6 +89,18 @@ def test_context_builder_service_aggregate_mode() -> None:
     assert result.total_files == 1
     assert result.total_tokens == 10
     assert result.chunks == 1
+
+
+def test_context_builder_service_build_async() -> None:
+    """Test ContextBuilderService.build_async."""
+    docs = [
+        Document(path="a.py", content="code", tokens=10, language="python"),
+    ]
+    service, _writer, _renderer = _make_service(OutputMode.AGGREGATE, docs)
+
+    result = asyncio.run(service.build_async())
+    assert result.total_files == 1
+    assert result.total_tokens == 10
 
 
 def test_context_builder_service_separate_mode() -> None:
@@ -186,7 +199,7 @@ def test_render_aggregate_single() -> None:
     docs = [Document(path="a.py", content="code", tokens=10, language="python")]
     service, writer, _r = _make_service(OutputMode.AGGREGATE, docs, a_output="output.md")
 
-    result = service._render_aggregate_single(docs, Path("output.md"), 10)
+    result = asyncio.run(service._render_aggregate_single(docs, Path("output.md"), 10))
 
     assert result.output_paths == ("output.md",)
     assert result.total_files == 1
@@ -203,7 +216,7 @@ def test_render_aggregate_split() -> None:
     ]
     service, writer, _r = _make_service(OutputMode.AGGREGATE, [], a_output="output/", a_max_tokens=100)
 
-    result = service._render_aggregate_split(chunks, Path("output/"), 100)
+    result = asyncio.run(service._render_aggregate_split(chunks, Path("output/"), 100))
 
     assert len(result.output_paths) == 2
     assert "merged.1.md" in result.output_paths[0]
@@ -220,7 +233,7 @@ def test_render_separate() -> None:
     ]
     service, writer, _r = _make_service(OutputMode.SEPARATE, [], a_output="output/")
 
-    result = service._render_separate(chunks, Path("output/"), 20)
+    result = asyncio.run(service._render_separate(chunks, Path("output/"), 20))
 
     assert len(result.output_paths) == 2
     assert "a.md" in result.output_paths[0]
@@ -237,6 +250,6 @@ def test_render_separate_skips_empty_chunks() -> None:
     ]
     service, _w, _r = _make_service(OutputMode.SEPARATE, [], a_output="output/")
 
-    result = service._render_separate(chunks, Path("output/"), 20)
+    result = asyncio.run(service._render_separate(chunks, Path("output/"), 20))
 
     assert len(result.output_paths) == 2

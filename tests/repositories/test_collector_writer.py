@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
+import asyncio
 from pathlib import Path
+
+import pytest
 
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
@@ -22,7 +24,7 @@ def test_filesystem_collector_single_file(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = collector.collect([str(test_file)])
+    result: list[Document] = asyncio.run(collector.collect([str(test_file)]))
     assert len(result) == 1
     assert result[0].path == str(test_file)
     assert result[0].content == "print('hello')"
@@ -43,12 +45,11 @@ def test_filesystem_collector_directory(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = collector.collect([str(tmp_path)])
+    result: list[Document] = asyncio.run(collector.collect([str(tmp_path)]))
     paths: list[str] = [d.path for d in result]
     assert len(result) == 2
     assert str(tmp_path / "file1.py") in paths
     assert str(tmp_path / "file2.md") in paths
-    # git internal file should be excluded
     assert not any(".git" in p for p in paths)
 
 
@@ -65,7 +66,7 @@ def test_filesystem_collector_excluded_directory(tmp_path: Path) -> None:
         a_tokenizer=lambda s: len(s),
     )
 
-    result: list[Document] = collector.collect([str(tmp_path)])
+    result: list[Document] = asyncio.run(collector.collect([str(tmp_path)]))
     assert len(result) == 1
     assert result[0].path == str(tmp_path / "current.py")
 
@@ -79,7 +80,7 @@ def test_filesystem_collector_missing_path(tmp_path: Path) -> None:
     )
 
     with pytest.raises(InputNotFoundError) as exc_info:
-        collector.collect([str(tmp_path / "nonexistent")])
+        asyncio.run(collector.collect([str(tmp_path / "nonexistent")]))
     assert "nonexistent" in exc_info.value.message
 
 
@@ -94,7 +95,7 @@ def test_filesystem_collector_unsupported_extension(tmp_path: Path) -> None:
         a_tokenizer=len,
     )
 
-    result: list[Document] = collector.collect([str(test_file)])
+    result: list[Document] = asyncio.run(collector.collect([str(test_file)]))
     assert len(result) == 0
 
 
@@ -103,7 +104,7 @@ def test_file_writer_single_file(tmp_path: Path) -> None:
     writer = FileWriter(a_base_path=tmp_path)
     output_path: Path = tmp_path / "output.md"
 
-    result: Path = writer.write("content", output_path)
+    result: Path = asyncio.run(writer.write("content", output_path))
     assert result == output_path
     assert output_path.read_text(encoding="utf-8") == "content"
 
@@ -113,6 +114,6 @@ def test_file_writer_creates_parent_directories(tmp_path: Path) -> None:
     writer = FileWriter(a_base_path=tmp_path)
     output_path: Path = tmp_path / "subdir" / "nested" / "output.md"
 
-    result: Path = writer.write("nested content", output_path)
+    result: Path = asyncio.run(writer.write("nested content", output_path))
     assert output_path.exists()
     assert result == output_path

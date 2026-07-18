@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -84,7 +85,7 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
             a_writer=writer,
             a_renderer=renderer,
         )
-        result = service.build()
+        result = asyncio.run(service.build_async())
 
         logger.info(
             "Build complete: %d files, %d tokens, %d chunk(s)",

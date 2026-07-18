@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -22,7 +23,7 @@ class FileWriter:
         """
         self._base_path: Path = a_base_path
 
-    def write(self, a_content: str, a_path: Path) -> Path:
+    async def write(self, a_content: str, a_path: Path) -> Path:
         """Write content to single output file.
 
         Args:
@@ -32,7 +33,7 @@ class FileWriter:
         Returns:
             Path that was written.
         """
-        a_path.parent.mkdir(parents=True, exist_ok=True)
-        a_path.write_text(a_content, encoding="utf-8")
+        await asyncio.to_thread(a_path.parent.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread(a_path.write_text, a_content, encoding="utf-8")
         logger.debug("Wrote %d bytes to %s", len(a_content), a_path)
         return a_path

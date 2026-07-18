@@ -5,6 +5,7 @@ Orchestrates the context building pipeline with dependency injection.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -51,7 +52,7 @@ class ContextBuilderService:
         self._renderer: RendererProtocol = a_renderer
 
     def build(self) -> ContextResult:
-        """Build context and write output.
+        """Build context and write output (synchronous wrapper).
 
         Returns:
             ContextResult: Result of the operation.
@@ -59,7 +60,19 @@ class ContextBuilderService:
         Raises:
             NoDocumentsError: If no documents were collected from inputs.
         """
-        documents: list[Document] = self._collector.collect(list(self._config.inputs))
+        result: ContextResult = asyncio.run(self.build_async())
+        return result
+
+    async def build_async(self) -> ContextResult:
+        """Build context and write output asynchronously.
+
+        Returns:
+            ContextResult: Result of the operation.
+
+        Raises:
+            NoDocumentsError: If no documents were collected from inputs.
+        """
+        documents: list[Document] = await self._collector.collect(list(self._config.inputs))
 
         if not documents:
             logger.warning("No documents collected from inputs")
@@ -85,7 +98,7 @@ class ContextBuilderService:
 
         out_path: Path = Path(self._config.output_path)
 
-        result: ContextResult = self._render_and_write(
+        result: ContextResult = await self._render_and_write(
             a_documents=documents,
             a_chunks=chunks,
             a_output_path=out_path,
@@ -135,7 +148,7 @@ class ContextBuilderService:
 
         return chunks
 
-    def _render_and_write(
+    async def _render_and_write(
         self,
         a_documents: list[Document],
         a_chunks: list[list[Document]],
@@ -157,15 +170,15 @@ class ContextBuilderService:
 
         result: ContextResult
         if self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is None:
-            result = self._render_aggregate_single(a_documents, a_output_path, total_tokens)
+            result = await self._render_aggregate_single(a_documents, a_output_path, total_tokens)
         elif self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is not None:
-            result = self._render_aggregate_split(a_chunks, a_output_path, total_tokens)
+            result = await self._render_aggregate_split(a_chunks, a_output_path, total_tokens)
         else:
-            result = self._render_separate(a_chunks, a_output_path, total_tokens)
+            result = await self._render_separate(a_chunks, a_output_path, total_tokens)
 
         return result
 
-    def _render_aggregate_single(
+    async def _render_aggregate_single(
         self,
         a_documents: list[Document],
         a_output_path: Path,
@@ -186,7 +199,7 @@ class ContextBuilderService:
         if output_path.suffix != ".md":
             output_path = output_path / "merged.md"
 
-        written: Path = self._writer.write(content, output_path)
+        written: Path = await self._writer.write(content, output_path)
         logger.debug("Wrote %s", written)
 
         result: ContextResult = ContextResult(
@@ -196,7 +209,7 @@ class ContextBuilderService:
         )
         return result
 
-    def _render_aggregate_split(
+    async def _render_aggregate_split(
         self,
         a_chunks: list[list[Document]],
         a_output_path: Path,
@@ -212,24 +225,25 @@ class ContextBuilderService:
         Returns:
             ContextResult.
         """
-        output_paths: list[str] = []
-
+        write_tasks: list[asyncio.Task[Path]] = []
         for i, chunk in enumerate(a_chunks, start=1):
             content: str = self._renderer.render(chunk)
             numbered_path: Path = a_output_path / f"merged.{i}.md"
-            self._writer.write(content, numbered_path)
-            logger.debug("Wrote chunk %d to %s", i, numbered_path)
-            output_paths.append(str(numbered_path))
+            write_tasks.append(asyncio.create_task(self._writer.write(content, numbered_path)))
+
+        written_paths: list[Path] = list(await asyncio.gather(*write_tasks))
+        for numbered_path in written_paths:
+            logger.debug("Wrote chunk to %s", numbered_path)
 
         result: ContextResult = ContextResult(
-            output_paths=tuple(output_paths),
+            output_paths=tuple(str(p) for p in written_paths),
             total_files=sum(len(c) for c in a_chunks),
             total_tokens=a_total_tokens,
             chunks=len(a_chunks),
         )
         return result
 
-    def _render_separate(
+    async def _render_separate(
         self,
         a_chunks: list[list[Document]],
         a_output_path: Path,
@@ -245,7 +259,7 @@ class ContextBuilderService:
         Returns:
             ContextResult.
         """
-        output_paths: list[str] = []
+        write_coros: list[asyncio.Task[Path]] = []
 
         for chunk in a_chunks:
             if not chunk:
@@ -254,12 +268,14 @@ class ContextBuilderService:
             stem: str = Path(first_doc.path).stem or Path(first_doc.path).name
             content: str = self._renderer.render(chunk)
             out_path: Path = a_output_path / f"{stem}.md"
-            self._writer.write(content, out_path)
+            write_coros.append(asyncio.create_task(self._writer.write(content, out_path)))
+
+        written_paths: list[Path] = list(await asyncio.gather(*write_coros)) if write_coros else []
+        for out_path in written_paths:
             logger.debug("Wrote %s", out_path)
-            output_paths.append(str(out_path))
 
         result: ContextResult = ContextResult(
-            output_paths=tuple(output_paths),
+            output_paths=tuple(str(p) for p in written_paths),
             total_files=sum(len(c) for c in a_chunks),
             total_tokens=a_total_tokens,
         )

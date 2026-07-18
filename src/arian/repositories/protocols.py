@@ -17,7 +17,7 @@ class CollectorProtocol(Protocol):
     Protocol for document collection implementations.
     """
 
-    def collect(self, a_inputs: list[str]) -> list[Document]:
+    async def collect(self, a_inputs: list[str]) -> list[Document]:
         """Collect documents from input paths.
 
         Args:
@@ -32,7 +32,7 @@ class CollectorProtocol(Protocol):
 class WriterProtocol(Protocol):
     """Writes rendered content to output."""
 
-    def write(self, a_content: str, a_path: Path) -> Path:
+    async def write(self, a_content: str, a_path: Path) -> Path:
         """Write content to single output file.
 
         Args:
