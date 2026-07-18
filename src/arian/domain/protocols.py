@@ -1,4 +1,4 @@
-"""Language analysis protocol for Arian."""
+"""Domain protocols for Arian."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Protocol
 
 from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
+from arian.domain.shared.enums import FileRole
 
 
 class LanguageAnalyzerProtocol(Protocol):
@@ -70,5 +71,34 @@ class LanguageAnalyzerProtocol(Protocol):
 
         Returns:
             Content with comments removed.
+        """
+        ...
+
+
+class FileClassifierProtocol(Protocol):
+    """File classification interface.
+
+    Implementations classify files by role and importance.
+    """
+
+    def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]:
+        """Classify a file path into role, importance, and compression.
+
+        Args:
+            a_path: Relative file path.
+
+        Returns:
+            Tuple of (role, importance, compression_level).
+        """
+        ...
+
+    def get_role(self, a_path: str) -> FileRole:
+        """Get the file role for a path.
+
+        Args:
+            a_path: Relative file path.
+
+        Returns:
+            Detected file role.
         """
         ...

@@ -19,6 +19,7 @@ from arian.repositories.index.memory_repository import MemoryRepositoryIndex
 from arian.services.analyzer.python_analyzer import PythonAnalyzer
 from arian.services.builder.context_builder import ContextBuilder
 from arian.services.classifier.file_classifier import FileClassifier
+from arian.services.context.materializer import ContextMaterializer
 from arian.services.planner.context_planner import ContextPlanner
 
 app: typer.Typer = typer.Typer(help="Repository intelligence and context planning engine.")
@@ -27,7 +28,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 _DEFAULT_EXTENSIONS: frozenset[str] = frozenset({".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json"})
 _DEFAULT_EXCLUDE: frozenset[str] = frozenset(
-    {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", "node_modules", ".venv"}
+    {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", "node_modules", ".venv", ".tmp", ".tmp1"}
 )
 
 
@@ -60,19 +61,21 @@ def context(  # a-prefix-ignore: Typer CLI public names
     root: Path = Path.cwd()
     output_path: Path = resolve_output_path(output)
 
+    classifier: FileClassifier = FileClassifier()
     collector: FileCollector = FileCollector(
         a_extensions=_DEFAULT_EXTENSIONS,
         a_exclude=_DEFAULT_EXCLUDE,
+        a_classifier=classifier,
     )
     index: MemoryRepositoryIndex = MemoryRepositoryIndex()
     analyzer: PythonAnalyzer = PythonAnalyzer()
-    classifier: FileClassifier = FileClassifier()
     planner: ContextPlanner = ContextPlanner(a_classifier=classifier)
+    materializer: ContextMaterializer = ContextMaterializer(a_analyzer=analyzer)
     builder: ContextBuilder = ContextBuilder(
         a_collector=collector,
         a_index=index,
-        a_analyzer=analyzer,
         a_planner=planner,
+        a_materializer=materializer,
     )
 
     plan = asyncio.run(
@@ -85,9 +88,10 @@ def context(  # a-prefix-ignore: Typer CLI public names
     )
 
     content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
+    materialized = builder.materialize(plan, content_map)
 
     renderer: MarkdownRenderer = MarkdownRenderer()
-    rendered: str = renderer.render(plan, content_map, a_root=root)
+    rendered: str = renderer.render(materialized, plan)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(rendered, encoding="utf-8")

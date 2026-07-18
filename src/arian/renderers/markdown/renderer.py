@@ -10,7 +10,7 @@ from jinja2 import FileSystemLoader
 from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
-from arian.domain.repository.models import FileContent
+from arian.domain.context.models import MaterializedChunk
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +18,10 @@ _TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent / "templates"
 
 
 class MarkdownRenderer:
-    """Renders context plans as Markdown output.
+    """Renders materialized chunks as Markdown output.
 
     Uses Jinja2 templates for flexible output formatting.
+    Receives only MaterializedChunks — never raw repository state.
 
     Attributes:
         _environment: Jinja2 template environment.
@@ -39,16 +40,14 @@ class MarkdownRenderer:
 
     def render(
         self,
+        a_chunks: tuple[MaterializedChunk, ...],
         a_plan: ContextPlan,
-        a_files: dict[str, FileContent],
-        a_root: Path | None = None,
     ) -> str:
-        """Render a context plan to Markdown.
+        """Render materialized chunks to Markdown.
 
         Args:
-            a_plan: Context plan with chunks and metadata.
-            a_files: Mapping of file path to FileContent.
-            a_root: Optional root path for relative path display.
+            a_chunks: Materialized chunks with compressed content.
+            a_plan: Original context plan for metadata.
 
         Returns:
             Rendered Markdown string.
@@ -56,29 +55,20 @@ class MarkdownRenderer:
         chunks_data: list[dict[str, object]] = []
         total_files: int = 0
 
-        for chunk in a_plan.chunks:
+        for chunk in a_chunks:
             files_data: list[dict[str, object]] = []
-            for planned_file in chunk.files:
-                content_obj: FileContent | None = a_files.get(planned_file.path)
-                content_str: str = content_obj.content if content_obj is not None else ""
+            for mat_file in chunk.files:
                 lang: str = ""
-                if content_obj is not None and planned_file.path.endswith(".py"):
+                if mat_file.path.endswith(".py"):
                     lang = "python"
-                elif content_obj is not None and planned_file.path.endswith(".md"):
+                elif mat_file.path.endswith(".md"):
                     lang = "markdown"
-
-                display_path: str = planned_file.path
-                if a_root is not None:
-                    try:
-                        display_path = str(Path(planned_file.path).relative_to(a_root))
-                    except ValueError:
-                        display_path = planned_file.path
 
                 files_data.append(
                     {
-                        "path": display_path,
-                        "representation": planned_file.representation,
-                        "content": content_str,
+                        "path": mat_file.path,
+                        "representation": mat_file.compression.value,
+                        "content": mat_file.content,
                         "language": lang,
                     }
                 )
@@ -91,8 +81,8 @@ class MarkdownRenderer:
                 }
             )
 
-        directory_structure: str = self._build_directory_structure(a_plan, a_root)
-        file_summary: str = self._build_file_summary(a_plan)
+        directory_structure: str = self._build_directory_structure(a_chunks)
+        file_summary: str = self._build_file_summary(a_plan, total_files)
 
         result: str = self._template.render(
             directory_structure=directory_structure,
@@ -102,56 +92,48 @@ class MarkdownRenderer:
             total_files=total_files,
             total_tokens=a_plan.total_tokens,
         )
-        logger.debug("Rendered context plan to markdown (%d tokens)", a_plan.total_tokens)
+        logger.debug("Rendered materialized chunks to markdown (%d tokens)", a_plan.total_tokens)
         return result
 
     def _build_directory_structure(
         self,
-        a_plan: ContextPlan,
-        a_root: Path | None,
+        a_chunks: tuple[MaterializedChunk, ...],
     ) -> str:
-        """Build a directory tree string from the plan.
+        """Build a directory tree string from materialized chunks.
 
         Args:
-            a_plan: Context plan.
-            a_root: Optional root path.
+            a_chunks: Materialized chunks.
 
         Returns:
             Multi-line directory tree string.
         """
         paths: list[str] = []
-        for chunk in a_plan.chunks:
-            for planned_file in chunk.files:
-                paths.append(planned_file.path)
+        for chunk in a_chunks:
+            for mat_file in chunk.files:
+                paths.append(mat_file.path)
 
         lines: list[str] = []
         for path in sorted(set(paths)):
-            display: str = path
-            if a_root is not None:
-                try:
-                    display = str(Path(path).relative_to(a_root))
-                except ValueError:
-                    display = path
-
-            depth: int = len(Path(display).parts) - 1
+            depth: int = len(Path(path).parts) - 1
             indent: str = "  " * max(depth, 0)
-            name: str = Path(display).name
+            name: str = Path(path).name
             lines.append(f"{indent}{name}")
 
         result: str = "\n".join(lines)
         return result
 
-    def _build_file_summary(self, a_plan: ContextPlan) -> str:
+    def _build_file_summary(self, a_plan: ContextPlan, a_total_files: int) -> str:
         """Build a file summary with token counts.
 
         Args:
-            a_plan: Context plan.
+            a_plan: Context plan for metadata.
+            a_total_files: Total file count.
 
         Returns:
             Multi-line summary string.
         """
         lines: list[str] = [
-            f"Files: {a_plan.total_files}",
+            f"Files: {a_total_files}",
             f"Tokens: {a_plan.total_tokens}",
             f"Chunks: {len(a_plan.chunks)}",
             f"Task: {a_plan.task.value}",

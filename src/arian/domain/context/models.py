@@ -49,6 +49,33 @@ class ContextPlan:
     task: ContextTask
     query: str | None = None
 
+    def validate(self) -> None:
+        """Validate ContextPlan invariants.
+
+        Raises:
+            ValueError: If plan violates invariants.
+        """
+        seen_paths: set[str] = set()
+        computed_tokens: int = 0
+        for chunk in self.chunks:
+            chunk_tokens: int = 0
+            for planned_file in chunk.files:
+                if planned_file.compression == CompressionLevel.AUTO:
+                    msg = f"AUTO compression not resolved: {planned_file.path}"
+                    raise ValueError(msg)
+                chunk_tokens += planned_file.tokens
+                if planned_file.path in seen_paths:
+                    msg = f"Duplicate file in plan: {planned_file.path}"
+                    raise ValueError(msg)
+                seen_paths.add(planned_file.path)
+            if chunk_tokens != chunk.token_count:
+                msg = f"Chunk token count mismatch: {chunk_tokens} != {chunk.token_count}"
+                raise ValueError(msg)
+            computed_tokens += chunk_tokens
+        if computed_tokens != self.total_tokens:
+            msg = f"Total token count mismatch: {computed_tokens} != {self.total_tokens}"
+            raise ValueError(msg)
+
 
 @dataclass(frozen=True)
 class ContextChunk:
@@ -103,3 +130,43 @@ class ContextResult:
     total_files: int
     total_tokens: int
     chunks: int
+
+
+@dataclass(frozen=True)
+class MaterializedFile:
+    """A file with compressed content ready for rendering.
+
+    Attributes:
+        path: Relative file path.
+        role: File role.
+        importance: Importance score.
+        compression: Compression level applied.
+        content: Compressed content string.
+        tokens: Actual token count.
+        is_overflow: True if this is an overflow full copy.
+    """
+
+    path: str
+    role: FileRole
+    importance: int
+    compression: CompressionLevel
+    content: str
+    tokens: int
+    is_overflow: bool = False
+
+
+@dataclass(frozen=True)
+class MaterializedChunk:
+    """A chunk with compressed content ready for rendering.
+
+    Attributes:
+        files: Tuple of materialized files in this chunk.
+        token_count: Token count for this chunk.
+        chunk_index: Zero-based chunk index.
+        header: Optional section header.
+    """
+
+    files: tuple[MaterializedFile, ...]
+    token_count: int
+    chunk_index: int
+    header: str = ""

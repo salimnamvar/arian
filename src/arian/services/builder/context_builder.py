@@ -9,49 +9,49 @@ from pathlib import Path
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
+from arian.domain.context.models import MaterializedChunk
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import TokenBudget
 from arian.repositories.filesystem.collector import FileCollector
 from arian.repositories.index.protocols import RepositoryIndexProtocol
-from arian.services.analyzer.python_analyzer import PythonAnalyzer
+from arian.services.context.materializer import ContextMaterializer
 from arian.services.planner.context_planner import ContextPlanner
 
 logger = logging.getLogger(__name__)
 
 
 class ContextBuilder:
-    """Builds context by collecting, analyzing, planning, and loading content.
+    """Builds context by collecting, analyzing, planning, materializing, and rendering.
 
-    Orchestrates the full pipeline from repository scanning to
-    context output generation.
+    Pipeline: collect -> analyze -> plan -> materialize -> render -> write.
 
     Attributes:
         _collector: File collector for repository scanning.
         _index: Repository index for metadata storage.
-        _analyzer: Python analyzer for symbol extraction.
         _planner: Context planner for file selection.
+        _materializer: Context materializer for compression.
     """
 
     def __init__(
         self,
         a_collector: FileCollector,
         a_index: RepositoryIndexProtocol,
-        a_analyzer: PythonAnalyzer | None = None,
-        a_planner: ContextPlanner | None = None,
+        a_planner: ContextPlanner,
+        a_materializer: ContextMaterializer,
     ) -> None:
         """Initialize context builder.
 
         Args:
             a_collector: File collector for repository scanning.
             a_index: Repository index for metadata storage.
-            a_analyzer: Optional Python analyzer (defaults to new instance).
-            a_planner: Optional context planner (defaults to new instance).
+            a_planner: Context planner for file selection.
+            a_materializer: Context materializer for compression.
         """
         self._collector: FileCollector = a_collector
         self._index: RepositoryIndexProtocol = a_index
-        self._analyzer: PythonAnalyzer = a_analyzer if a_analyzer is not None else PythonAnalyzer()
-        self._planner: ContextPlanner = a_planner if a_planner is not None else ContextPlanner()
+        self._planner: ContextPlanner = a_planner
+        self._materializer: ContextMaterializer = a_materializer
 
     async def build(
         self,
@@ -82,6 +82,7 @@ class ContextBuilder:
             await self._index.save_file(repo_file)
 
         plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
+        plan.validate()
         logger.info(
             "Planned %d files in %d chunks (%d tokens)",
             plan.total_files,
@@ -122,6 +123,24 @@ class ContextBuilder:
 
         logger.debug("Loaded content for %d files", len(content_map))
         return content_map
+
+    def materialize(
+        self,
+        a_plan: ContextPlan,
+        a_content: dict[str, FileContent],
+    ) -> tuple[MaterializedChunk, ...]:
+        """Materialize a context plan with compressed content.
+
+        Args:
+            a_plan: Context plan with compression decisions.
+            a_content: Mapping of file path to FileContent.
+
+        Returns:
+            Tuple of MaterializedChunk with compressed content.
+        """
+        result: tuple[MaterializedChunk, ...] = self._materializer.materialize(a_plan, a_content)
+        logger.debug("Materialized %d chunks", len(result))
+        return result
 
     async def _load_single(self, a_path: Path) -> FileContent | None:
         """Load content from a single file.

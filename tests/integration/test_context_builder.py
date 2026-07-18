@@ -11,7 +11,11 @@ from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
 from arian.repositories.filesystem.collector import FileCollector
 from arian.repositories.index.memory_repository import MemoryRepositoryIndex
+from arian.services.analyzer.python_analyzer import PythonAnalyzer
 from arian.services.builder.context_builder import ContextBuilder
+from arian.services.classifier.file_classifier import FileClassifier
+from arian.services.context.materializer import ContextMaterializer
+from arian.services.planner.context_planner import ContextPlanner
 
 
 @pytest.mark.integration
@@ -31,14 +35,20 @@ class TestContextBuilderIntegration:
 
         (tmp_path / "README.md").write_text("# My Project\n\nA test project.\n")
 
+        classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py", ".md"}),
             a_exclude=frozenset({"__pycache__", ".git"}),
+            a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
+        planner = ContextPlanner(a_classifier=classifier)
+        materializer = ContextMaterializer(a_analyzer=PythonAnalyzer())
         builder = ContextBuilder(
             a_collector=collector,
             a_index=index,
+            a_planner=planner,
+            a_materializer=materializer,
         )
 
         budget = TokenBudget(max_tokens=5000)
@@ -59,14 +69,20 @@ class TestContextBuilderIntegration:
         """Test that content loading works."""
         (tmp_path / "main.py").write_text("x = 1\n")
 
+        classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
+            a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
+        planner = ContextPlanner(a_classifier=classifier)
+        materializer = ContextMaterializer(a_analyzer=PythonAnalyzer())
         builder = ContextBuilder(
             a_collector=collector,
             a_index=index,
+            a_planner=planner,
+            a_materializer=materializer,
         )
 
         budget = TokenBudget(max_tokens=5000)

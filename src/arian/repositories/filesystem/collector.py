@@ -7,6 +7,7 @@ import hashlib
 import logging
 from pathlib import Path
 
+from arian.domain.protocols import FileClassifierProtocol
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import FileRole
 from arian.infrastructure.gitignore_filter import PathFilter
@@ -25,21 +26,25 @@ class FileCollector:
     Attributes:
         _extensions: File extensions to include.
         _filter: Path filter for gitignore and exclusion patterns.
+        _classifier: File classifier for role detection.
     """
 
     def __init__(
         self,
         a_extensions: frozenset[str],
         a_exclude: frozenset[str],
+        a_classifier: FileClassifierProtocol | None = None,
     ) -> None:
         """Initialize collector.
 
         Args:
             a_extensions: File extensions to include (e.g. {".py", ".md"}).
             a_exclude: Directory names to exclude.
+            a_classifier: Optional file classifier for role detection.
         """
         self._extensions: frozenset[str] = a_extensions
         self._filter: PathFilter = PathFilter(a_exclude)
+        self._classifier: FileClassifierProtocol | None = a_classifier
 
     async def collect(self, a_path: Path) -> list[RepositoryFile]:
         """Collect file metadata from a directory path.
@@ -121,10 +126,13 @@ class FileCollector:
                 content_hash: str = await asyncio.to_thread(
                     lambda: hashlib.sha256(content.encode()).hexdigest()[:16],
                 )
+                role: FileRole = FileRole.UNKNOWN
+                if self._classifier is not None:
+                    role = self._classifier.get_role(str(a_path))
                 result = RepositoryFile(
                     path=str(a_path),
                     language=language,
-                    role=FileRole.UNKNOWN,
+                    role=role,
                     tokens=tokens,
                     hash=content_hash,
                 )
