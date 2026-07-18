@@ -13,9 +13,9 @@ from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
-from arian.renderer.protocols import RendererProtocol
-from arian.repository.protocols import CollectorProtocol
-from arian.repository.protocols import WriterProtocol
+from arian.renderers.protocols import RendererProtocol
+from arian.repositories.protocols import CollectorProtocol
+from arian.repositories.protocols import WriterProtocol
 
 logger = logging.getLogger(__name__)
 

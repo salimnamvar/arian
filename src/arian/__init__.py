@@ -10,7 +10,7 @@ from arian.infrastructure import ContextBuilderSettings
 from arian.infrastructure import count_tokens
 from arian.infrastructure import detect_language
 from arian.infrastructure import resolve_output_path
-from arian.service import ContextBuilderService
+from arian.services import ContextBuilderService
 
 __all__ = [
     "ContextBuilderService",

@@ -4,7 +4,7 @@ Provides document rendering implementations.
 """
 
 from arian.infrastructure.language import detect_language
-from arian.renderer.markdown import MarkdownRenderer
-from arian.renderer.protocols import RendererProtocol
+from arian.renderers.markdown import MarkdownRenderer
+from arian.renderers.protocols import RendererProtocol
 
 __all__ = ["MarkdownRenderer", "RendererProtocol", "detect_language"]

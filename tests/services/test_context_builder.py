@@ -10,7 +10,7 @@ from arian.domain.enums import OutputMode
 from arian.domain.exceptions import NoDocumentsError
 from arian.domain.models import ContextConfig
 from arian.domain.models import Document
-from arian.service.context_builder import ContextBuilderService
+from arian.services.context_builder import ContextBuilderService
 
 
 class MockCollector:

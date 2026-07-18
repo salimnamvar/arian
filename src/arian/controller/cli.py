@@ -16,10 +16,10 @@ from arian.infrastructure.config import ContextBuilderSettings
 from arian.infrastructure.config import LoggingConfig
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.infrastructure.tokenizer import count_tokens
-from arian.renderer.markdown import MarkdownRenderer
-from arian.repository.collector import FilesystemCollector
-from arian.repository.writer import FileWriter
-from arian.service.context_builder import ContextBuilderService
+from arian.renderers.markdown import MarkdownRenderer
+from arian.repositories.collector import FilesystemCollector
+from arian.repositories.writer import FileWriter
+from arian.services.context_builder import ContextBuilderService
 
 app = typer.Typer(help="Build LLM context from source files.")
 

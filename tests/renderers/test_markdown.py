@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from arian.domain.models import Document
-from arian.renderer.markdown import MarkdownRenderer
+from arian.renderers.markdown import MarkdownRenderer
 from arian.infrastructure.language import detect_language
 
 

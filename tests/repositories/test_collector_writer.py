@@ -7,8 +7,8 @@ from pathlib import Path
 
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
-from arian.repository.collector import FilesystemCollector
-from arian.repository.writer import FileWriter
+from arian.repositories.collector import FilesystemCollector
+from arian.repositories.writer import FileWriter
 
 
 def test_filesystem_collector_single_file(tmp_path: Path) -> None:
