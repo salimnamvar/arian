@@ -15,14 +15,14 @@ from arian.domain.shared.enums import TokenBudget
 from arian.infrastructure.config import LoggingConfig
 from arian.infrastructure.ignore.default_patterns import DEFAULT_EXCLUDES
 from arian.infrastructure.output_path_resolver import resolve_output_path
-from arian.renderers.markdown.renderer import MarkdownRenderer
-from arian.repositories.filesystem.collector import FileCollector
-from arian.repositories.index.memory_repository import MemoryRepositoryIndex
-from arian.services.analyzer.python_analyzer import PythonAnalyzer
-from arian.services.builder.context_builder import ContextBuilder
-from arian.services.classifier.file_classifier import FileClassifier
-from arian.services.context.materializer import ContextMaterializer
-from arian.services.planner.context_planner import ContextPlanner
+from arian.renderer.markdown.renderer import MarkdownRenderer
+from arian.repository.filesystem.collector import FileCollector
+from arian.repository.index.memory_repository import MemoryRepositoryIndex
+from arian.service.analyzer.python_analyzer import PythonAnalyzer
+from arian.service.builder.context_builder import ContextBuilder
+from arian.service.classifier.file_classifier import FileClassifier
+from arian.service.context.materializer import ContextMaterializer
+from arian.service.planner.context_planner import ContextPlanner
 
 app: typer.Typer = typer.Typer(help="Repository intelligence and context planning engine.")
 
