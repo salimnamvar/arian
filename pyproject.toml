@@ -144,10 +144,13 @@ ignore = [
     "D106",    # missing nested class docstring — tests
     "D107",    # missing __init__ docstring — tests
     "D415",    # docstring first line punctuation — tests
+    "EM101",   # exception must not use string literal — test assertions
     "FBT001",  # boolean positional — test helpers
     "FBT002",  # boolean default — test helpers
+    "I001",    # import block un-sorted — test imports
     "PLC0415", # import not at top level — test isolation
     "PLR2004", # magic values in comparisons — common in tests
+    "PLW0108", # lambda may be unnecessary — test helpers
     "PT011",   # pytest.raises too broad — validation tests
     "PT017",   # assertion on exception — test pattern
     "S101",    # assert usage — expected in tests

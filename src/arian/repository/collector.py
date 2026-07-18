@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
 from arian.infrastructure.gitignore_filter import PathFilter
 from arian.renderer.language import detect_language
@@ -17,7 +18,7 @@ class FilesystemCollector:
     """Collects documents from filesystem paths.
 
     Attributes:
-        _extensions (FrozenSet[str]): File extensions to include.
+        _extensions (frozenset[str]): File extensions to include.
         _filter (PathFilter): Path filter instance.
         _emitted (set[Path]): Set of already emitted paths.
     """
@@ -48,6 +49,9 @@ class FilesystemCollector:
 
         Returns:
             List[Document]: Collected documents.
+
+        Raises:
+            InputNotFoundError: If an input path does not exist.
         """
         self._emitted.clear()
         documents: list[Document] = []
@@ -60,6 +64,11 @@ class FilesystemCollector:
                     documents.append(doc)
             elif path.is_dir():
                 documents.extend(self._collect_directory(path))
+            else:
+                raise InputNotFoundError(
+                    f"Input path not found: {path_str}",
+                    a_resource_name=path_str,
+                )
 
         return documents
 

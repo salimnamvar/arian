@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pathspec
 
@@ -11,8 +12,8 @@ class PathFilter:
     """Filter paths using gitignore patterns.
 
     Attributes:
-        _exclude (FrozenSet[str]): Directory names to exclude.
-        _gitignore_patterns (Optional[pathspec.PathSpec]): Loaded gitignore patterns.
+        _exclude (frozenset[str]): Directory names to exclude.
+        _gitignore_patterns (Any | None): Loaded gitignore patterns.
     """
 
     def __init__(self, a_exclude: frozenset[str], a_gitignore: bool = True) -> None:
@@ -23,19 +24,19 @@ class PathFilter:
             a_gitignore: Whether to respect .gitignore files.
         """
         self._exclude = a_exclude
-        self._gitignore_patterns: pathspec.PathSpec | None = self._load_gitignore() if a_gitignore else None
+        self._gitignore_patterns: Any | None = self._load_gitignore() if a_gitignore else None
 
-    def _load_gitignore(self) -> pathspec.PathSpec | None:
+    def _load_gitignore(self) -> Any | None:
         """Load .gitignore patterns if present.
 
         Returns:
-            Optional[pathspec.PathSpec]: Loaded patterns or None.
+            Any | None: Loaded patterns or None.
         """
         gitignore_path: Path = Path.cwd() / ".gitignore"
         content: str
         if gitignore_path.exists():
             content = gitignore_path.read_text()
-            result: pathspec.PathSpec | None = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
+            result: Any | None = pathspec.PathSpec.from_lines("gitignore", content.splitlines())
             return result
         return None
 
