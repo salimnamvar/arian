@@ -21,23 +21,24 @@ def split_documents(
     Returns:
         List of document chunks.
     """
+    chunks: list[list[Document]]
     if a_max_tokens is None:
-        return [a_documents]
+        chunks = [a_documents]
+    else:
+        chunks = []
+        current_chunk: list[Document] = []
+        current_tokens: int = 0
 
-    chunks: list[list[Document]] = []
-    current_chunk: list[Document] = []
-    current_tokens: int = 0
+        for doc in a_documents:
+            if current_tokens + doc.tokens > a_max_tokens and current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = [doc]
+                current_tokens = doc.tokens
+            else:
+                current_chunk.append(doc)
+                current_tokens += doc.tokens
 
-    for doc in a_documents:
-        if current_tokens + doc.tokens > a_max_tokens and current_chunk:
+        if current_chunk:
             chunks.append(current_chunk)
-            current_chunk = [doc]
-            current_tokens = doc.tokens
-        else:
-            current_chunk.append(doc)
-            current_tokens += doc.tokens
-
-    if current_chunk:
-        chunks.append(current_chunk)
 
     return chunks

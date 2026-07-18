@@ -35,9 +35,7 @@ class Document:
 
     def __lt__(self, other: Any) -> bool:
         """Compare documents by path for sorting."""
-        if not isinstance(other, Document):
-            return NotImplemented
-        return self.path < other.path
+        return NotImplemented if not isinstance(other, Document) else self.path < other.path
 
 
 @dataclass(frozen=True)

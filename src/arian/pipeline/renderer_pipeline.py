@@ -39,14 +39,16 @@ def render_and_write(
     """
     total_tokens: int = sum(d.tokens for d in a_documents)
 
+    result: ContextResult
     if a_mode == OutputMode.AGGREGATE and a_max_tokens is None:
-        return _render_aggregate_single(a_renderer, a_writer, a_documents, a_output_path, total_tokens)
+        result = _render_aggregate_single(a_renderer, a_writer, a_documents, a_output_path, total_tokens)
+    elif a_mode == OutputMode.AGGREGATE and a_max_tokens is not None:
+        result = _render_aggregate_split(a_renderer, a_writer, a_chunks, a_output_path, total_tokens)
+    else:
+        # SEPARATE mode - a_chunks contains one list per input
+        result = _render_separate(a_renderer, a_writer, a_chunks, a_output_path, total_tokens)
 
-    if a_mode == OutputMode.AGGREGATE and a_max_tokens is not None:
-        return _render_aggregate_split(a_renderer, a_writer, a_chunks, a_output_path, total_tokens)
-
-    # SEPARATE mode - a_chunks contains one list per input
-    return _render_separate(a_renderer, a_writer, a_chunks, a_output_path, total_tokens)
+    return result
 
 
 def _render_aggregate_single(
@@ -76,7 +78,7 @@ def _render_aggregate_single(
     written: Path = a_writer.write(content, a_output_path)
 
     result: ContextResult = ContextResult(
-        output_paths=[str(written)],
+        output_paths=(str(written),),
         total_files=len(a_documents),
         total_tokens=a_total_tokens,
     )
@@ -111,7 +113,7 @@ def _render_aggregate_split(
         output_paths.append(str(numbered_path))
 
     result: ContextResult = ContextResult(
-        output_paths=output_paths,
+        output_paths=tuple(output_paths),
         total_files=sum(len(c) for c in a_chunks),
         total_tokens=a_total_tokens,
         chunks=len(a_chunks),
@@ -152,7 +154,7 @@ def _render_separate(
         output_paths.append(str(out_path))
 
     result: ContextResult = ContextResult(
-        output_paths=output_paths,
+        output_paths=tuple(output_paths),
         total_files=sum(len(c) for c in a_chunks),
         total_tokens=a_total_tokens,
     )

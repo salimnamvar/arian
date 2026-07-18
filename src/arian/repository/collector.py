@@ -81,24 +81,24 @@ class FilesystemCollector:
         Returns:
             Document if collected, None otherwise.
         """
-        if a_path.suffix not in self._extensions:
-            return None
+        result: Document | None = None
 
-        resolved: Path = a_path.resolve()
-        if resolved in a_emitted:
-            return None
+        if a_path.suffix in self._extensions:
+            resolved: Path = a_path.resolve()
+            if resolved not in a_emitted:
+                try:
+                    content: str = a_path.read_text(encoding="utf-8", errors="ignore")
+                    a_emitted.add(resolved)
+                    result = Document(
+                        path=str(a_path),
+                        content=content,
+                        tokens=self._tokenizer(content),
+                        language=detect_language(a_path),
+                    )
+                except OSError:
+                    result = None
 
-        try:
-            content: str = a_path.read_text(encoding="utf-8", errors="ignore")
-            a_emitted.add(resolved)
-            return Document(
-                path=str(a_path),
-                content=content,
-                tokens=self._tokenizer(content),
-                language=detect_language(a_path),
-            )
-        except OSError:
-            return None
+        return result
 
     def _collect_directory(self, a_directory: Path, a_emitted: set[Path]) -> list[Document]:
         """Recursively collect from directory.
@@ -111,33 +111,34 @@ class FilesystemCollector:
             List[Document]: Collected documents.
         """
         documents: list[Document] = []
-        entries: list[Path]
+        entries: list[Path] | None = None
 
         try:
             entries = sorted(a_directory.iterdir(), key=lambda p: (p.is_dir(), p.name))
         except OSError:
-            return documents
+            entries = None
 
-        # Process: readme files, common dirs, other files, other dirs
-        readme_files: list[Path] = [e for e in entries if e.is_file() and e.name.lower().startswith("readme")]
-        common_dirs: list[Path] = [e for e in entries if e.is_dir() and e.name == "common"]
-        other_files: list[Path] = [
-            e
-            for e in entries
-            if e.is_file() and not e.name.lower().startswith("readme") and e.suffix in self._extensions
-        ]
-        other_dirs: list[Path] = [e for e in entries if e.is_dir() and e.name != "common"]
+        if entries is not None:
+            # Process: readme files, common dirs, other files, other dirs
+            readme_files: list[Path] = [e for e in entries if e.is_file() and e.name.lower().startswith("readme")]
+            common_dirs: list[Path] = [e for e in entries if e.is_dir() and e.name == "common"]
+            other_files: list[Path] = [
+                e
+                for e in entries
+                if e.is_file() and not e.name.lower().startswith("readme") and e.suffix in self._extensions
+            ]
+            other_dirs: list[Path] = [e for e in entries if e.is_dir() and e.name != "common"]
 
-        for f in readme_files:
-            if doc := self._collect_file(f, a_emitted):
-                documents.append(doc)
-        for d in common_dirs:
-            documents.extend(self._collect_directory(d, a_emitted))
-        for f in other_files:
-            if doc := self._collect_file(f, a_emitted):
-                documents.append(doc)
-        for d in other_dirs:
-            if self._filter.should_include(d):
+            for f in readme_files:
+                if doc := self._collect_file(f, a_emitted):
+                    documents.append(doc)
+            for d in common_dirs:
                 documents.extend(self._collect_directory(d, a_emitted))
+            for f in other_files:
+                if doc := self._collect_file(f, a_emitted):
+                    documents.append(doc)
+            for d in other_dirs:
+                if self._filter.should_include(d):
+                    documents.extend(self._collect_directory(d, a_emitted))
 
         return documents

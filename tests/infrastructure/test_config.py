@@ -44,7 +44,7 @@ def test_context_builder_settings_to_domain() -> None:
     )
     config = settings.to_domain()
 
-    assert config.inputs == ["src/"]
+    assert config.inputs == ("src/",)
     assert config.output_path == "output.md"
     assert config.mode == OutputMode.AGGREGATE
     assert config.max_tokens == 5000

@@ -33,12 +33,11 @@ class PathFilter:
             Any | None: Loaded patterns or None.
         """
         gitignore_path: Path = Path.cwd() / ".gitignore"
-        content: str
+        result: Any | None = None
         if gitignore_path.exists():
-            content = gitignore_path.read_text()
-            result: Any | None = pathspec.PathSpec.from_lines("gitignore", content.splitlines())
-            return result
-        return None
+            content: str = gitignore_path.read_text()
+            result = pathspec.PathSpec.from_lines("gitignore", content.splitlines())
+        return result
 
     def should_include(self, a_path: Path) -> bool:
         """Check if path should be included.
@@ -49,17 +48,17 @@ class PathFilter:
         Returns:
             bool: True if path should be included.
         """
+        include: bool = True
+
         # Check excluded directories
         if any(part in self._exclude for part in a_path.parts):
-            return False
-
-        # Check gitignore
-        if self._gitignore_patterns:
+            include = False
+        elif self._gitignore_patterns:
             try:
                 relative: str = str(a_path.relative_to(Path.cwd()))
                 if self._gitignore_patterns.match_file(relative):
-                    return False
+                    include = False
             except ValueError:
                 pass
 
-        return True
+        return include

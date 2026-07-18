@@ -36,15 +36,6 @@ class MockWriter:
         self.written.append((a_content, a_path))
         return a_path
 
-    def write_numbered(self, a_chunks: list[str], a_base_path: Path) -> list[Path]:
-        """Record numbered write operation."""
-        result: list[Path] = []
-        for i, chunk in enumerate(a_chunks, start=1):
-            out_path: Path = a_base_path.parent / f"{a_base_path.stem}.{i}.md"
-            self.written.append((chunk, out_path))
-            result.append(out_path)
-        return result
-
 
 class MockRenderer:
     """Mock renderer for testing."""
@@ -57,7 +48,7 @@ class MockRenderer:
 def test_context_builder_service_aggregate_mode() -> None:
     """Test ContextBuilderService with aggregate mode."""
     config = ContextConfig(
-        inputs=["src/"],
+        inputs=("src/",),
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=OutputMode.AGGREGATE,
@@ -75,7 +66,6 @@ def test_context_builder_service_aggregate_mode() -> None:
         a_collector=collector,
         a_writer=writer,
         a_renderer=renderer,
-        a_tokenizer=len,
     )
 
     result = service.build()
@@ -87,7 +77,7 @@ def test_context_builder_service_aggregate_mode() -> None:
 def test_context_builder_service_separate_mode() -> None:
     """Test ContextBuilderService with separate mode."""
     config = ContextConfig(
-        inputs=["src/"],
+        inputs=("src/",),
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=OutputMode.SEPARATE,
@@ -105,7 +95,6 @@ def test_context_builder_service_separate_mode() -> None:
         a_collector=collector,
         a_writer=writer,
         a_renderer=renderer,
-        a_tokenizer=len,
     )
 
     result = service.build()
@@ -115,7 +104,7 @@ def test_context_builder_service_separate_mode() -> None:
 def test_context_builder_service_with_max_tokens() -> None:
     """Test ContextBuilderService with token splitting."""
     config = ContextConfig(
-        inputs=["src/"],
+        inputs=("src/",),
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=OutputMode.AGGREGATE,
@@ -137,7 +126,6 @@ def test_context_builder_service_with_max_tokens() -> None:
         a_collector=collector,
         a_writer=writer,
         a_renderer=renderer,
-        a_tokenizer=len,
     )
 
     result = service.build()
@@ -148,7 +136,7 @@ def test_context_builder_service_with_max_tokens() -> None:
 def test_context_builder_service_no_documents() -> None:
     """Test ContextBuilderService raises NoDocumentsError when no docs collected."""
     config = ContextConfig(
-        inputs=["nonexistent/"],
+        inputs=("nonexistent/",),
         extensions=frozenset([".py"]),
         exclude=frozenset([".git"]),
         mode=OutputMode.AGGREGATE,
@@ -163,7 +151,6 @@ def test_context_builder_service_no_documents() -> None:
         a_collector=collector,
         a_writer=writer,
         a_renderer=renderer,
-        a_tokenizer=len,
     )
 
     with pytest.raises(NoDocumentsError) as exc_info:

@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from arian.domain.models import Document
-from arian.renderer.language import detect_language
 from arian.renderer.markdown import MarkdownRenderer
+from arian.services.language import detect_language
 
 
 def test_markdown_renderer_render_empty() -> None:
@@ -87,5 +87,11 @@ def test_detect_language_puml() -> None:
 
 def test_detect_language_unknown() -> None:
     """Test language detection for unknown extensions."""
-    result: str = detect_language(Path("file.rs"))
+    result: str = detect_language(Path("file.unknown_ext"))
     assert result == ""
+
+
+def test_detect_language_rust() -> None:
+    """Test language detection for Rust files."""
+    result: str = detect_language(Path("lib.rs"))
+    assert result == "rust"

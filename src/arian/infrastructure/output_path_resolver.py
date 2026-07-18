@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def resolve_output_path(a_output_path: str) -> Path:
-    """Resolve output path relative to project root.
+    """Resolve output path relative to current working directory.
 
     Args:
         a_output_path: Output path string (relative or absolute).
@@ -16,5 +16,5 @@ def resolve_output_path(a_output_path: str) -> Path:
     """
     result: Path = Path(a_output_path)
     if not result.is_absolute():
-        result = Path(__file__).resolve().parents[3] / a_output_path
+        result = Path.cwd() / a_output_path
     return result

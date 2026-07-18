@@ -44,9 +44,7 @@ class ContextBuilderService:
         self._writer: WriterProtocol = a_writer
         self._renderer: RendererProtocol = a_renderer
 
-    def _split_documents(
-        self, a_documents: list[Document], a_max_tokens: int | None
-    ) -> list[list[Document]]:
+    def _split_documents(self, a_documents: list[Document], a_max_tokens: int | None) -> list[list[Document]]:
         """Split documents into chunks respecting token limit.
 
         Args:
@@ -56,24 +54,25 @@ class ContextBuilderService:
         Returns:
             List of document chunks.
         """
+        chunks: list[list[Document]]
         if a_max_tokens is None:
-            return [a_documents]
+            chunks = [a_documents]
+        else:
+            chunks = []
+            current_chunk: list[Document] = []
+            current_tokens: int = 0
 
-        chunks: list[list[Document]] = []
-        current_chunk: list[Document] = []
-        current_tokens: int = 0
+            for doc in a_documents:
+                if current_tokens + doc.tokens > a_max_tokens and current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = [doc]
+                    current_tokens = doc.tokens
+                else:
+                    current_chunk.append(doc)
+                    current_tokens += doc.tokens
 
-        for doc in a_documents:
-            if current_tokens + doc.tokens > a_max_tokens and current_chunk:
+            if current_chunk:
                 chunks.append(current_chunk)
-                current_chunk = [doc]
-                current_tokens = doc.tokens
-            else:
-                current_chunk.append(doc)
-                current_tokens += doc.tokens
-
-        if current_chunk:
-            chunks.append(current_chunk)
 
         return chunks
 
@@ -99,13 +98,15 @@ class ContextBuilderService:
         """
         total_tokens: int = sum(d.tokens for d in a_documents)
 
+        result: ContextResult
         if a_mode == OutputMode.AGGREGATE and a_max_tokens is None:
-            return self._render_aggregate_single(a_documents, a_output_path, total_tokens)
+            result = self._render_aggregate_single(a_documents, a_output_path, total_tokens)
+        elif a_mode == OutputMode.AGGREGATE and a_max_tokens is not None:
+            result = self._render_aggregate_split(a_chunks, a_output_path, total_tokens)
+        else:
+            result = self._render_separate(a_chunks, a_output_path, total_tokens)
 
-        if a_mode == OutputMode.AGGREGATE and a_max_tokens is not None:
-            return self._render_aggregate_split(a_chunks, a_output_path, total_tokens)
-
-        return self._render_separate(a_chunks, a_output_path, total_tokens)
+        return result
 
     def _render_aggregate_single(
         self, a_documents: list[Document], a_output_path: Path, a_total_tokens: int
@@ -201,8 +202,8 @@ class ContextBuilderService:
         Raises:
             NoDocumentsError: If no documents were collected from inputs.
         """
-        # Collect documents
-        documents: list[Document] = self._collector.collect(self._config.inputs)
+        # Collect documents - convert tuple to list for collector
+        documents: list[Document] = self._collector.collect(list(self._config.inputs))
 
         # Check for empty results
         if not documents:

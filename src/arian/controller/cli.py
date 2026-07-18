@@ -14,13 +14,13 @@ from arian.infrastructure.tokenizer import count_tokens
 from arian.renderer.markdown import MarkdownRenderer
 from arian.repository.collector import FilesystemCollector
 from arian.repository.writer import FileWriter
-from arian.service.context_builder import ContextBuilderService
+from arian.services.context_builder import ContextBuilderService
 
 app = typer.Typer(help="Build LLM context from source files.")
 
 
 @app.command()
-def build(
+def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
     inputs: list[str] = typer.Argument(
         default_factory=lambda: ContextBuilderSettings().inputs,
         help="Input paths to include.",
@@ -53,21 +53,20 @@ def build(
     )
 
     # Convert to domain config and resolve output path
-    domain_config: ContextConfig = settings.to_domain()
-    resolved_path: Path = resolve_output_path(domain_config.output_path)
-    domain_config = ContextConfig(
-        inputs=domain_config.inputs,
-        extensions=domain_config.extensions,
-        exclude=domain_config.exclude,
-        mode=domain_config.mode,
+    resolved_path: Path = resolve_output_path(settings.output)
+    domain_config: ContextConfig = ContextConfig(
+        inputs=tuple(settings.inputs),
+        extensions=frozenset(settings.extensions),
+        exclude=frozenset(settings.exclude),
+        mode=settings.mode,
         output_path=str(resolved_path),
-        max_tokens=domain_config.max_tokens,
+        max_tokens=settings.max_tokens,
     )
 
     # Wire dependencies
     collector = FilesystemCollector(
-        a_extensions=frozenset(domain_config.extensions),
-        a_exclude=frozenset(domain_config.exclude),
+        a_extensions=domain_config.extensions,
+        a_exclude=domain_config.exclude,
         a_tokenizer=count_tokens,
     )
     writer = FileWriter(a_base_path=resolved_path)
@@ -79,7 +78,6 @@ def build(
         a_collector=collector,
         a_writer=writer,
         a_renderer=renderer,
-        a_tokenizer=count_tokens,
     )
     result = service.build()
 

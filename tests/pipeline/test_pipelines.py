@@ -111,7 +111,7 @@ def test_render_aggregate_single() -> None:
         a_total_tokens=10,
     )
 
-    assert result.output_paths == ["output.md"]
+    assert result.output_paths == ("output.md",)
     assert result.total_files == 1
     assert result.total_tokens == 10
     assert result.chunks == 1
