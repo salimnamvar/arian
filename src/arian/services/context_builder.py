@@ -6,18 +6,29 @@ Orchestrates the context building pipeline with dependency injection.
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import logging
 from pathlib import Path
 
+from arian.domain.enums import FileRole
 from arian.domain.enums import OutputMode
 from arian.domain.exceptions import NoDocumentsError
+from arian.domain.models import FULL
+from arian.domain.models import SIGNATURES
+from arian.domain.models import STRUCTURE_ONLY
+from arian.domain.models import CompressionLevel
 from arian.domain.models import ContextConfig
 from arian.domain.models import ContextResult
 from arian.domain.models import Document
+from arian.domain.models import FileClassification
 from arian.domain.models import InputSpec
+from arian.domain.models import PatternRule
+from arian.infrastructure.tokenizer import count_tokens
 from arian.renderers.protocols import RendererProtocol
 from arian.repositories.protocols import CollectorProtocol
 from arian.repositories.protocols import WriterProtocol
+from arian.services.analyzer import ContextAnalyzer
+from arian.services.compressor import ContentCompressor
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +41,8 @@ class ContextBuilderService:
         _collector (CollectorProtocol): Document collector.
         _writer (WriterProtocol): Output writer.
         _renderer (RendererProtocol): Content renderer.
+        _analyzer (ContextAnalyzer): File classifier.
+        _compressor (ContentCompressor): Content compressor.
     """
 
     def __init__(
@@ -38,6 +51,8 @@ class ContextBuilderService:
         a_collector: CollectorProtocol,
         a_writer: WriterProtocol,
         a_renderer: RendererProtocol,
+        a_analyzer: ContextAnalyzer | None = None,
+        a_compressor: ContentCompressor | None = None,
     ) -> None:
         """Initialize service with injected dependencies.
 
@@ -46,11 +61,17 @@ class ContextBuilderService:
             a_collector: Document collector.
             a_writer: Output writer.
             a_renderer: Content renderer.
+            a_analyzer: Optional file classifier (defaults to ContextAnalyzer).
+            a_compressor: Optional content compressor.
         """
         self._config: ContextConfig = a_config
         self._collector: CollectorProtocol = a_collector
         self._writer: WriterProtocol = a_writer
         self._renderer: RendererProtocol = a_renderer
+        self._analyzer: ContextAnalyzer = a_analyzer if a_analyzer is not None else ContextAnalyzer()
+        self._compressor: ContentCompressor = (
+            a_compressor if a_compressor is not None else ContentCompressor(a_tokenizer=count_tokens)
+        )
 
     def build(self) -> ContextResult:
         """Build context and write output (synchronous wrapper).
@@ -66,6 +87,8 @@ class ContextBuilderService:
 
     async def build_async(self) -> ContextResult:
         """Build context and write output asynchronously.
+
+        Pipeline: collect → classify → compress → order → chunk → render/write.
 
         Returns:
             ContextResult: Result of the operation.
@@ -86,6 +109,7 @@ class ContextBuilderService:
             )
 
         documents = self._tag_documents(documents, self._config.inputs)
+        documents = self._apply_context_engineering(documents)
         tagged_groups: dict[str, list[Document]] = self._group_by_tag(documents)
 
         total_tokens: int = sum(d.tokens for d in documents)
@@ -93,6 +117,136 @@ class ContextBuilderService:
 
         out_path: Path = Path(self._config.output_path)
         result: ContextResult = await self._build_per_tag(tagged_groups, out_path)
+        return result
+
+    def _apply_context_engineering(self, a_documents: list[Document]) -> list[Document]:
+        """Classify, compress, and order documents.
+
+        Args:
+            a_documents: Collected documents.
+
+        Returns:
+            Processed documents ready for chunking.
+        """
+        processed: list[Document] = []
+        for doc in a_documents:
+            classification: FileClassification = self._analyzer.classify_file(doc.path)
+            level: CompressionLevel = self._resolve_compression(doc.path, classification)
+            content: str = self._compressor.compress(doc.content, doc.language, level)
+            tokens: int = count_tokens(content) if content != doc.content else doc.tokens
+            processed.append(
+                Document(
+                    path=doc.path,
+                    content=content,
+                    tokens=tokens,
+                    language=doc.language,
+                    tag=doc.tag,
+                ),
+            )
+
+        result: list[Document]
+        if self._config.sort_by_importance:
+            result = self._analyzer.order_by_importance(processed)
+        else:
+            result = sorted(processed, key=lambda d: d.path)
+        return result
+
+    def _resolve_compression(
+        self,
+        a_path: str,
+        a_classification: FileClassification,
+    ) -> CompressionLevel:
+        """Resolve effective compression level for a file.
+
+        Args:
+            a_path: File path.
+            a_classification: Analyzer classification for the file.
+
+        Returns:
+            Effective CompressionLevel after config and pattern overrides.
+        """
+        level: CompressionLevel
+        mode: str = self._config.compression
+
+        if mode == "full":
+            level = FULL
+        elif mode == "signatures":
+            level = SIGNATURES
+        elif mode == "minimal":
+            level = STRUCTURE_ONLY
+        else:
+            # auto — use classification recommendation
+            level = a_classification.compression
+
+        for rule in self._config.pattern_rules:
+            if self._matches_pattern(a_path, rule):
+                level = self._level_from_name(rule.compression)
+
+        level = self._apply_include_overrides(level)
+        return level
+
+    def _matches_pattern(self, a_path: str, a_rule: PatternRule) -> bool:
+        """Check whether a path matches a pattern rule.
+
+        Args:
+            a_path: File path.
+            a_rule: Pattern rule to apply.
+
+        Returns:
+            True if the path matches the rule pattern.
+        """
+        result: bool = fnmatch.fnmatch(a_path, a_rule.pattern) or fnmatch.fnmatch(
+            Path(a_path).name,
+            a_rule.pattern,
+        )
+        return result
+
+    def _level_from_name(self, a_name: str) -> CompressionLevel:
+        """Map a compression name string to a CompressionLevel preset.
+
+        Args:
+            a_name: Compression mode name.
+
+        Returns:
+            Matching CompressionLevel preset.
+        """
+        mapping: dict[str, CompressionLevel] = {
+            "full": FULL,
+            "compressed": SIGNATURES,
+            "signatures": SIGNATURES,
+            "structure_only": STRUCTURE_ONLY,
+            "minimal": STRUCTURE_ONLY,
+        }
+        result: CompressionLevel = mapping.get(a_name, FULL)
+        return result
+
+    def _apply_include_overrides(self, a_level: CompressionLevel) -> CompressionLevel:
+        """Apply CLI include_* overrides to a compression level.
+
+        Args:
+            a_level: Base compression level.
+
+        Returns:
+            CompressionLevel with overrides applied.
+        """
+        keep_comments: bool = a_level.keep_comments
+        keep_docstrings: bool = a_level.keep_docstrings
+        keep_imports: bool = a_level.keep_imports
+
+        if self._config.include_comments is not None:
+            keep_comments = self._config.include_comments
+        if self._config.include_docstrings is not None:
+            keep_docstrings = self._config.include_docstrings
+        if self._config.include_imports is not None:
+            keep_imports = self._config.include_imports
+
+        result: CompressionLevel = CompressionLevel(
+            keep_comments=keep_comments,
+            keep_docstrings=keep_docstrings,
+            keep_type_hints=a_level.keep_type_hints,
+            keep_implementation=a_level.keep_implementation,
+            keep_imports=keep_imports,
+        )
         return result
 
     def _tag_documents(
@@ -169,7 +323,11 @@ class ContextBuilderService:
         """
         results: list[ContextResult] = []
         for tag in sorted(a_groups.keys()):
-            docs: list[Document] = sorted(a_groups[tag], key=lambda d: d.path)
+            docs: list[Document] = a_groups[tag]
+            if self._config.sort_by_importance:
+                docs = self._analyzer.order_by_importance(docs)
+            else:
+                docs = sorted(docs, key=lambda d: d.path)
             tag_result: ContextResult = await self._build_single_tag(tag, docs, a_output_path)
             results.append(tag_result)
 
@@ -230,6 +388,9 @@ class ContextBuilderService:
     ) -> list[list[Document]]:
         """Split documents into chunks respecting token limit.
 
+        When ``preserve_readme_in_chunks`` is enabled, README documents are
+        prepended to every chunk.
+
         Args:
             a_documents: Documents to split.
             a_max_tokens: Maximum tokens per chunk.
@@ -241,21 +402,37 @@ class ContextBuilderService:
         if a_max_tokens is None:
             chunks = [a_documents]
         else:
-            chunks = []
-            current_chunk: list[Document] = []
-            current_tokens: int = 0
+            readme_docs: list[Document] = []
+            other_docs: list[Document] = []
+            if self._config.preserve_readme_in_chunks:
+                for doc in a_documents:
+                    role: FileRole = self._analyzer.classify_file(doc.path).role
+                    if role == FileRole.README:
+                        readme_docs.append(doc)
+                    else:
+                        other_docs.append(doc)
+            else:
+                other_docs = list(a_documents)
 
-            for doc in a_documents:
-                if current_tokens + doc.tokens > a_max_tokens and current_chunk:
+            readme_tokens: int = sum(d.tokens for d in readme_docs)
+            chunks = []
+            current_chunk: list[Document] = list(readme_docs)
+            current_tokens: int = readme_tokens
+
+            for doc in other_docs:
+                if current_tokens + doc.tokens > a_max_tokens and current_tokens > readme_tokens:
                     chunks.append(current_chunk)
-                    current_chunk = [doc]
-                    current_tokens = doc.tokens
+                    current_chunk = [*readme_docs, doc]
+                    current_tokens = readme_tokens + doc.tokens
                 else:
                     current_chunk.append(doc)
                     current_tokens += doc.tokens
 
-            if current_chunk:
+            if current_chunk and (len(current_chunk) > len(readme_docs) or not chunks):
                 chunks.append(current_chunk)
+
+            if not chunks:
+                chunks = [list(a_documents)]
 
         logger.debug(
             "Split %d documents into %d chunk(s) (max %s tokens)",

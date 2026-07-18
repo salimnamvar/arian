@@ -42,6 +42,18 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
         help="File extensions to include",
     ),
     max_tokens: int | None = typer.Option(None, "--max-tokens", help="Max tokens per chunk"),
+    compression: str = typer.Option(
+        "auto",
+        "--compression",
+        help="Compression level: full, auto, signatures, minimal",
+    ),
+    no_comments: bool = typer.Option(False, "--no-comments", help="Strip code comments"),
+    no_docstrings: bool = typer.Option(False, "--no-docstrings", help="Strip docstrings"),
+    no_imports: bool = typer.Option(False, "--no-imports", help="Strip import statements"),
+    no_directory_tree: bool = typer.Option(False, "--no-directory-tree", help="Skip directory structure"),
+    no_file_summary: bool = typer.Option(False, "--no-file-summary", help="Skip file summary"),
+    line_numbers: bool = typer.Option(False, "--line-numbers", help="Add line numbers to content"),
+    instruction: str | None = typer.Option(None, "--instruction", help="Custom instructions for the LLM"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Enable debug logging"),
 ) -> None:
     """Build context for LLM consumption."""
@@ -59,6 +71,14 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
             exclude=exclude,
             extensions=extensions,
             max_tokens=max_tokens,
+            compression=compression,
+            include_comments=False if no_comments else None,
+            include_docstrings=False if no_docstrings else None,
+            include_imports=False if no_imports else None,
+            include_line_numbers=line_numbers,
+            include_directory_structure=not no_directory_tree,
+            include_file_summary=not no_file_summary,
+            custom_instructions=instruction,
         )
 
         resolved_path: Path = resolve_output_path(settings.output)
@@ -70,6 +90,18 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
             mode=base_config.mode,
             output_path=str(resolved_path),
             max_tokens=base_config.max_tokens,
+            compression=base_config.compression,
+            include_comments=base_config.include_comments,
+            include_docstrings=base_config.include_docstrings,
+            include_imports=base_config.include_imports,
+            include_line_numbers=base_config.include_line_numbers,
+            include_directory_structure=base_config.include_directory_structure,
+            include_file_summary=base_config.include_file_summary,
+            include_token_counts=base_config.include_token_counts,
+            custom_instructions=base_config.custom_instructions,
+            sort_by_importance=base_config.sort_by_importance,
+            preserve_readme_in_chunks=base_config.preserve_readme_in_chunks,
+            pattern_rules=base_config.pattern_rules,
         )
 
         collector = FilesystemCollector(
@@ -78,7 +110,13 @@ def build(  # a-prefix-ignore: Typer CLI public names (not internal call args)
             a_tokenizer=count_tokens,
         )
         writer = FileWriter(a_base_path=resolved_path)
-        renderer = MarkdownRenderer()
+        renderer = MarkdownRenderer(
+            a_include_directory_structure=domain_config.include_directory_structure,
+            a_include_file_summary=domain_config.include_file_summary,
+            a_include_token_counts=domain_config.include_token_counts,
+            a_include_line_numbers=domain_config.include_line_numbers,
+            a_custom_instructions=domain_config.custom_instructions,
+        )
 
         service = ContextBuilderService(
             a_config=domain_config,

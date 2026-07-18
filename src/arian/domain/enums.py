@@ -15,3 +15,19 @@ class OutputMode(Enum):
 
     SEPARATE = auto()
     AGGREGATE = auto()
+
+
+class FileRole(Enum):
+    """What role a file plays in the project."""
+
+    README = "readme"
+    ENTRY_POINT = "entry_point"
+    CONFIGURATION = "configuration"
+    DOMAIN = "domain"
+    SERVICE = "service"
+    INFRASTRUCTURE = "infrastructure"
+    UTILITY = "utility"
+    TEST = "test"
+    GENERATED = "generated"
+    DOCUMENTATION = "documentation"
+    UNKNOWN = "unknown"

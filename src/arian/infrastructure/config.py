@@ -18,6 +18,7 @@ from pydantic_settings import SettingsConfigDict
 from arian.domain.enums import OutputMode
 from arian.domain.models import ContextConfig
 from arian.domain.models import InputSpec
+from arian.domain.models import PatternRule
 
 
 class LoggingConfig(BaseModel):
@@ -102,6 +103,17 @@ class ContextBuilderSettings(BaseSettings):
         exclude (List[str]): Directory names to exclude.
         extensions (List[str]): File extensions to include.
         max_tokens (Optional[int]): Maximum tokens per chunk.
+        compression (str): Compression strategy.
+        include_comments (Optional[bool]): Override comment inclusion.
+        include_docstrings (Optional[bool]): Override docstring inclusion.
+        include_imports (Optional[bool]): Override import inclusion.
+        include_line_numbers (bool): Whether to add line numbers.
+        include_directory_structure (bool): Whether to include directory tree.
+        include_file_summary (bool): Whether to include file summary.
+        include_token_counts (bool): Whether to report token counts.
+        custom_instructions (Optional[str]): Custom LLM instructions.
+        sort_by_importance (bool): Whether to order files by importance.
+        preserve_readme_in_chunks (bool): Whether to include README in every chunk.
     """
 
     model_config = SettingsConfigDict(env_prefix="CB_")
@@ -112,6 +124,18 @@ class ContextBuilderSettings(BaseSettings):
     exclude: list[str] = Field(default_factory=lambda: list(DEFAULT_EXCLUDE))
     extensions: list[str] = Field(default=[".py", ".md", ".txt", ".rst", ".puml"])
     max_tokens: int | None = Field(default=None)
+    compression: str = Field(default="auto")
+    include_comments: bool | None = Field(default=None)
+    include_docstrings: bool | None = Field(default=None)
+    include_imports: bool | None = Field(default=None)
+    include_line_numbers: bool = Field(default=False)
+    include_directory_structure: bool = Field(default=True)
+    include_file_summary: bool = Field(default=True)
+    include_token_counts: bool = Field(default=True)
+    custom_instructions: str | None = Field(default=None)
+    sort_by_importance: bool = Field(default=True)
+    preserve_readme_in_chunks: bool = Field(default=True)
+    pattern_rules: list[PatternRule] = Field(default=[])
 
     def to_domain(self) -> ContextConfig:
         """Convert to domain configuration.
@@ -129,5 +153,17 @@ class ContextBuilderSettings(BaseSettings):
             mode=self.mode,
             output_path=self.output,
             max_tokens=self.max_tokens,
+            compression=self.compression,
+            include_comments=self.include_comments,
+            include_docstrings=self.include_docstrings,
+            include_imports=self.include_imports,
+            include_line_numbers=self.include_line_numbers,
+            include_directory_structure=self.include_directory_structure,
+            include_file_summary=self.include_file_summary,
+            include_token_counts=self.include_token_counts,
+            custom_instructions=self.custom_instructions,
+            sort_by_importance=self.sort_by_importance,
+            preserve_readme_in_chunks=self.preserve_readme_in_chunks,
+            pattern_rules=tuple(self.pattern_rules),
         )
         return result

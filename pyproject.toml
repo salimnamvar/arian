@@ -171,6 +171,10 @@ ignore = [
     "FBT001",  # boolean positional — internal flag
     "FBT002",  # boolean default — internal flag
 ]
+"src/arian/renderers/markdown.py" = [
+    "FBT001",  # boolean positional — renderer option flags
+    "FBT002",  # boolean default — renderer option flags
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["arian"]
