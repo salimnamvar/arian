@@ -1,152 +1,157 @@
-# Byte-compiled / optimized / DLL files
+# =============================================================================
+# selma
+# =============================================================================
+
+# =============================================================================
+# AI ASSISTANT CONTEXT DIRECTORIES
+# =============================================================================
+.nasim
+.agents
+.codex
+.copilot
+.githooks
+.claude
+.autohand
+.github
+.grok
+.kimi
+.mimo
+.opencode
+.vibe
+.codewhale
+.mimocode
+.aider*
+.cursor
+.continue
+.cody
+.zed
+.windsurf
+.micode
+.poolside
+
+# =============================================================================
+# IDE ARTIFACTS
+# =============================================================================
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+
+# =============================================================================
+# PYTHON
+# =============================================================================
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# poetry
-poetry.lock
-
-# pdm
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
+*.so.*
 .mypy_cache/
 .dmypy.json
 dmypy.json
 
-# Pyre type checker
-.pyre/
+# =============================================================================
+# BUILD & DISTRIBUTION
+# =============================================================================
+build/
+dist/
+out/
+output/
+outputs/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
 
-# pyright
-pyrightconfig.json
+# =============================================================================
+# VIRTUAL ENVIRONMENTS
+# =============================================================================
+.venv/
+venv/
+env/
+ENV/
+.python-version
 
-# Ruff
+# =============================================================================
+# TESTING & COVERAGE
+# =============================================================================
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.hypothesis/
+nosetests.xml
+TEST*.xml
+
+# =============================================================================
+# LINTERS & CACHES
+# =============================================================================
 .ruff_cache/
+.cache/
+.eslintcache
 
-# OS
+# =============================================================================
+# SECRETS & CREDENTIALS
+# =============================================================================
+.env
+.env.*
+*.env
+!.env.example
+secrets/
+secrets*
+*.jwt
+*.pem
+*.key
+auth.json*
+.credentials.json
+credentials.json
+
+# =============================================================================
+# OS / EDITOR TEMP
+# =============================================================================
 .DS_Store
+.AppleDouble
 Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+Desktop.ini
 *~
+.nfs*
 
-# Project
-.tmp/
+# =============================================================================
+# LOGS & TEMP FILES
+# =============================================================================
+*.log
+*.tmp
+*.temp
+nohup.out
+
+# =============================================================================
+# ML / MODEL ARTIFACTS
+# =============================================================================
+*.onnx
+*.pt
+*.pth
+*.pkl
+*.pickle
+*.bin
+data/
+models/
+checkpoints/
+
+# =============================================================================
+# DATA FILES
+# =============================================================================
+*.csv
+
+# =============================================================================
+# MISC
+# =============================================================================
+.history/
+*.lock
