@@ -56,13 +56,25 @@ selma/
 
 **Root cause:** `PlannedFile.path` stores absolute path from `FileCollector`. Should store relative path from repository root.
 
-### Issue 3: Token Budget Exceeded
+### Issue 3: Token Budget Not Enforced (CRITICAL)
 
-**Current output:** 72193 tokens with `--max-tokens 5000` default.
+**Current output:** 72193 tokens even with `--max-tokens 1000`.
 
-**Problem:** `TokenBudget.max_tokens` is accepted but never enforced at plan level. Only `per_chunk_target` is enforced per chunk. Total can exceed `max_tokens` significantly.
+**Problem:** `TokenBudget.max_tokens` is accepted but **never enforced anywhere in the pipeline**. Only `per_chunk_target` is used for per-chunk bin-packing. Total budget is completely ignored.
 
-**Root cause:** `ContextPlanner._plan_chunks()` doesn't check total against `max_tokens`. `ContextPlan.validate()` doesn't enforce total budget.
+**Verified:**
+```bash
+arian --max-tokens 1000
+# → Planned 153 files in 19 chunks (72193 tokens)   ← 72x over budget
+```
+
+**Root cause:** `ContextPlanner._plan_chunks()` only checks `per_chunk_target`. No code path reads `max_tokens`.
+
+**Fix required:**
+1. `_plan_chunks()` must stop adding files when total exceeds `max_tokens`
+2. Files beyond budget should be dropped with warning
+3. Manifest should show `budget: {max: N, per_chunk: N}`
+4. Output should never exceed `max_tokens`
 
 ### Issue 4: No Input Scoping
 
