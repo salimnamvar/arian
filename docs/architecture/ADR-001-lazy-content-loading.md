@@ -34,3 +34,11 @@ Collector
           v
        token analysis only when required
 ```
+
+## Non-Goals
+
+This ADR does not change:
+- Planner responsibility
+- Materializer responsibility
+- ContextPlan schema
+- Compression strategy

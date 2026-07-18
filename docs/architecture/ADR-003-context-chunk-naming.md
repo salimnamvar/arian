@@ -32,8 +32,16 @@ ContextPlan
     |
     +-- Chunk
           |
-          +-- PlannedFile (with fragment fields)
+          +-- PlannedEntry
+                  |
+                  +-- PlannedFile (full file)
+                  +-- FileFragment (fragment)
 ```
+
+After fragmentation, a chunk may contain:
+- full files
+- file fragments
+- summaries
 
 Materialization:
 
@@ -41,6 +49,21 @@ Materialization:
 MaterializedChunk
     |
     +-- MaterializedEntry
+```
+
+Domain flow:
+
+```
+RepositoryFile
+        |
+        v
+FileFragment
+        |
+        v
+PlannedEntry
+        |
+        v
+MaterializedEntry
 ```
 
 ## V2 Cleanup

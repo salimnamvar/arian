@@ -19,13 +19,13 @@ Defer AST analysis caching to V2. The current approach is correct and sufficient
 
 ## Future Implementation
 
-Cache key must include content hash, not just path:
+Cache key must include content hash and analyzer configuration, not just path:
 
 ```
-sha256(
-    file_content
-    +
-    analyzer_version
+cache_key = hash(
+    file_content,
+    analyzer_version,
+    analyzer_configuration
 )
 ```
 
@@ -37,6 +37,14 @@ changed content
 same path
 ```
 
+Caching without configuration would fail on:
+
+```
+include_private_symbols=False  → different output
+include_private_symbols=True   → different output
+same file + same version ≠ same result
+```
+
 Cache structure:
 
 ```
@@ -46,6 +54,7 @@ RepositoryFile
 AnalyzerCache
       |
       +-- file_hash
+      +-- analyzer_config_hash
       +-- AST result
       +-- symbols
       +-- imports
