@@ -20,9 +20,9 @@ def test_cli_build_command() -> None:
     runner = CliRunner()
     # Filter out command name from args (click quirk for variadic args)
     result = runner.invoke(app, ["build", "src/arian", "-o", "/tmp/arian_cli_test"])
-    # The CliRunner includes command name in variadic args, so it will fail
-    # This is expected behavior
-    assert result.exit_code != 0 or "Wrote" in result.output
+    # Output goes to stderr via logging, check exit code and output content
+    assert result.exit_code == 0
+    assert "Build complete" in result.output or "Collected" in result.output
 
 
 def test_cli_build_with_explicit_inputs() -> None:
@@ -40,4 +40,4 @@ def test_cli_build_with_explicit_inputs() -> None:
         ],
     )
     # Should succeed because we filter out the 'build' command name
-    assert "Wrote" in result.output or result.exit_code == 0
+    assert "Build complete" in result.output or "Collected" in result.output or result.exit_code == 0

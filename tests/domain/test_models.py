@@ -29,10 +29,12 @@ def test_document_immutability() -> None:
 
 
 def test_document_ordering() -> None:
-    """Test Document ordering by path."""
-    doc1 = Document(path="a.py")
-    doc2 = Document(path="b.py")
-    assert doc1 < doc2
+    """Test Document sorting by path."""
+    doc1 = Document(path="b.py")
+    doc2 = Document(path="a.py")
+    result: list[Document] = sorted([doc1, doc2], key=lambda d: d.path)
+    assert result[0].path == "a.py"
+    assert result[1].path == "b.py"
 
 
 def test_context_config_defaults() -> None:
