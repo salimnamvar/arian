@@ -7,7 +7,8 @@ from typing import Protocol
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
-from arian.domain.context.models import MaterializedFile
+from arian.domain.context.models import MaterializedEntry
+from arian.domain.context.models import Provenance
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import TokenBudget
@@ -43,23 +44,22 @@ class ContextMaterializer:
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-        a_budget: TokenBudget | None = None,  # noqa: ARG002 — reserved for overflow handling
+        a_budget: TokenBudget | None = None,  # noqa: ARG002 — reserved
     ) -> tuple[MaterializedChunk, ...]:
         """Apply compression levels from plan to actual file content.
 
         Args:
             a_plan: Context plan with compression decisions.
             a_content: Mapping of file path to FileContent.
-            a_budget: Optional token budget for overflow handling.
+            a_budget: Optional token budget (reserved for future use).
 
         Returns:
             Tuple of MaterializedChunk with compressed content.
         """
         materialized_chunks: list[MaterializedChunk] = []
-        overflow_files: list[MaterializedFile] = []
 
         for chunk in a_plan.chunks:
-            materialized_files: list[MaterializedFile] = []
+            materialized_entries: list[MaterializedEntry] = []
             chunk_tokens: int = 0
 
             for planned_file in chunk.files:
@@ -68,42 +68,76 @@ class ContextMaterializer:
                     logger.warning("No content for planned file: %s", planned_file.path)
                     continue
 
-                compressed_content: str = self._compress(content_obj.content, planned_file.compression)
+                raw_content: str = self._extract_content(
+                    content_obj.content,
+                    planned_file.line_start,
+                    planned_file.line_end,
+                )
+                compressed_content: str = self._compress(raw_content, planned_file.compression)
 
-                materialized_files.append(
-                    MaterializedFile(
+                provenance: Provenance = Provenance(
+                    source_file=planned_file.path,
+                    source_lines=(
+                        planned_file.line_start if planned_file.line_start is not None else 0,
+                        planned_file.line_end
+                        if planned_file.line_end is not None
+                        else len(content_obj.content.splitlines()),
+                    ),
+                    compression_applied=planned_file.compression,
+                )
+
+                materialized_entries.append(
+                    MaterializedEntry(
                         path=planned_file.path,
                         role=planned_file.role,
                         importance=planned_file.importance,
                         compression=planned_file.compression,
                         content=compressed_content,
                         tokens=planned_file.tokens,
-                        is_overflow=False,
+                        is_fragment=planned_file.is_fragment,
+                        fragment_index=planned_file.fragment_index,
+                        fragment_total=planned_file.fragment_total,
+                        language="python" if planned_file.path.endswith(".py") else None,
+                        provenance=provenance,
                     )
                 )
                 chunk_tokens += planned_file.tokens
 
-            if materialized_files:
+            if materialized_entries:
                 materialized_chunks.append(
                     MaterializedChunk(
-                        files=tuple(materialized_files),
+                        entries=tuple(materialized_entries),
                         token_count=chunk_tokens,
                         chunk_index=chunk.chunk_index,
                         header=chunk.header,
                     )
                 )
 
-        for i, overflow_file in enumerate(overflow_files):
-            materialized_chunks.append(
-                MaterializedChunk(
-                    files=(overflow_file,),
-                    token_count=overflow_file.tokens,
-                    chunk_index=len(materialized_chunks) + i,
-                    header="Overflow",
-                )
-            )
-
         return tuple(materialized_chunks)
+
+    def _extract_content(
+        self,
+        a_content: str,
+        a_line_start: int | None,
+        a_line_end: int | None,
+    ) -> str:
+        """Extract content for a line range.
+
+        Args:
+            a_content: Full file content.
+            a_line_start: First line number (inclusive, 0-based). None for full file.
+            a_line_end: Last line number (exclusive, 0-based). None for full file.
+
+        Returns:
+            Extracted content string.
+        """
+        result: str = a_content
+        if a_line_start is not None and a_line_end is not None:
+            lines: list[str] = a_content.splitlines(keepends=True)
+            start: int = max(0, a_line_start)
+            end: int = min(len(lines), a_line_end)
+            result = "".join(lines[start:end])
+        return result
 
     def _compress(self, a_content: str, a_level: CompressionLevel) -> str:
         """Compress content according to level.

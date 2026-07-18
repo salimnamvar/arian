@@ -105,6 +105,11 @@ class PlannedFile:
         compression: Compression level to apply.
         representation: Human-readable representation name.
         tokens: Estimated token count at this compression level.
+        is_fragment: True if this is a file fragment (not a full file).
+        fragment_index: Fragment position within the file (None for full files).
+        fragment_total: Total fragments for this file (None for full files).
+        line_start: First line number for fragments (None for full files).
+        line_end: Last line number for fragments (None for full files).
     """
 
     path: str
@@ -113,6 +118,11 @@ class PlannedFile:
     compression: CompressionLevel
     representation: str
     tokens: int
+    is_fragment: bool = False
+    fragment_index: int | None = None
+    fragment_total: int | None = None
+    line_start: int | None = None
+    line_end: int | None = None
 
 
 @dataclass(frozen=True)
@@ -133,8 +143,8 @@ class ContextResult:
 
 
 @dataclass(frozen=True)
-class MaterializedFile:
-    """A file with compressed content ready for rendering.
+class MaterializedEntry:
+    """A materialized entry ready for rendering — full file or fragment.
 
     Attributes:
         path: Relative file path.
@@ -143,7 +153,12 @@ class MaterializedFile:
         compression: Compression level applied.
         content: Compressed content string.
         tokens: Actual token count.
-        is_overflow: True if this is an overflow full copy.
+        is_fragment: True if this is a file fragment (not a full file).
+        fragment_index: Fragment position within the file (None for full files).
+        fragment_total: Total fragments for this file (None for full files).
+        continues_in_chunk: Chunk index where the next fragment appears (None if last).
+        language: Detected language identifier.
+        provenance: Optional provenance metadata.
     """
 
     path: str
@@ -152,21 +167,136 @@ class MaterializedFile:
     compression: CompressionLevel
     content: str
     tokens: int
-    is_overflow: bool = False
+    is_fragment: bool = False
+    fragment_index: int | None = None
+    fragment_total: int | None = None
+    continues_in_chunk: int | None = None
+    language: str | None = None
+    provenance: Provenance | None = None
+
+
+# Backward compatibility alias
+MaterializedFile = MaterializedEntry
 
 
 @dataclass(frozen=True)
 class MaterializedChunk:
-    """A chunk with compressed content ready for rendering.
+    """A chunk with materialized content ready for rendering.
 
     Attributes:
-        files: Tuple of materialized files in this chunk.
+        entries: Tuple of materialized entries in this chunk.
         token_count: Token count for this chunk.
         chunk_index: Zero-based chunk index.
         header: Optional section header.
     """
 
-    files: tuple[MaterializedFile, ...]
+    entries: tuple[MaterializedEntry, ...]
+    token_count: int
+    chunk_index: int
+    header: str = ""
+
+
+@dataclass(frozen=True)
+class FileFragment:
+    """A fragment of a file created during planning for large file handling.
+
+    A FileFragment is a planning artifact — created during context planning
+    and destroyed after context generation. It is NOT a repository entity.
+
+    Attributes:
+        file_path: Relative file path of the originating file.
+        fragment_index: Zero-based position within the file.
+        fragment_total: Total number of fragments for this file.
+        line_start: First line number (inclusive).
+        line_end: Last line number (exclusive).
+        compression: Compression level to apply to this fragment.
+        importance: Importance score for this fragment.
+        estimated_tokens: Estimated token count (not exact until materialized).
+        class_context: Class name at the split point, if applicable.
+        function_context: Function name at the split point, if applicable.
+        imports_summary: Relevant imports for this fragment.
+    """
+
+    file_path: str
+    fragment_index: int
+    fragment_total: int
+    line_start: int
+    line_end: int
+    compression: CompressionLevel
+    importance: int
+    estimated_tokens: int
+    class_context: str | None = None
+    function_context: str | None = None
+    imports_summary: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Provenance:
+    """Metadata tracing where content came from.
+
+    Provenance is for debugging, validation, MCP jump-to-source,
+    and future IDE integration. It is NOT exposed in Markdown output.
+
+    Attributes:
+        source_file: Relative file path of the originating file.
+        source_lines: Tuple of (start_line, end_line) used after materialization.
+        compression_applied: Compression level that was actually applied.
+        importance_reason: Why this entry has this importance score.
+    """
+
+    source_file: str
+    source_lines: tuple[int, int]
+    compression_applied: CompressionLevel
+    importance_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ChunkEntry:
+    """A single entry within a chunk — either a full file or a fragment.
+
+    Attributes:
+        file_path: Relative file path.
+        role: File role.
+        importance: Importance score.
+        compression: Compression level applied.
+        representation: Human-readable representation name.
+        content: Materialized content string.
+        estimated_tokens: Estimated token count.
+        is_fragment: True if this is a file fragment (not a full file).
+        fragment_index: Fragment position within the file (None for full files).
+        fragment_total: Total fragments for this file (None for full files).
+        continues_in_chunk: Chunk index where the next fragment appears (None if last).
+        language: Detected language identifier.
+        provenance: Optional provenance metadata.
+    """
+
+    file_path: str
+    role: FileRole
+    importance: int
+    compression: CompressionLevel
+    representation: str
+    content: str
+    estimated_tokens: int
+    is_fragment: bool = False
+    fragment_index: int | None = None
+    fragment_total: int | None = None
+    continues_in_chunk: int | None = None
+    language: str | None = None
+    provenance: Provenance | None = None
+
+
+@dataclass(frozen=True)
+class Chunk:
+    """A single chunk of context entries.
+
+    Attributes:
+        entries: Tuple of chunk entries in this chunk.
+        token_count: Token count for this chunk.
+        chunk_index: Zero-based chunk index.
+        header: Optional section header.
+    """
+
+    entries: tuple[ChunkEntry, ...]
     token_count: int
     chunk_index: int
     header: str = ""

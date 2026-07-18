@@ -1,21 +1,13 @@
+{% if manifest %}
+{{ manifest }}
+
+{% endif %}
 {% if directory_structure %}
 # Repository Structure
 
 ```
 {{ directory_structure }}
 ```
-
-{% endif %}
-{% if file_summary %}
-# File Summary
-
-{{ file_summary }}
-
-{% endif %}
-{% if custom_instructions %}
-# Instructions
-
-{{ custom_instructions }}
 
 {% endif %}
 {% for chunk in chunks %}
@@ -25,12 +17,18 @@
 {% endif %}
 {% for file in chunk.files %}
 ─── {{ file.path }} ({{ file.representation | upper }}) ───
+{% if file.fragment_label %}
+*{{ file.fragment_label }}*
+{% endif %}
 {% if file.content %}
 ```{{ file.language }}
 {{ file.content }}
 ```
 {% else %}
 {{ file.content }}
+{% endif %}
+{% if file.continuation_hint %}
+*{{ file.continuation_hint }}*
 {% endif %}
 
 {% endfor %}

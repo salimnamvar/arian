@@ -14,7 +14,7 @@ from arian.domain.context.models import MaterializedChunk
 
 logger = logging.getLogger(__name__)
 
-_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent / "templates"
+_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent / "template"
 
 
 class MarkdownRenderer:
@@ -57,21 +57,30 @@ class MarkdownRenderer:
 
         for chunk in a_chunks:
             files_data: list[dict[str, object]] = []
-            for mat_file in chunk.files:
+            for entry in chunk.entries:
                 lang: str = ""
-                if mat_file.path.endswith(".py"):
+                if entry.path.endswith(".py"):
                     lang = "python"
-                elif mat_file.path.endswith(".md"):
+                elif entry.path.endswith(".md"):
                     lang = "markdown"
 
-                files_data.append(
-                    {
-                        "path": mat_file.path,
-                        "representation": mat_file.compression.value,
-                        "content": mat_file.content,
-                        "language": lang,
-                    }
-                )
+                file_data: dict[str, object] = {
+                    "path": entry.path,
+                    "representation": entry.compression.value,
+                    "content": entry.content,
+                    "language": lang,
+                    "is_fragment": entry.is_fragment,
+                    "fragment_label": "",
+                    "continuation_hint": "",
+                }
+
+                if entry.is_fragment and entry.fragment_index is not None and entry.fragment_total is not None:
+                    file_data["fragment_label"] = f"Fragment {entry.fragment_index + 1}/{entry.fragment_total}"
+
+                if entry.continues_in_chunk is not None:
+                    file_data["continuation_hint"] = f"Continues in Chunk {entry.continues_in_chunk}"
+
+                files_data.append(file_data)
                 total_files += 1
 
             chunks_data.append(
@@ -82,12 +91,11 @@ class MarkdownRenderer:
             )
 
         directory_structure: str = self._build_directory_structure(a_chunks)
-        file_summary: str = self._build_file_summary(a_plan, total_files)
+        manifest: str = self._build_manifest(a_plan, total_files)
 
         result: str = self._template.render(
+            manifest=manifest,
             directory_structure=directory_structure,
-            file_summary=file_summary,
-            custom_instructions="",
             chunks=chunks_data,
             total_files=total_files,
             total_tokens=a_plan.total_tokens,
@@ -109,8 +117,8 @@ class MarkdownRenderer:
         """
         paths: list[str] = []
         for chunk in a_chunks:
-            for mat_file in chunk.files:
-                paths.append(mat_file.path)
+            for entry in chunk.entries:
+                paths.append(entry.path)
 
         lines: list[str] = []
         for path in sorted(set(paths)):
@@ -122,24 +130,25 @@ class MarkdownRenderer:
         result: str = "\n".join(lines)
         return result
 
-    def _build_file_summary(self, a_plan: ContextPlan, a_total_files: int) -> str:
-        """Build a file summary with token counts.
+    def _build_manifest(self, a_plan: ContextPlan, a_total_files: int) -> str:
+        """Build a YAML manifest for the context.
 
         Args:
             a_plan: Context plan for metadata.
             a_total_files: Total file count.
 
         Returns:
-            Multi-line summary string.
+            YAML manifest string.
         """
         lines: list[str] = [
-            f"Files: {a_total_files}",
-            f"Tokens: {a_plan.total_tokens}",
-            f"Chunks: {len(a_plan.chunks)}",
-            f"Task: {a_plan.task.value}",
+            "# Arian Context Manifest",
+            "task: " + a_plan.task.value,
+            "files: " + str(a_total_files),
+            "chunks: " + str(len(a_plan.chunks)),
+            "tokens: " + str(a_plan.total_tokens),
         ]
         if a_plan.query:
-            lines.append(f"Query: {a_plan.query}")
+            lines.append("query: " + a_plan.query)
 
         result: str = "\n".join(lines)
         return result
