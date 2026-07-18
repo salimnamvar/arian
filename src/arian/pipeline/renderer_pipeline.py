@@ -5,6 +5,7 @@ Renders documents and writes output files.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from arian.domain.models import ContextResult
@@ -12,6 +13,8 @@ from arian.domain.models import Document
 from arian.domain.models import OutputMode
 from arian.renderer.protocols import RendererProtocol
 from arian.repository.protocols import WriterProtocol
+
+logger = logging.getLogger(__name__)
 
 
 def render_and_write(
@@ -38,6 +41,8 @@ def render_and_write(
         ContextResult with output information.
     """
     total_tokens: int = sum(d.tokens for d in a_documents)
+
+    logger.debug("Rendering %d documents, %d chunk(s)", len(a_documents), len(a_chunks))
 
     result: ContextResult
     if a_mode == OutputMode.AGGREGATE and a_max_tokens is None:
@@ -76,6 +81,7 @@ def _render_aggregate_single(
         a_output_path = a_output_path / "merged.md"
 
     written: Path = a_writer.write(content, a_output_path)
+    logger.debug("Wrote %s", written)
 
     result: ContextResult = ContextResult(
         output_paths=(str(written),),
@@ -110,6 +116,7 @@ def _render_aggregate_split(
         content: str = a_renderer.render(chunk)
         numbered_path: Path = a_output_path / f"merged.{i}.md"
         a_writer.write(content, numbered_path)
+        logger.debug("Wrote chunk %d to %s", i, numbered_path)
         output_paths.append(str(numbered_path))
 
     result: ContextResult = ContextResult(
@@ -151,6 +158,7 @@ def _render_separate(
         content: str = a_renderer.render(chunk)
         out_path: Path = a_output_path / f"{stem}.md"
         a_writer.write(content, out_path)
+        logger.debug("Wrote %s", out_path)
         output_paths.append(str(out_path))
 
     result: ContextResult = ContextResult(

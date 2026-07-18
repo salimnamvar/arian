@@ -5,6 +5,7 @@ Orchestrates the context building pipeline with dependency injection.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from arian.domain.enums import OutputMode
@@ -17,6 +18,8 @@ from arian.pipeline.splitter_pipeline import split_documents
 from arian.renderer.protocols import RendererProtocol
 from arian.repository.protocols import CollectorProtocol
 from arian.repository.protocols import WriterProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class ContextBuilderService:
@@ -58,6 +61,7 @@ class ContextBuilderService:
         documents: list[Document] = self._collector.collect(list(self._config.inputs))
 
         if not documents:
+            logger.warning("No documents collected from inputs")
             msg = "No documents collected from inputs"
             raise NoDocumentsError(
                 msg,
@@ -67,11 +71,16 @@ class ContextBuilderService:
 
         documents = sorted(documents, key=lambda d: d.path)
 
+        total_tokens: int = sum(d.tokens for d in documents)
+        logger.info("Collected %d documents (%d tokens)", len(documents), total_tokens)
+
         chunks: list[list[Document]]
         if self._config.mode == OutputMode.AGGREGATE and self._config.max_tokens is not None:
             chunks = split_documents(documents, self._config.max_tokens)
         else:
             chunks = [documents]
+
+        logger.debug("Split into %d chunk(s)", len(chunks))
 
         out_path: Path = Path(self._config.output_path)
 

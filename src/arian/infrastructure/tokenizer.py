@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import logging
 
 import tiktoken
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=8)
@@ -21,6 +24,7 @@ def _get_encoding(a_model: str) -> tiktoken.Encoding:
     try:
         encoding = tiktoken.encoding_for_model(a_model)
     except KeyError:
+        logger.debug("Model '%s' not found, falling back to cl100k_base", a_model)
         encoding = tiktoken.get_encoding("cl100k_base")
     return encoding
 

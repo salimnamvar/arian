@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class FileWriter:
@@ -31,6 +34,7 @@ class FileWriter:
         """
         a_path.parent.mkdir(parents=True, exist_ok=True)
         a_path.write_text(a_content, encoding="utf-8")
+        logger.debug("Wrote %d bytes to %s", len(a_content), a_path)
         return a_path
 
     def write_numbered(self, a_chunks: list[str], a_base_path: Path) -> list[Path]:

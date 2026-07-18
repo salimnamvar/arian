@@ -5,7 +5,11 @@ Splits documents into chunks respecting token limits.
 
 from __future__ import annotations
 
+import logging
+
 from arian.domain.models import Document
+
+logger = logging.getLogger(__name__)
 
 
 def split_documents(
@@ -40,5 +44,7 @@ def split_documents(
 
         if current_chunk:
             chunks.append(current_chunk)
+
+    logger.debug("Split %d documents into %d chunk(s) (max %s tokens)", len(a_documents), len(chunks), a_max_tokens)
 
     return chunks

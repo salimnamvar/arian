@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from jinja2 import Template
 
 from arian.domain.models import Document
+
+logger = logging.getLogger(__name__)
 
 MARKDOWN_TEMPLATE = Template(
     """\
@@ -36,4 +40,5 @@ class MarkdownRenderer:
             Rendered markdown content.
         """
         result: str = MARKDOWN_TEMPLATE.render(documents=a_documents)
+        logger.debug("Rendered %d documents to markdown", len(a_documents))
         return result

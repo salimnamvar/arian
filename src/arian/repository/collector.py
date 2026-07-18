@@ -6,12 +6,15 @@ Collects documents from the filesystem respecting filters and token counting.
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 from arian.domain.exceptions import InputNotFoundError
 from arian.domain.models import Document
 from arian.infrastructure.gitignore_filter import PathFilter
 from arian.infrastructure.language import detect_language
+
+logger = logging.getLogger(__name__)
 
 
 class FilesystemCollector:
@@ -54,6 +57,8 @@ class FilesystemCollector:
         documents: list[Document] = []
         emitted: set[Path] = set()
 
+        logger.debug("Collecting from %d input(s)", len(a_inputs))
+
         for path_str in a_inputs:
             path: Path = Path(path_str)
             if path.is_file():
@@ -64,11 +69,13 @@ class FilesystemCollector:
                 documents.extend(self._collect_directory(path, emitted))
             else:
                 msg = f"Input path not found: {path_str}"
+                logger.warning("Input path not found: %s", path_str)
                 raise InputNotFoundError(
                     msg,
                     a_resource_name=path_str,
                 )
 
+        logger.debug("Collected %d documents", len(documents))
         return documents
 
     def _collect_file(self, a_path: Path, a_emitted: set[Path]) -> Document | None:
@@ -83,20 +90,22 @@ class FilesystemCollector:
         """
         result: Document | None = None
 
-        if a_path.suffix in self._extensions:
-            resolved: Path = a_path.resolve()
-            if resolved not in a_emitted:
-                try:
-                    content: str = a_path.read_text(encoding="utf-8", errors="ignore")
-                    a_emitted.add(resolved)
-                    result = Document(
-                        path=str(a_path),
-                        content=content,
-                        tokens=self._tokenizer(content),
-                        language=detect_language(a_path),
-                    )
-                except OSError:
-                    result = None
+        if a_path.suffix not in self._extensions:
+            logger.debug("Skipping %s (extension not in filter)", a_path)
+        elif a_path.resolve() in a_emitted:
+            logger.debug("Skipping %s (duplicate)", a_path)
+        else:
+            try:
+                content: str = a_path.read_text(encoding="utf-8", errors="ignore")
+                a_emitted.add(a_path.resolve())
+                result = Document(
+                    path=str(a_path),
+                    content=content,
+                    tokens=self._tokenizer(content),
+                    language=detect_language(a_path),
+                )
+            except OSError:
+                logger.warning("Skipping %s (read error)", a_path)
 
         return result
 
@@ -116,6 +125,7 @@ class FilesystemCollector:
         try:
             entries = sorted(a_directory.iterdir(), key=lambda p: (p.is_dir(), p.name))
         except OSError:
+            logger.warning("Cannot read directory: %s", a_directory)
             entries = None
 
         if entries is not None:
