@@ -90,7 +90,7 @@ class MarkdownRenderer:
                 }
             )
 
-        directory_structure: str = self._build_directory_structure(a_chunks)
+        directory_structure: str = self._build_directory_structure(a_plan.repository_files)
         manifest: str = self._build_manifest(a_plan, total_files)
 
         result: str = self._template.render(
@@ -105,26 +105,38 @@ class MarkdownRenderer:
 
     def _build_directory_structure(
         self,
-        a_chunks: tuple[MaterializedChunk, ...],
+        a_repository_files: tuple[str, ...],
     ) -> str:
-        """Build a directory tree string from materialized chunks.
+        """Build a directory tree string from all repository files.
+
+        Renders proper hierarchy with directory nodes and Unicode box-drawing
+        characters for visual clarity. Uses the full file list, not just
+        materialized files, so the tree shows the complete repository structure.
 
         Args:
-            a_chunks: Materialized chunks.
+            a_repository_files: All collected file paths from the repository.
 
         Returns:
             Multi-line directory tree string.
         """
-        paths: list[str] = []
-        for chunk in a_chunks:
-            for entry in chunk.entries:
-                paths.append(entry.path)
+        paths: set[str] = set(a_repository_files)
 
+        dirs: set[str] = set()
+        for path in paths:
+            parent = Path(path).parent
+            while parent != Path():
+                dirs.add(str(parent))
+                parent = parent.parent
+
+        all_entries: set[str] = paths | dirs
         lines: list[str] = []
-        for path in sorted(set(paths)):
-            depth: int = len(Path(path).parts) - 1
-            indent: str = "  " * max(depth, 0)
-            name: str = Path(path).name
+
+        for entry_path in sorted(all_entries):
+            depth = len(Path(entry_path).parts)
+            indent = "│   " * (depth - 1) + "├── "
+            name = Path(entry_path).name
+            if entry_path in dirs:
+                name += "/"
             lines.append(f"{indent}{name}")
 
         result: str = "\n".join(lines)
@@ -135,20 +147,41 @@ class MarkdownRenderer:
 
         Args:
             a_plan: Context plan for metadata.
-            a_total_files: Total file count.
+            a_total_files: Total file count in plan (after budget enforcement).
 
         Returns:
             YAML manifest string.
         """
+        meta: dict[str, str | int | dict[str, str | int] | list[str]] = (
+            a_plan.metadata if a_plan.metadata is not None else {}
+        )
+        collected_count: int = len(a_plan.repository_files)
         lines: list[str] = [
             "# Arian Context Manifest",
-            "task: " + a_plan.task.value,
-            "files: " + str(a_total_files),
-            "chunks: " + str(len(a_plan.chunks)),
-            "tokens: " + str(a_plan.total_tokens),
         ]
+        if "repository" in meta:
+            lines.append("repository: " + str(meta["repository"]))
+        if "paths" in meta:
+            raw_paths = meta["paths"]
+            if isinstance(raw_paths, list):
+                lines.append("paths:")
+                for p in raw_paths:
+                    lines.append("  - " + str(p))
+        lines.append("task: " + a_plan.task.value)
         if a_plan.query:
             lines.append("query: " + a_plan.query)
+        if "budget" in meta:
+            raw_budget = meta["budget"]
+            if isinstance(raw_budget, dict):
+                lines.append("budget:")
+                for key in raw_budget:
+                    lines.append(f"  {key}: {raw_budget[key]}")
+        lines.append("collected: " + str(collected_count))
+        lines.append("files: " + str(a_total_files))
+        lines.append("chunks: " + str(len(a_plan.chunks)))
+        lines.append("tokens: " + str(a_plan.total_tokens))
+        if "scope" in meta:
+            lines.append("scope: " + str(meta["scope"]))
 
         result: str = "\n".join(lines)
         return result

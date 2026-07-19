@@ -113,7 +113,61 @@ class ContextMaterializer:
                     )
                 )
 
+        self._populate_continuation_hints(materialized_chunks)
         return tuple(materialized_chunks)
+
+    def _populate_continuation_hints(
+        self,
+        a_chunks: list[MaterializedChunk],
+    ) -> None:
+        """Populate continues_in_chunk for cross-chunk fragment relationships.
+
+        Modifies chunks in-place, setting continues_in_chunk for each
+        fragment that has a next fragment in a later chunk.
+
+        Args:
+            a_chunks: List of materialized chunks to update.
+        """
+        fragment_locations: dict[str, list[int]] = {}
+        for i, chunk in enumerate(a_chunks):
+            for entry in chunk.entries:
+                if entry.is_fragment:
+                    fragment_locations.setdefault(entry.path, []).append(i)
+
+        for path, chunk_indices in fragment_locations.items():
+            if len(chunk_indices) < 2:
+                continue
+            for pos, chunk_idx in enumerate(chunk_indices):
+                if pos < len(chunk_indices) - 1:
+                    next_chunk_idx = chunk_indices[pos + 1]
+                    chunk = a_chunks[chunk_idx]
+                    updated_entries: list[MaterializedEntry] = []
+                    for entry in chunk.entries:
+                        if entry.is_fragment and entry.path == path and entry.continues_in_chunk is None:
+                            updated_entries.append(
+                                MaterializedEntry(
+                                    path=entry.path,
+                                    role=entry.role,
+                                    importance=entry.importance,
+                                    compression=entry.compression,
+                                    content=entry.content,
+                                    tokens=entry.tokens,
+                                    is_fragment=entry.is_fragment,
+                                    fragment_index=entry.fragment_index,
+                                    fragment_total=entry.fragment_total,
+                                    continues_in_chunk=next_chunk_idx,
+                                    language=entry.language,
+                                    provenance=entry.provenance,
+                                )
+                            )
+                        else:
+                            updated_entries.append(entry)
+                    a_chunks[chunk_idx] = MaterializedChunk(
+                        entries=tuple(updated_entries),
+                        token_count=chunk.token_count,
+                        chunk_index=chunk.chunk_index,
+                        header=chunk.header,
+                    )
 
     def _extract_content(
         self,
