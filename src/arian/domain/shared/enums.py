@@ -53,11 +53,9 @@ class TokenBudget:
     """Token budget constraints for context planning.
 
     Attributes:
-        max_tokens: Maximum total tokens for the context.
-        per_chunk_target: Target tokens per chunk.
-        readme_reserve: Tokens reserved for README content.
+        max_tokens: Maximum total tokens. None = unlimited.
+        per_chunk_target: Target tokens per chunk. None = auto.
     """
 
-    max_tokens: int
-    per_chunk_target: int = 4000
-    readme_reserve: int = 500
+    max_tokens: int | None = None
+    per_chunk_target: int | None = None

@@ -43,16 +43,21 @@ def test_token_budget_defaults() -> None:
     """Test TokenBudget default values."""
     budget = TokenBudget(max_tokens=5000)
     assert budget.max_tokens == 5000
-    assert budget.per_chunk_target == 4000
-    assert budget.readme_reserve == 500
+    assert budget.per_chunk_target is None
+
+
+def test_token_budget_unlimited() -> None:
+    """Test TokenBudget unlimited defaults."""
+    budget = TokenBudget()
+    assert budget.max_tokens is None
+    assert budget.per_chunk_target is None
 
 
 def test_token_budget_custom() -> None:
     """Test TokenBudget custom values."""
-    budget = TokenBudget(max_tokens=10000, per_chunk_target=2000, readme_reserve=1000)
+    budget = TokenBudget(max_tokens=10000, per_chunk_target=2000)
     assert budget.max_tokens == 10000
     assert budget.per_chunk_target == 2000
-    assert budget.readme_reserve == 1000
 
 
 def test_token_budget_immutable() -> None:

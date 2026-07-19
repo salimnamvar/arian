@@ -64,10 +64,13 @@ class FileCollector:
         a_path: Path,
         a_root: Path | None = None,
     ) -> list[RepositoryFile]:
-        """Collect file metadata from a directory path.
+        """Collect file metadata from a path.
+
+        Supports both individual files and directories. For directories,
+        scans recursively. For files, collects metadata directly.
 
         Args:
-            a_path: Root directory to scan.
+            a_path: File or directory to scan.
             a_root: Root for computing relative paths. Defaults to a_path.
 
         Returns:
@@ -76,7 +79,12 @@ class FileCollector:
         root: Path = a_root if a_root is not None else a_path
         files: list[RepositoryFile] = []
         emitted: set[Path] = set()
-        await self._collect_directory(a_path, files, emitted, root)
+        if a_path.is_file():
+            repo_file: RepositoryFile | None = await self._collect_file(a_path, emitted, root)
+            if repo_file is not None:
+                files.append(repo_file)
+        else:
+            await self._collect_directory(a_path, files, emitted, root)
         logger.debug("Collected %d files from %s", len(files), a_path)
         return files
 

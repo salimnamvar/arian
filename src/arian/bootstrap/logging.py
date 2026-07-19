@@ -158,7 +158,7 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
     root_handlers: list[str] = ["console_debug", "console_ops"]
 
     if a_config.log_dir is not None:
-        log_dir: Path = a_config.log_dir
+        log_dir: Path = Path(a_config.log_dir).expanduser()
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file: Path = log_dir / "arian.log"
 
