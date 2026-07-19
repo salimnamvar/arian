@@ -6,16 +6,22 @@ Build optimized LLM-ready context from source code repositories. Arian scans a c
 
 ## Prerequisites
 
-- Python 3.13 or higher
+- Python 3.10 or higher
 
 ## Quick Start
 
-Clone and install locally:
+Install from PyPI:
+
+```bash
+pip install arian
+```
+
+Or install locally for development:
 
 ```bash
 git clone https://github.com/salimnamvar/arian.git
 cd arian
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 Generate context for a repository:
