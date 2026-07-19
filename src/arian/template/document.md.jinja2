@@ -11,6 +11,10 @@
 
 {% endif %}
 {% for chunk in chunks %}
+{% if not loop.first %}
+---
+
+{% endif %}
 {% if chunk.header %}
 ## {{ chunk.header }}
 
@@ -35,4 +39,5 @@
 {% endfor %}
 ## Summary
 Files: {{ total_files }}
+Chunks: {{ chunks | length }}
 Tokens: {{ total_tokens }}

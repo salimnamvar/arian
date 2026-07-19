@@ -381,8 +381,18 @@ class ContextPlanner:
         current_files: list[PlannedFile] = []
         current_tokens: int = 0
         chunk_index: int = 0
+        total_tokens: int = 0
 
         for planned_file in a_planned:
+            if total_tokens + planned_file.tokens > a_budget.max_tokens:
+                logger.warning(
+                    "Token budget exceeded: %d + %d > %d. Stopping.",
+                    total_tokens,
+                    planned_file.tokens,
+                    a_budget.max_tokens,
+                )
+                break
+
             if current_tokens + planned_file.tokens > a_budget.per_chunk_target and current_files:
                 chunks.append(
                     ContextChunk(
@@ -397,6 +407,7 @@ class ContextPlanner:
 
             current_files.append(planned_file)
             current_tokens += planned_file.tokens
+            total_tokens += planned_file.tokens
 
         if current_files:
             chunks.append(

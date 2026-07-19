@@ -21,28 +21,42 @@ pip install -e .
 Generate context for a repository:
 
 ```bash
-arian context --task bug_fix
+arian --task bug_fix
 ```
 
 Output is written to `.tmp/` by default. Specify a custom path with `--output`:
 
 ```bash
-arian context --task feature --output context.md
+arian --task feature --output context.md
+```
+
+Scope to specific directories:
+
+```bash
+arian src/ lib/
+```
+
+Generate separate context files per directory:
+
+```bash
+arian src/ lib/ --scope separate
 ```
 
 ## Usage
 
 ```
-arian context [OPTIONS]
+arian [OPTIONS] [paths]...
 ```
 
 | Option | Default | Description |
 |---|---|---|
+| `paths` | CWD | Directories or files to include |
 | `--task` | `general` | Task type driving file selection priorities |
 | `--output` / `-o` | `.tmp` | Output file path |
 | `--max-tokens` | `5000` | Maximum tokens for context |
 | `--per-chunk` | `4000` | Target tokens per chunk |
-| `--query` / `-q` | — | Optional task context hint for future relevance planning |
+| `--query` / `-q` | — | Optional task context hint for relevance planning |
+| `--scope` | `merged` | Scope mode: `merged` (single file) or `separate` (one per path) |
 | `--verbose` / `-v` | `False` | Enable debug logging |
 
 ### Task Types
