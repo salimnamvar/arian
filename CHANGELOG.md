@@ -5,6 +5,18 @@ All notable changes to Arian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-19
+
+### Added
+
+- **GitFlow enforcement tools**: Makefile commands and pre-commit hook for strict workflow.
+- **Workflow guide**: `docs/GITFLOW.md` with comprehensive branching strategy.
+
+### Fixed
+
+- **Token budget count accuracy**: `total_files` now correctly reports actual files after budget enforcement.
+- **Single-return convention**: Refactored `_fragment_large_file` to follow project style guide.
+
 ## [0.3.0] - 2026-07-19
 
 ### Added
