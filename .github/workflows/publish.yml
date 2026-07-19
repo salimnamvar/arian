@@ -47,7 +47,7 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ""  # Empty means trusted publishing via OIDC
+          password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
