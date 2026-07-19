@@ -50,7 +50,7 @@ class ContextPlan:
     total_files: int
     task: ContextTask
     query: str | None = None
-    metadata: dict[str, str | int | dict[str, str | int] | list[str]] | None = None
+    metadata: dict[str, str | int | dict[str, str | int | None] | list[str]] | None = None
     repository_files: tuple[str, ...] = ()
 
     def validate(self) -> None:
@@ -212,7 +212,7 @@ class FileFragment:
         fragment_index: Zero-based position within the file.
         fragment_total: Total number of fragments for this file.
         line_start: First line number (inclusive).
-        line_end: Last line number (exclusive).
+        line_end: Last line number (exclusive). None = read to end of file.
         compression: Compression level to apply to this fragment.
         importance: Importance score for this fragment.
         estimated_tokens: Estimated token count (not exact until materialized).
@@ -225,10 +225,10 @@ class FileFragment:
     fragment_index: int
     fragment_total: int
     line_start: int
-    line_end: int
     compression: CompressionLevel
     importance: int
     estimated_tokens: int
+    line_end: int | None = None
     class_context: str | None = None
     function_context: str | None = None
     imports_summary: tuple[str, ...] = ()

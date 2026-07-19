@@ -16,9 +16,9 @@ def resolve_output_path(a_output_path: str) -> Path:
     Returns:
         Resolved Path object.
     """
-    result: Path = Path(a_output_path)
+    result: Path = Path(a_output_path).expanduser()
     if not result.is_absolute():
-        result = Path.cwd() / a_output_path
+        result = Path.cwd() / result
 
     if result.is_dir():
         result = result / "context.md"

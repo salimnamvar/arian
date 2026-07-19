@@ -11,6 +11,7 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
+from arian.infrastructure.language import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +59,7 @@ class MarkdownRenderer:
         for chunk in a_chunks:
             files_data: list[dict[str, object]] = []
             for entry in chunk.entries:
-                lang: str = ""
-                if entry.path.endswith(".py"):
-                    lang = "python"
-                elif entry.path.endswith(".md"):
-                    lang = "markdown"
+                lang: str = detect_language(Path(entry.path)) or ""
 
                 file_data: dict[str, object] = {
                     "path": entry.path,
@@ -152,7 +149,7 @@ class MarkdownRenderer:
         Returns:
             YAML manifest string.
         """
-        meta: dict[str, str | int | dict[str, str | int] | list[str]] = (
+        meta: dict[str, str | int | dict[str, str | int | None] | list[str]] = (
             a_plan.metadata if a_plan.metadata is not None else {}
         )
         collected_count: int = len(a_plan.repository_files)

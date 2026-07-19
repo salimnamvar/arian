@@ -65,7 +65,7 @@ class TestBugFixWorkflow:
         budget = TokenBudget(max_tokens=5000)
         plan = asyncio.run(builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout"))
         content_map = asyncio.run(builder.load_content(plan, tmp_path))
-        materialized = materializer.materialize(plan, content_map, budget)
+        materialized = materializer.materialize(plan, content_map)
         output = renderer.render(materialized, plan)
 
         assert "README.md" in output
