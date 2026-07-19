@@ -12,7 +12,19 @@
 .githooks
 .claude
 .autohand
-.github
+# .github AI context files - only keep workflows for CI/CD
+!.github/workflows/
+!.github/workflows/*.yml
+.github/agent
+.github/log
+.github/node_modules
+.github/package.json
+.github/package-lock.json
+.github/rules
+.github/scripts
+.github/settings.local.yaml
+.github/shared
+.github/tasks
 .grok
 .kimi
 .mimo
