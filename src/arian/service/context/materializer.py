@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Protocol
 
 from arian.domain.context.models import ContextPlan
@@ -11,7 +12,7 @@ from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import Provenance
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
-from arian.domain.shared.enums import TokenBudget
+from arian.infrastructure.language import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +45,12 @@ class ContextMaterializer:
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-        a_budget: TokenBudget | None = None,  # noqa: ARG002 — reserved
     ) -> tuple[MaterializedChunk, ...]:
         """Apply compression levels from plan to actual file content.
 
         Args:
             a_plan: Context plan with compression decisions.
             a_content: Mapping of file path to FileContent.
-            a_budget: Optional token budget (reserved for future use).
 
         Returns:
             Tuple of MaterializedChunk with compressed content.
@@ -97,7 +96,7 @@ class ContextMaterializer:
                         is_fragment=planned_file.is_fragment,
                         fragment_index=planned_file.fragment_index,
                         fragment_total=planned_file.fragment_total,
-                        language="python" if planned_file.path.endswith(".py") else None,
+                        language=detect_language(Path(planned_file.path)),
                         provenance=provenance,
                     )
                 )

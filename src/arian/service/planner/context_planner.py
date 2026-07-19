@@ -107,7 +107,7 @@ class ContextPlanner:
         planned: list[PlannedFile] = self._plan_files(a_files, a_task, a_query, symbols, a_budget)
         chunks: tuple[ContextChunk, ...] = self._plan_chunks(planned, a_budget)
         total_tokens: int = sum(c.token_count for c in chunks)
-        total_files: int = sum(len(c.files) for c in chunks)  # Actual files in chunks (may be less due to budget)
+        total_files: int = sum(len(c.files) for c in chunks)
 
         result: ContextPlan = ContextPlan(
             chunks=chunks,
@@ -151,7 +151,11 @@ class ContextPlanner:
             representation: str = compression.value
             tokens: int = self._estimate_tokens(repo_file.tokens, compression)
 
-            if tokens > a_budget.per_chunk_target and repo_file.path in a_symbols:
+            if (
+                a_budget.per_chunk_target is not None
+                and repo_file.tokens > a_budget.per_chunk_target
+                and repo_file.path in a_symbols
+            ):
                 fragments: tuple[FileFragment, ...] = self._fragment_large_file(
                     repo_file,
                     a_symbols[repo_file.path],
@@ -228,7 +232,9 @@ class ContextPlanner:
         """
         result: CompressionLevel = a_default
 
-        if (a_file.tokens > 5000 or a_file.tokens > 2000) and result == CompressionLevel.FULL:
+        if a_file.tokens > 5000 and result == CompressionLevel.FULL:
+            result = CompressionLevel.STRUCTURE
+        elif a_file.tokens > 2000 and result == CompressionLevel.FULL:
             result = CompressionLevel.SIGNATURES
 
         if a_role_is_critical(a_file.path, a_task):
@@ -279,9 +285,6 @@ class ContextPlanner:
         Returns:
             Tuple of FileFragment objects.
         """
-        estimated_raw_tokens: int = a_file.tokens
-
-        # Create boundaries between symbols (not including full file)
         symbol_boundaries: list[tuple[int, int, str | None, str | None]] = []
         for symbol in a_symbols:
             if symbol.kind == SymbolKind.CLASS:
@@ -292,16 +295,14 @@ class ContextPlanner:
         symbol_boundaries.sort(key=lambda b: b[0])
         fragments: list[FileFragment] = []
 
-        # Handle no-symbols case - create single fragment for whole file
         if symbol_boundaries:
             current_start: int = 0
+            before_tokens: int = 0
+            symbol_tokens: int = 0
 
             for boundary_start, boundary_end, class_name, function_name in symbol_boundaries:
                 if boundary_start > current_start:
-                    # Content before symbol
-                    before_tokens: int = max(
-                        1, int((boundary_start - current_start) / estimated_raw_tokens * estimated_raw_tokens)
-                    )
+                    before_tokens = max(1, a_file.tokens // (len(symbol_boundaries) + 1))
                     fragments.append(
                         FileFragment(
                             file_path=a_file.path,
@@ -315,10 +316,7 @@ class ContextPlanner:
                         )
                     )
 
-                # Symbol content
-                symbol_tokens: int = max(
-                    1, int((boundary_end - boundary_start) / estimated_raw_tokens * estimated_raw_tokens)
-                )
+                symbol_tokens = max(1, a_file.tokens // (len(symbol_boundaries) + 1))
                 fragments.append(
                     FileFragment(
                         file_path=a_file.path,
@@ -335,33 +333,33 @@ class ContextPlanner:
                 )
                 current_start = boundary_end
 
-            # Content after last symbol
-            if current_start < estimated_raw_tokens:
-                final_tokens: int = max(1, estimated_raw_tokens - current_start)
-                fragments.append(
-                    FileFragment(
-                        file_path=a_file.path,
-                        fragment_index=len(fragments),
-                        fragment_total=len(symbol_boundaries) + 1,
-                        line_start=current_start,
-                        line_end=estimated_raw_tokens,
-                        compression=CompressionLevel.SIGNATURES,
-                        importance=a_importance,
-                        estimated_tokens=final_tokens,
-                    )
+            final_tokens: int = max(
+                1,
+                a_file.tokens - before_tokens - symbol_tokens * len(symbol_boundaries),
+            )
+            fragments.append(
+                FileFragment(
+                    file_path=a_file.path,
+                    fragment_index=len(fragments),
+                    fragment_total=len(symbol_boundaries) + 1,
+                    line_start=current_start,
+                    line_end=None,
+                    compression=CompressionLevel.SIGNATURES,
+                    importance=a_importance,
+                    estimated_tokens=final_tokens,
                 )
+            )
         else:
-            # No symbols - cannot fragment, create single fragment
             fragments.append(
                 FileFragment(
                     file_path=a_file.path,
                     fragment_index=0,
                     fragment_total=1,
                     line_start=0,
-                    line_end=estimated_raw_tokens,
+                    line_end=None,
                     compression=CompressionLevel.SIGNATURES,
                     importance=a_importance,
-                    estimated_tokens=int(estimated_raw_tokens * 0.3),  # SIGNATURES ratio
+                    estimated_tokens=int(a_file.tokens * 0.3),
                 )
             )
 
@@ -405,7 +403,7 @@ class ContextPlanner:
         total_tokens: int = 0
 
         for planned_file in a_planned:
-            if total_tokens + planned_file.tokens > a_budget.max_tokens:
+            if a_budget.max_tokens is not None and total_tokens + planned_file.tokens > a_budget.max_tokens:
                 logger.warning(
                     "Token budget exceeded: %d + %d > %d. Stopping.",
                     total_tokens,
@@ -414,7 +412,11 @@ class ContextPlanner:
                 )
                 break
 
-            if current_tokens + planned_file.tokens > a_budget.per_chunk_target and current_files:
+            if (
+                a_budget.per_chunk_target is not None
+                and current_tokens + planned_file.tokens > a_budget.per_chunk_target
+                and current_files
+            ):
                 chunks.append(
                     ContextChunk(
                         files=tuple(current_files),

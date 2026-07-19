@@ -31,7 +31,7 @@ class LoggingConfig(BaseModel):
     level: str = Field(default="INFO", description="Application logging level.")
     async_logging: bool = Field(default=False, description="Enable async logging via queue.")
     log_dir: Path | None = Field(
-        default=Path(".arian/logs"),
+        default=Path("~/.arian/logs"),
         description="Directory for log files. None disables file logging.",
     )
     max_bytes: int = Field(default=10 * 1024 * 1024, description="Max log file size before rotation (bytes).")
