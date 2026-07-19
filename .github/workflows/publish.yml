@@ -45,7 +45,7 @@ jobs:
           twine check dist/*
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/1.10.0
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ""  # Empty means trusted publishing via OIDC
 
