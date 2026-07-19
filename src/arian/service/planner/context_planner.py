@@ -290,10 +290,69 @@ class ContextPlanner:
                 symbol_boundaries.append((symbol.line_start, symbol.line_end, None, symbol.name))
 
         symbol_boundaries.sort(key=lambda b: b[0])
+        fragments: list[FileFragment] = []
 
-        if not symbol_boundaries:
-            # No symbols - cannot fragment, return single fragment
-            return (
+        # Handle no-symbols case - create single fragment for whole file
+        if symbol_boundaries:
+            current_start: int = 0
+
+            for boundary_start, boundary_end, class_name, function_name in symbol_boundaries:
+                if boundary_start > current_start:
+                    # Content before symbol
+                    before_tokens: int = max(
+                        1, int((boundary_start - current_start) / estimated_raw_tokens * estimated_raw_tokens)
+                    )
+                    fragments.append(
+                        FileFragment(
+                            file_path=a_file.path,
+                            fragment_index=len(fragments),
+                            fragment_total=len(symbol_boundaries) + 1,
+                            line_start=current_start,
+                            line_end=boundary_start,
+                            compression=CompressionLevel.SIGNATURES,
+                            importance=a_importance,
+                            estimated_tokens=before_tokens,
+                        )
+                    )
+
+                # Symbol content
+                symbol_tokens: int = max(
+                    1, int((boundary_end - boundary_start) / estimated_raw_tokens * estimated_raw_tokens)
+                )
+                fragments.append(
+                    FileFragment(
+                        file_path=a_file.path,
+                        fragment_index=len(fragments),
+                        fragment_total=len(symbol_boundaries) + 1,
+                        line_start=boundary_start,
+                        line_end=boundary_end,
+                        compression=CompressionLevel.SIGNATURES,
+                        importance=a_importance,
+                        estimated_tokens=symbol_tokens,
+                        class_context=class_name,
+                        function_context=function_name,
+                    )
+                )
+                current_start = boundary_end
+
+            # Content after last symbol
+            if current_start < estimated_raw_tokens:
+                final_tokens: int = max(1, estimated_raw_tokens - current_start)
+                fragments.append(
+                    FileFragment(
+                        file_path=a_file.path,
+                        fragment_index=len(fragments),
+                        fragment_total=len(symbol_boundaries) + 1,
+                        line_start=current_start,
+                        line_end=estimated_raw_tokens,
+                        compression=CompressionLevel.SIGNATURES,
+                        importance=a_importance,
+                        estimated_tokens=final_tokens,
+                    )
+                )
+        else:
+            # No symbols - cannot fragment, create single fragment
+            fragments.append(
                 FileFragment(
                     file_path=a_file.path,
                     fragment_index=0,
@@ -303,69 +362,11 @@ class ContextPlanner:
                     compression=CompressionLevel.SIGNATURES,
                     importance=a_importance,
                     estimated_tokens=int(estimated_raw_tokens * 0.3),  # SIGNATURES ratio
-                ),
-            )
-
-        fragments: list[FileFragment] = []
-        current_start: int = 0
-
-        for boundary_start, boundary_end, class_name, function_name in symbol_boundaries:
-            if boundary_start > current_start:
-                # Content before symbol
-                before_tokens: int = max(
-                    1, int((boundary_start - current_start) / estimated_raw_tokens * estimated_raw_tokens)
-                )
-                fragments.append(
-                    FileFragment(
-                        file_path=a_file.path,
-                        fragment_index=len(fragments),
-                        fragment_total=len(symbol_boundaries) + 1,
-                        line_start=current_start,
-                        line_end=boundary_start,
-                        compression=CompressionLevel.SIGNATURES,
-                        importance=a_importance,
-                        estimated_tokens=before_tokens,
-                    )
-                )
-
-            # Symbol content
-            symbol_tokens: int = max(
-                1, int((boundary_end - boundary_start) / estimated_raw_tokens * estimated_raw_tokens)
-            )
-            fragments.append(
-                FileFragment(
-                    file_path=a_file.path,
-                    fragment_index=len(fragments),
-                    fragment_total=len(symbol_boundaries) + 1,
-                    line_start=boundary_start,
-                    line_end=boundary_end,
-                    compression=CompressionLevel.SIGNATURES,
-                    importance=a_importance,
-                    estimated_tokens=symbol_tokens,
-                    class_context=class_name,
-                    function_context=function_name,
-                )
-            )
-            current_start = boundary_end
-
-        # Content after last symbol
-        if current_start < estimated_raw_tokens:
-            final_tokens: int = max(1, estimated_raw_tokens - current_start)
-            fragments.append(
-                FileFragment(
-                    file_path=a_file.path,
-                    fragment_index=len(fragments),
-                    fragment_total=len(symbol_boundaries) + 1,
-                    line_start=current_start,
-                    line_end=estimated_raw_tokens,
-                    compression=CompressionLevel.SIGNATURES,
-                    importance=a_importance,
-                    estimated_tokens=final_tokens,
                 )
             )
 
         total_fragments: int = len(fragments)
-        return tuple(
+        result: tuple[FileFragment, ...] = tuple(
             FileFragment(
                 file_path=f.file_path,
                 fragment_index=f.fragment_index,
@@ -381,6 +382,7 @@ class ContextPlanner:
             )
             for f in fragments
         )
+        return result
 
     def _plan_chunks(
         self,
