@@ -5,6 +5,7 @@ Pydantic-settings based configuration loaded from CLI args or environment.
 
 from __future__ import annotations
 
+from functools import lru_cache
 import logging
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,10 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import field_validator
+
+_DEFAULT_EXTENSIONS: frozenset[str] = frozenset(
+    {".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json"},
+)
 
 
 class LoggingConfig(BaseModel):
@@ -60,3 +65,64 @@ class LoggingConfig(BaseModel):
             msg = f"Invalid logging level: {a_value}"
             raise ValueError(msg)
         return level
+
+
+class FileCollectorConfig(BaseModel):
+    """File collector configuration — extensions and exclusions.
+
+    Attributes:
+        extensions: File extensions to include.
+        exclude: Directory names to exclude from scanning.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    extensions: frozenset[str] = Field(
+        default=_DEFAULT_EXTENSIONS,
+        description="File extensions to include.",
+    )
+    exclude: frozenset[str] = Field(
+        default=frozenset(
+            {
+                ".git",
+                ".venv",
+                "__pycache__",
+                ".pytest_cache",
+                "node_modules",
+                "dist",
+                "build",
+                ".arian",
+                ".tmp",
+                ".mypy_cache",
+                ".ruff_cache",
+                "archived",
+            }
+        ),
+        description="Directory names to exclude.",
+    )
+
+
+class ArianConfig(BaseModel):
+    """Root configuration for Arian — hierarchical, frozen, env-driven.
+
+    Follows tenas ServiceConfig pattern: @lru_cache singleton via load().
+
+    Attributes:
+        logging: Logging configuration.
+        collector: File collector configuration.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    collector: FileCollectorConfig = Field(default_factory=FileCollectorConfig)
+
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def load() -> ArianConfig:
+        """Load configuration as a singleton (cached after first call).
+
+        Returns:
+            ArianConfig instance.
+        """
+        return ArianConfig()
