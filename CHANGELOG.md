@@ -5,6 +5,31 @@ All notable changes to Arian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-19
+
+### Added
+
+- **Token budget enforcement**: `--max-tokens` is now enforced. Files beyond budget are dropped with warning.
+- **Input scoping**: Positional `PATHS` argument for directory-specific context generation (`arian src/`).
+- **Scope modes**: `--scope merged` (default, single file) and `--scope separate` (one file per path).
+- **Grouped paths**: `--group src/,lib/ --group docs/` generates one context file per group.
+- **Continuation hints**: Cross-chunk fragment navigation ("Continues in Chunk N").
+- **Full directory tree**: Tree now shows all repository files, not just materialized chunks.
+- **Enhanced manifest**: Shows repository name, paths, budget, scope, collected vs planned file counts.
+- **Chunk separators**: `---` between chunks for visual separation.
+- **Improved summary**: Shows Files, Chunks, and Tokens count.
+
+### Fixed
+
+- **Absolute paths in output**: All paths now relative to repository root.
+- **Directory tree hierarchy**: Proper nesting with Unicode box-drawing characters.
+- **README stale CLI docs**: Removed `arian context` subcommand references.
+
+### Changed
+
+- **Manifest format**: Added `repository`, `paths`, `budget`, `scope`, `collected` fields.
+- **Summary format**: Added `Chunks` count alongside Files and Tokens.
+
 ## [0.1.0] - 2026-07-19
 
 ### Added
