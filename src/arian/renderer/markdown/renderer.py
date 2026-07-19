@@ -90,7 +90,7 @@ class MarkdownRenderer:
                 }
             )
 
-        directory_structure: str = self._build_directory_structure(a_chunks)
+        directory_structure: str = self._build_directory_structure(a_plan.repository_files)
         manifest: str = self._build_manifest(a_plan, total_files)
 
         result: str = self._template.render(
@@ -105,23 +105,21 @@ class MarkdownRenderer:
 
     def _build_directory_structure(
         self,
-        a_chunks: tuple[MaterializedChunk, ...],
+        a_repository_files: tuple[str, ...],
     ) -> str:
-        """Build a directory tree string from materialized chunks.
+        """Build a directory tree string from all repository files.
 
         Renders proper hierarchy with directory nodes and Unicode box-drawing
-        characters for visual clarity.
+        characters for visual clarity. Uses the full file list, not just
+        materialized files, so the tree shows the complete repository structure.
 
         Args:
-            a_chunks: Materialized chunks.
+            a_repository_files: All collected file paths from the repository.
 
         Returns:
             Multi-line directory tree string.
         """
-        paths: set[str] = set()
-        for chunk in a_chunks:
-            for entry in chunk.entries:
-                paths.add(entry.path)
+        paths: set[str] = set(a_repository_files)
 
         dirs: set[str] = set()
         for path in paths:
@@ -149,7 +147,7 @@ class MarkdownRenderer:
 
         Args:
             a_plan: Context plan for metadata.
-            a_total_files: Total file count.
+            a_total_files: Total file count in plan (after budget enforcement).
 
         Returns:
             YAML manifest string.
@@ -157,6 +155,7 @@ class MarkdownRenderer:
         meta: dict[str, str | int | dict[str, str | int] | list[str]] = (
             a_plan.metadata if a_plan.metadata is not None else {}
         )
+        collected_count: int = len(a_plan.repository_files)
         lines: list[str] = [
             "# Arian Context Manifest",
         ]
@@ -177,6 +176,7 @@ class MarkdownRenderer:
                 lines.append("budget:")
                 for key in raw_budget:
                     lines.append(f"  {key}: {raw_budget[key]}")
+        lines.append("collected: " + str(collected_count))
         lines.append("files: " + str(a_total_files))
         lines.append("chunks: " + str(len(a_plan.chunks)))
         lines.append("tokens: " + str(a_plan.total_tokens))

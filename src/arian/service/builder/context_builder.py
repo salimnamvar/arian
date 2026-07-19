@@ -96,11 +96,24 @@ class ContextBuilder:
 
         plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
         plan.validate()
+
+        all_paths: tuple[str, ...] = tuple(f.path for f in files)
+        plan = ContextPlan(
+            chunks=plan.chunks,
+            total_tokens=plan.total_tokens,
+            total_files=plan.total_files,
+            task=plan.task,
+            query=plan.query,
+            metadata=plan.metadata,
+            repository_files=all_paths,
+        )
+
         logger.info(
-            "Planned %d files in %d chunks (%d tokens)",
+            "Planned %d files in %d chunks (%d tokens) from %d collected",
             plan.total_files,
             len(plan.chunks),
             plan.total_tokens,
+            len(all_paths),
         )
 
         return plan

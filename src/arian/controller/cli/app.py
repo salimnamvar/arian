@@ -144,6 +144,7 @@ def context(  # a-prefix-ignore: Typer CLI public names
                     "budget": {"max": budget.max_tokens, "per_chunk": budget.per_chunk_target},
                     "scope": scope,
                 },
+                repository_files=plan.repository_files,
             )
 
             content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))

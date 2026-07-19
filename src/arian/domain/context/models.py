@@ -38,10 +38,11 @@ class ContextPlan:
     Attributes:
         chunks: Tuple of planned context chunks.
         total_tokens: Total token count across all chunks.
-        total_files: Total number of files included.
+        total_files: Total number of files included in plan.
         task: The context task type.
         query: Optional query string for relevance matching.
         metadata: Optional metadata dict for manifest (repository, budget, scope, paths).
+        repository_files: All collected file paths (for full directory tree).
     """
 
     chunks: tuple[ContextChunk, ...]
@@ -50,6 +51,7 @@ class ContextPlan:
     task: ContextTask
     query: str | None = None
     metadata: dict[str, str | int | dict[str, str | int] | list[str]] | None = None
+    repository_files: tuple[str, ...] = ()
 
     def validate(self) -> None:
         """Validate ContextPlan invariants.
