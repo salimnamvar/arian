@@ -62,6 +62,9 @@ Issues = "https://github.com/salimnamvar/arian/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"arian" = ["template/*.jinja2"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"

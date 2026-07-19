@@ -6,6 +6,7 @@ import asyncio
 import logging
 import logging.handlers
 from pathlib import Path
+import time
 
 import typer
 
@@ -50,7 +51,7 @@ def _parse_budget(a_value: str | None) -> int | None:
             try:
                 budget_value = int(a_value)
             except ValueError:
-                logger.exception("Invalid budget: %s. Must be a number or 'none'.", a_value)
+                logger.error("Invalid budget: %s. Must be a number or 'none'.", a_value)  # noqa: TRY400
                 raise typer.Exit(code=1) from None
             if budget_value <= 0:
                 logger.error("Budget must be > 0, got: %d", budget_value)
@@ -273,13 +274,14 @@ def context(  # a-prefix-ignore: Typer CLI public names
     )
 
     try:
+        t_start: float = time.monotonic()
         logger.info("Generating context for task=%s", task)
 
         try:
             task_enum: ContextTask = ContextTask(task.lower())
         except ValueError:
             msg = f"Invalid task: {task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
-            logger.exception(msg)
+            logger.error(msg)  # noqa: TRY400
             raise typer.Exit(code=1) from None
 
         if scope not in ("merged", "separate"):
@@ -325,6 +327,9 @@ def context(  # a-prefix-ignore: Typer CLI public names
             _run_separate(builder, input_paths, task_enum, token_budget, query, root, output_path, scope)
         else:
             _run_merged(builder, input_paths, task_enum, token_budget, query, root, output_path, scope, bool(paths))
+
+        elapsed: float = time.monotonic() - t_start
+        logger.info("Completed in %.2fs", elapsed)
     finally:
         if listener is not None:
             listener.stop()
