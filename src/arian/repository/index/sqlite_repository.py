@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS files (
     language TEXT NOT NULL,
     role TEXT NOT NULL,
     tokens INTEGER NOT NULL,
-    hash TEXT NOT NULL
+    hash TEXT NOT NULL,
+    size_bytes INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS symbols (
     name TEXT NOT NULL,
@@ -98,8 +99,8 @@ class SQLiteRepositoryIndex:
         """
         conn: sqlite3.Connection = self._get_connection()
         conn.execute(
-            "INSERT OR REPLACE INTO files (path, language, role, tokens, hash) VALUES (?, ?, ?, ?, ?)",
-            (a_file.path, a_file.language, a_file.role.value, a_file.tokens, a_file.hash),
+            "INSERT OR REPLACE INTO files (path, language, role, tokens, hash, size_bytes) VALUES (?, ?, ?, ?, ?, ?)",
+            (a_file.path, a_file.language, a_file.role.value, a_file.tokens, a_file.hash, a_file.size_bytes),
         )
         conn.commit()
 
@@ -114,7 +115,7 @@ class SQLiteRepositoryIndex:
         """
         conn: sqlite3.Connection = self._get_connection()
         cursor: sqlite3.Cursor = conn.execute(
-            "SELECT path, language, role, tokens, hash FROM files WHERE path = ?",
+            "SELECT path, language, role, tokens, hash, size_bytes FROM files WHERE path = ?",
             (a_path,),
         )
         row: tuple[Any, ...] | None = cursor.fetchone()
@@ -126,6 +127,7 @@ class SQLiteRepositoryIndex:
                 role=FileRole(row[2]),
                 tokens=row[3],
                 hash=row[4],
+                size_bytes=row[5],
             )
         return result
 
@@ -137,7 +139,7 @@ class SQLiteRepositoryIndex:
         """
         conn: sqlite3.Connection = self._get_connection()
         cursor: sqlite3.Cursor = conn.execute(
-            "SELECT path, language, role, tokens, hash FROM files",
+            "SELECT path, language, role, tokens, hash, size_bytes FROM files",
         )
         result: list[RepositoryFile] = [
             RepositoryFile(
@@ -146,6 +148,7 @@ class SQLiteRepositoryIndex:
                 role=FileRole(row[2]),
                 tokens=row[3],
                 hash=row[4],
+                size_bytes=row[5],
             )
             for row in cursor.fetchall()
         ]
