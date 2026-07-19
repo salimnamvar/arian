@@ -1,0 +1,38 @@
+#!/bin/bash
+# Pre-commit hook to enforce GitFlow workflow
+# Install: ln -s ../../scripts/pre-commit .git/hooks/pre-commit
+
+echo "🔍 Checking GitFlow workflow..."
+
+# Get current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Check if we're on protected branch
+if [[ "$CURRENT_BRANCH" == "main" || "$CURRENT_BRANCH" == "develop" ]]; then
+    echo "❌ ERROR: Direct commits to '$CURRENT_BRANCH' are not allowed!"
+    echo "   → Create a feature branch first:"
+    echo "   →   git checkout -b feature/description"
+    exit 1
+fi
+
+# Check for plan document if this is a feature branch
+if [[ "$CURRENT_BRANCH" == feature/* ]]; then
+    # Get feature name from branch
+    FEATURE_NAME=$(echo "$CURRENT_BRANCH" | sed 's/feature\///')
+    PLAN_DOC="docs/plan/${FEATURE_NAME}.md"
+    
+    # Check if staged changes include a plan document
+    if ! git diff --cached --name-only | grep -q "docs/plan/"; then
+        echo "⚠️  WARNING: No plan document found in docs/plan/"
+        echo "   → Consider creating: $PLAN_DOC"
+        echo ""
+        read -p "Continue anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+fi
+
+echo "✅ GitFlow check passed"
+exit 0
