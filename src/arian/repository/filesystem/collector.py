@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 from pathlib import Path
 
@@ -12,9 +11,23 @@ from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import FileRole
 from arian.infrastructure.gitignore_filter import PathFilter
 from arian.infrastructure.language import detect_language
-from arian.infrastructure.tokenizer import count_tokens
 
 logger = logging.getLogger(__name__)
+
+
+def _estimate_tokens_from_size(a_size_bytes: int) -> int:
+    """Estimate token count from file size without reading content.
+
+    Heuristic: ~4 characters per token for code. Uses conservative
+    overestimate to ensure budget enforcement is safe.
+
+    Args:
+        a_size_bytes: File size in bytes.
+
+    Returns:
+        Estimated token count (minimum 1).
+    """
+    return max(1, a_size_bytes // 4)
 
 
 class FileCollector:
@@ -107,7 +120,10 @@ class FileCollector:
         a_emitted: set[Path],
         a_root: Path,
     ) -> RepositoryFile | None:
-        """Collect metadata for a single file.
+        """Collect metadata for a single file without reading content.
+
+        Uses stat() for file size and heuristic token estimation.
+        Content is loaded later by ContextBuilder.load_content().
 
         Args:
             a_path: Path to the file.
@@ -125,17 +141,11 @@ class FileCollector:
             logger.debug("Skipping %s (duplicate)", a_path)
         else:
             try:
-                content: str = await asyncio.to_thread(
-                    a_path.read_text,
-                    encoding="utf-8",
-                    errors="ignore",
-                )
+                stat_result = await asyncio.to_thread(a_path.stat)
+                size_bytes: int = stat_result.st_size
                 a_emitted.add(a_path.resolve())
-                tokens: int = await asyncio.to_thread(count_tokens, content)
+                tokens: int = _estimate_tokens_from_size(size_bytes)
                 language: str = detect_language(a_path)
-                content_hash: str = await asyncio.to_thread(
-                    lambda: hashlib.sha256(content.encode()).hexdigest()[:16],
-                )
                 role: FileRole = FileRole.UNKNOWN
                 if self._classifier is not None:
                     role = self._classifier.get_role(str(a_path))
@@ -145,9 +155,10 @@ class FileCollector:
                     language=language,
                     role=role,
                     tokens=tokens,
-                    hash=content_hash,
+                    hash="",
+                    size_bytes=size_bytes,
                 )
             except OSError:
-                logger.warning("Skipping %s (read error)", a_path)
+                logger.warning("Skipping %s (stat error)", a_path)
 
         return result

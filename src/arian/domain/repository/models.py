@@ -34,8 +34,9 @@ class RepositoryFile:
         path: Relative file path.
         language: Detected language identifier.
         role: File role in the repository.
-        tokens: Token count of the file content.
-        hash: Content hash for cache invalidation.
+        tokens: Estimated token count (heuristic, not exact).
+        hash: Content hash for cache invalidation. Empty string until content is loaded.
+        size_bytes: File size in bytes from stat().
     """
 
     path: str
@@ -43,6 +44,7 @@ class RepositoryFile:
     role: FileRole
     tokens: int
     hash: str
+    size_bytes: int = 0
 
 
 @dataclass(frozen=True)
