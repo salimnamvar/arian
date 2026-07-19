@@ -107,11 +107,12 @@ class ContextPlanner:
         planned: list[PlannedFile] = self._plan_files(a_files, a_task, a_query, symbols, a_budget)
         chunks: tuple[ContextChunk, ...] = self._plan_chunks(planned, a_budget)
         total_tokens: int = sum(c.token_count for c in chunks)
+        total_files: int = sum(len(c.files) for c in chunks)  # Actual files in chunks (may be less due to budget)
 
         result: ContextPlan = ContextPlan(
             chunks=chunks,
             total_tokens=total_tokens,
-            total_files=len(planned),
+            total_files=total_files,
             task=a_task,
             query=a_query,
         )
@@ -261,7 +262,7 @@ class ContextPlanner:
         a_file: RepositoryFile,
         a_symbols: list[Symbol],
         a_importance: int,
-        a_budget: TokenBudget,
+        a_budget: TokenBudget,  # noqa: ARG002 — reserved for future fragmentation logic
     ) -> tuple[FileFragment, ...]:
         """Fragment a large file into semantic segments.
 
@@ -278,78 +279,97 @@ class ContextPlanner:
         Returns:
             Tuple of FileFragment objects.
         """
-        target_tokens: int = a_budget.per_chunk_target
         estimated_raw_tokens: int = a_file.tokens
 
-        boundaries: list[tuple[int, int, str | None, str | None]] = []
-        boundaries.append((0, estimated_raw_tokens, None, None))
-
+        # Create boundaries between symbols (not including full file)
+        symbol_boundaries: list[tuple[int, int, str | None, str | None]] = []
         for symbol in a_symbols:
             if symbol.kind == SymbolKind.CLASS:
-                boundaries.append((symbol.line_start, symbol.line_end, symbol.name, None))
+                symbol_boundaries.append((symbol.line_start, symbol.line_end, symbol.name, None))
             elif symbol.kind in (SymbolKind.FUNCTION, SymbolKind.METHOD):
-                boundaries.append((symbol.line_start, symbol.line_end, None, symbol.name))
+                symbol_boundaries.append((symbol.line_start, symbol.line_end, None, symbol.name))
 
-        boundaries.sort(key=lambda b: b[0])
+        symbol_boundaries.sort(key=lambda b: b[0])
+
+        if not symbol_boundaries:
+            # No symbols - cannot fragment, return single fragment
+            return (
+                FileFragment(
+                    file_path=a_file.path,
+                    fragment_index=0,
+                    fragment_total=1,
+                    line_start=0,
+                    line_end=estimated_raw_tokens,
+                    compression=CompressionLevel.SIGNATURES,
+                    importance=a_importance,
+                    estimated_tokens=int(estimated_raw_tokens * 0.3),  # SIGNATURES ratio
+                ),
+            )
 
         fragments: list[FileFragment] = []
         current_start: int = 0
-        current_tokens: int = 0
-        current_class: str | None = None
-        current_function: str | None = None
 
-        for boundary_start, boundary_end, class_name, function_name in boundaries:
-            boundary_tokens: int = max(
-                1, int((boundary_end - boundary_start) / max(1, estimated_raw_tokens) * estimated_raw_tokens)
-            )
-
-            if current_tokens + boundary_tokens > target_tokens and current_tokens > 0:
+        for boundary_start, boundary_end, class_name, function_name in symbol_boundaries:
+            if boundary_start > current_start:
+                # Content before symbol
+                before_tokens: int = max(
+                    1, int((boundary_start - current_start) / estimated_raw_tokens * estimated_raw_tokens)
+                )
                 fragments.append(
                     FileFragment(
                         file_path=a_file.path,
                         fragment_index=len(fragments),
-                        fragment_total=0,
+                        fragment_total=len(symbol_boundaries) + 1,
                         line_start=current_start,
                         line_end=boundary_start,
                         compression=CompressionLevel.SIGNATURES,
                         importance=a_importance,
-                        estimated_tokens=current_tokens,
-                        class_context=current_class,
-                        function_context=current_function,
+                        estimated_tokens=before_tokens,
                     )
                 )
-                current_start = boundary_start
-                current_tokens = 0
-                current_class = None
-                current_function = None
 
-            current_tokens += boundary_tokens
-            if class_name is not None:
-                current_class = class_name
-            if function_name is not None:
-                current_function = function_name
-
-        if current_tokens > 0:
+            # Symbol content
+            symbol_tokens: int = max(
+                1, int((boundary_end - boundary_start) / estimated_raw_tokens * estimated_raw_tokens)
+            )
             fragments.append(
                 FileFragment(
                     file_path=a_file.path,
                     fragment_index=len(fragments),
-                    fragment_total=0,
+                    fragment_total=len(symbol_boundaries) + 1,
+                    line_start=boundary_start,
+                    line_end=boundary_end,
+                    compression=CompressionLevel.SIGNATURES,
+                    importance=a_importance,
+                    estimated_tokens=symbol_tokens,
+                    class_context=class_name,
+                    function_context=function_name,
+                )
+            )
+            current_start = boundary_end
+
+        # Content after last symbol
+        if current_start < estimated_raw_tokens:
+            final_tokens: int = max(1, estimated_raw_tokens - current_start)
+            fragments.append(
+                FileFragment(
+                    file_path=a_file.path,
+                    fragment_index=len(fragments),
+                    fragment_total=len(symbol_boundaries) + 1,
                     line_start=current_start,
                     line_end=estimated_raw_tokens,
                     compression=CompressionLevel.SIGNATURES,
                     importance=a_importance,
-                    estimated_tokens=current_tokens,
-                    class_context=current_class,
-                    function_context=current_function,
+                    estimated_tokens=final_tokens,
                 )
             )
 
-        result: tuple[FileFragment, ...] = tuple(
+        total_fragments: int = len(fragments)
+        return tuple(
             FileFragment(
                 file_path=f.file_path,
                 fragment_index=f.fragment_index,
-                fragment_total=len(fragments),
+                fragment_total=total_fragments,
                 line_start=f.line_start,
                 line_end=f.line_end,
                 compression=f.compression,
@@ -361,7 +381,6 @@ class ContextPlanner:
             )
             for f in fragments
         )
-        return result
 
     def _plan_chunks(
         self,
