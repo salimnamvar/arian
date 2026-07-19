@@ -106,7 +106,7 @@ def context(  # a-prefix-ignore: Typer CLI public names
                         a_root=root,
                     )
                 )
-                content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=input_path))
+                content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=root))
                 materialized = builder.materialize(plan, content_map)
                 renderer: MarkdownRenderer = MarkdownRenderer()
                 rendered: str = renderer.render(materialized, plan)
