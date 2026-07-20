@@ -183,14 +183,14 @@ class TestSingleReadVerification:
         plan = await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
 
         read_count = 0
-        original_read_text = Path.read_text
+        original_read_bytes = Path.read_bytes
 
-        def counting_read_text(self: Path, *args: object, **kwargs: object) -> str:
+        def counting_read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
             nonlocal read_count
             read_count += 1
-            return original_read_text(self, *args, **kwargs)
+            return original_read_bytes(self, *args, **kwargs)
 
-        with patch.object(Path, "read_text", counting_read_text):
+        with patch.object(Path, "read_bytes", counting_read_bytes):
             content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
 
         assert read_count == len(content_map)

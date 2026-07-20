@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 
-from arian.application.application import Application
+from arian.application.orchestrator import Application
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.bootstrap.application import create_application
@@ -130,11 +130,12 @@ class TestApplicationBuildContext:
     async def test_build_with_files(self, tmp_path: Path) -> None:
         """Verify building context with files produces output."""
         (tmp_path / "hello.py").write_text("def hello():\n    return 'world'\n")
-        app = create_application()
 
         original_cwd: Path = Path.cwd()
         try:
             os.chdir(tmp_path)
+            # Composition root captures cwd; create after chdir.
+            app = create_application()
             request = ContextRequest(
                 paths=("hello.py",),
                 output_path=str(tmp_path / "out.md"),
@@ -164,13 +165,17 @@ class TestApplicationBuildContext:
         """Verify OutputWriterProtocol.write receives correct path and content."""
         (tmp_path / "hello.py").write_text("def hello():\n    return 'world'\n")
         stub = _StubOutputWriter()
-        builder = create_application()._builder
-        renderer = create_application()._renderer
-        app = Application(a_builder=builder, a_renderer=renderer, a_output=stub)
 
         original_cwd: Path = Path.cwd()
         try:
             os.chdir(tmp_path)
+            wired = create_application()
+            app = Application(
+                a_builder=wired._builder,
+                a_renderer=wired._renderer,
+                a_output=stub,
+                a_root=tmp_path,
+            )
             request = ContextRequest(
                 paths=("hello.py",),
                 output_path=str(tmp_path / "out.md"),

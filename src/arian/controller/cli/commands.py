@@ -78,3 +78,9 @@ def context(  # a-prefix-ignore: Typer CLI public names
             result.elapsed_seconds,
         )
         logger.info("Output: %s", result.output_path)
+        if result.skipped_files:
+            logger.warning("Skipped %d file(s) during content load", len(result.skipped_files))
+            for skipped in result.skipped_files[:20]:
+                logger.warning("  skipped: %s", skipped)
+        for warning in result.warnings:
+            logger.warning("%s", warning)

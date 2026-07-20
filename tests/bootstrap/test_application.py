@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from arian.application.application import Application
+from arian.application.orchestrator import Application
 from arian.bootstrap.application import create_application
 from arian.infrastructure.config import ArianConfig
 
@@ -35,6 +35,15 @@ class TestCreateApplication:
         assert hasattr(builder, "_index")
         assert hasattr(builder, "_planner")
         assert hasattr(builder, "_materializer")
+
+    def test_progress_reporter_wired(self) -> None:
+        app = create_application()
+        assert app._builder._progress is not None
+
+    def test_root_injected(self) -> None:
+        app = create_application()
+        assert app._root is not None
+        assert app._root.is_absolute()
 
     def test_collector_has_config(self) -> None:
         app = create_application()

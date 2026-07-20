@@ -6,7 +6,41 @@ import asyncio
 
 import pytest
 
+from arian.infrastructure.retry import retry_sync_with_backoff
 from arian.infrastructure.retry import retry_with_backoff
+
+
+class TestRetrySyncWithBackoff:
+    """Tests for retry_sync_with_backoff()."""
+
+    def test_success_on_first_attempt(self) -> None:
+        """Verify sync function succeeds without retry."""
+
+        def ok() -> str:
+            return "done"
+
+        assert retry_sync_with_backoff(ok) == "done"
+
+    def test_retries_on_transient_error(self) -> None:
+        """Verify sync function retries on matching exception."""
+        call_count = 0
+
+        def flaky() -> str:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                msg = "transient"
+                raise OSError(msg)
+            return "recovered"
+
+        result = retry_sync_with_backoff(
+            flaky,
+            a_max_retries=3,
+            a_base_delay=0.01,
+            a_exceptions=(OSError,),
+        )
+        assert result == "recovered"
+        assert call_count == 3
 
 
 class TestRetryWithBackoff:

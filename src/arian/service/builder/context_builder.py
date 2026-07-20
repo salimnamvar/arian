@@ -14,9 +14,13 @@ from arian.domain.exceptions import ContextBuilderError
 from arian.domain.exceptions import InputError
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
+from arian.domain.shared.constants import DEFAULT_MAX_CONCURRENT_LOADS
 from arian.domain.shared.constants import MAX_COLLECTED_FILES
+from arian.domain.shared.enums import ConcurrencyPolicy
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
+from arian.domain.shared.security import is_binary
+from arian.domain.shared.security import redact_secrets
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
 from arian.service.context.materializer import ContextMaterializer
@@ -28,18 +32,17 @@ logger = logging.getLogger(__name__)
 class ContextBuilder:
     """Builds context by collecting, analyzing, planning, materializing, and rendering.
 
-    Pipeline: collect -> analyze -> plan -> materialize -> render -> write.
+    Pipeline: collect -> plan -> load -> materialize -> render -> write.
 
-    The pipeline consists of four stages, each of which can be extended or
-    replaced by injecting alternative implementations through constructor
-    dependencies. To add a new stage:
-      1. Create a new service/domain class that implements the desired logic.
-      2. Inject it into ContextBuilder via the constructor.
-      3. Call it in the appropriate place within `build()`, `load_content()`,
-         or `materialize()`.
-      4. Optionally add progress hooks for visibility.
+    Extension points (see PipelineStageProtocol):
+      Each stage is a constructor-injected collaborator. To add or replace a
+      stage:
+        1. Create a service implementing the desired logic.
+        2. Inject it via the constructor (or extend this class).
+        3. Call it from ``build()``, ``load_content()``, or ``materialize()``.
+        4. Optionally attach a PipelineProgressProtocol for visibility.
 
-    Pipelines Stages:
+    Pipeline Stages:
       - Collect: Scans the repository for files matching configured patterns.
       - Plan: Selects and prioritizes files based on task and budget.
       - Load: Reads file content from disk for planned files.
@@ -51,6 +54,8 @@ class ContextBuilder:
         _planner: Context planner for file selection.
         _materializer: Context materializer for compression.
         _progress: Optional progress reporter for pipeline stages.
+        _concurrency: How parallel file loads are executed.
+        _max_concurrent: Semaphore limit when policy is BOUNDED.
     """
 
     def __init__(
@@ -60,6 +65,8 @@ class ContextBuilder:
         a_planner: ContextPlanner,
         a_materializer: ContextMaterializer,
         a_progress: PipelineProgressProtocol | None = None,
+        a_concurrency: ConcurrencyPolicy = ConcurrencyPolicy.BOUNDED,
+        a_max_concurrent: int = DEFAULT_MAX_CONCURRENT_LOADS,
     ) -> None:
         """Initialize context builder.
 
@@ -69,12 +76,16 @@ class ContextBuilder:
             a_planner: Context planner for file selection.
             a_materializer: Context materializer for compression.
             a_progress: Optional progress reporter for pipeline stages.
+            a_concurrency: Parallelism policy for content loading.
+            a_max_concurrent: Max concurrent reads when policy is BOUNDED.
         """
         self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
         self._planner: ContextPlanner = a_planner
         self._materializer: ContextMaterializer = a_materializer
         self._progress: PipelineProgressProtocol | None = a_progress
+        self._concurrency: ConcurrencyPolicy = a_concurrency
+        self._max_concurrent: int = a_max_concurrent
 
     async def build(
         self,
@@ -160,6 +171,9 @@ class ContextBuilder:
     ) -> tuple[dict[str, FileContent], tuple[str, ...]]:
         """Load file content for all files in the plan.
 
+        Honours ConcurrencyPolicy for parallel reads. Skips binary files and
+        unreadable paths; secrets in content are redacted at load time.
+
         Args:
             a_plan: Context plan with file references.
             a_root: Repository root path.
@@ -169,22 +183,18 @@ class ContextBuilder:
         """
         content_map: dict[str, FileContent] = {}
         skipped: list[str] = []
-        load_tasks: list[asyncio.Task[FileContent | None]] = []
-        task_paths: list[str] = []
+        paths: list[tuple[Path, str]] = []
 
+        seen_paths: set[str] = set()
         for chunk in a_plan.chunks:
             for planned_file in chunk.files:
-                if planned_file.path not in content_map:
-                    load_tasks.append(
-                        asyncio.create_task(
-                            self._load_single(a_root / planned_file.path, planned_file.path),
-                        ),
-                    )
-                    task_paths.append(planned_file.path)
+                if planned_file.path not in seen_paths:
+                    paths.append((a_root / planned_file.path, planned_file.path))
+                    seen_paths.add(planned_file.path)
 
-        self._notify_start("load", len(load_tasks))
-        results: list[FileContent | None] = list(await asyncio.gather(*load_tasks))
-        for i, (result, rel_path) in enumerate(zip(results, task_paths, strict=True)):
+        self._notify_start("load", len(paths))
+        results = await self._load_all(paths)
+        for i, (result, rel_path) in enumerate(zip(results, (p[1] for p in paths), strict=True)):
             if result is not None:
                 content_map[result.path] = result
             else:
@@ -219,23 +229,88 @@ class ContextBuilder:
         logger.debug("Materialized %d chunks", len(result))
         return result
 
+    async def _load_all(
+        self,
+        a_paths: list[tuple[Path, str]],
+    ) -> list[FileContent | None]:
+        """Load all paths according to the configured concurrency policy.
+
+        Args:
+            a_paths: List of (absolute_path, relative_path) pairs.
+
+        Returns:
+            List of FileContent or None aligned with a_paths.
+        """
+        results: list[FileContent | None] = []
+        if a_paths:
+            if self._concurrency == ConcurrencyPolicy.SEQUENTIAL:
+                for abs_path, rel_path in a_paths:
+                    results.append(await self._load_single(abs_path, rel_path))
+            elif self._concurrency == ConcurrencyPolicy.BOUNDED:
+                semaphore = asyncio.Semaphore(self._max_concurrent)
+                results = list(
+                    await asyncio.gather(
+                        *(self._load_single_bounded(p, r, semaphore) for p, r in a_paths),
+                    ),
+                )
+            else:
+                # CONCURRENT — unbounded gather
+                results = list(
+                    await asyncio.gather(*(self._load_single(p, r) for p, r in a_paths)),
+                )
+        return results
+
+    async def _load_single_bounded(
+        self,
+        a_path: Path,
+        a_rel_path: str,
+        a_semaphore: asyncio.Semaphore,
+    ) -> FileContent | None:
+        """Load a single file under a concurrency semaphore.
+
+        Args:
+            a_path: Full path to the file.
+            a_rel_path: Relative path for the content map key.
+            a_semaphore: Shared concurrency limiter.
+
+        Returns:
+            FileContent if successful, None on skip/error.
+        """
+        async with a_semaphore:
+            return await self._load_single(a_path, a_rel_path)
+
     async def _load_single(self, a_path: Path, a_rel_path: str) -> FileContent | None:
-        """Load content from a single file.
+        """Load content from a single file with retry, binary check, and redaction.
+
+        Transient ``OSError`` is retried with exponential backoff (3 attempts).
+        Binary files and permanent read failures are skipped (returned as None).
 
         Args:
             a_path: Full path to the file.
             a_rel_path: Relative path for the content map key.
 
         Returns:
-            FileContent if successful, None on error.
+            FileContent if successful, None on error or binary content.
         """
         result: FileContent | None = None
-        try:
-            content: str = await asyncio.to_thread(
-                a_path.read_text,
-                encoding="utf-8",
-                errors="ignore",
-            )
+        raw: bytes | None = None
+        last_error: OSError | None = None
+        for attempt in range(3):
+            try:
+                raw = await asyncio.to_thread(a_path.read_bytes)
+                last_error = None
+                break
+            except OSError as exc:
+                last_error = exc
+                if attempt < 2:
+                    await asyncio.sleep(0.05 * (2**attempt))
+
+        if last_error is not None or raw is None:
+            logger.warning("Cannot read file: %s", a_path)
+        elif is_binary(raw):
+            logger.warning("Skipping binary file: %s", a_path)
+        else:
+            content: str = redact_secrets(raw.decode("utf-8", errors="ignore"))
             content_hash: str = await asyncio.to_thread(
                 lambda: hashlib.sha256(content.encode()).hexdigest()[:16],
             )
@@ -244,8 +319,6 @@ class ContextBuilder:
                 content=content,
                 hash=content_hash,
             )
-        except OSError:
-            logger.warning("Cannot read file: %s", a_path)
         return result
 
     async def _collect_files(
