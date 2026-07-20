@@ -119,6 +119,7 @@ TEST*.xml
 !.env.example
 secrets/
 secrets*
+!src/arian/domain/shared/secrets.py
 *.jwt
 *.pem
 *.key

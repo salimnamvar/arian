@@ -67,6 +67,8 @@ def context(  # a-prefix-ignore: Typer CLI public names
 
         logger.info("Generating context for task=%s", request.task)
         application = create_application(config)
+        # Note: asyncio.run() is used here because the CLI is a sync entry point.
+        # For ASGI (future MCP server), use async_lifespan instead.
         result = asyncio.run(application.build_context(request))
 
         logger.info(

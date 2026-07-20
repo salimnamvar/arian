@@ -46,7 +46,9 @@ from arian.domain.repository import Symbol
 from arian.domain.shared import CompressionLevel
 from arian.domain.shared import ConcurrencyPolicy
 from arian.domain.shared import DependencyKind
+from arian.domain.shared import EnvironmentSecretProvider
 from arian.domain.shared import FileRole
+from arian.domain.shared import SecretProvider
 from arian.domain.shared import SymbolKind
 from arian.domain.shared import TokenBudget
 from arian.domain.shared import detect_language
@@ -71,6 +73,7 @@ __all__ = [
     "ContextTask",
     "Dependency",
     "DependencyKind",
+    "EnvironmentSecretProvider",
     "ExternalServiceError",
     "FileContent",
     "FileRole",
@@ -93,6 +96,7 @@ __all__ = [
     "RepositoryError",
     "RepositoryFile",
     "ResourceError",
+    "SecretProvider",
     "SecurityError",
     "Symbol",
     "SymbolKind",
