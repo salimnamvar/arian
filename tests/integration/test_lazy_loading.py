@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
+from arian.domain.shared.tokenizer import estimate_tokens_from_size
 from arian.repository.filesystem.collector import FileCollector
-from arian.repository.filesystem.collector import _estimate_tokens_from_size
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
 from arian.service.builder.context_builder import ContextBuilder
@@ -19,25 +19,25 @@ from arian.service.planner.context_planner import ContextPlanner
 
 
 class TestEstimateTokensFromSize:
-    """Tests for _estimate_tokens_from_size heuristic."""
+    """Tests for estimate_tokens_from_size heuristic."""
 
     def test_empty_file(self) -> None:
-        assert _estimate_tokens_from_size(0) == 1
+        assert estimate_tokens_from_size(0) == 1
 
     def test_one_byte(self) -> None:
-        assert _estimate_tokens_from_size(1) == 1
+        assert estimate_tokens_from_size(1) == 1
 
     def test_four_bytes(self) -> None:
-        assert _estimate_tokens_from_size(4) == 1
+        assert estimate_tokens_from_size(4) == 1
 
     def test_eight_bytes(self) -> None:
-        assert _estimate_tokens_from_size(8) == 2
+        assert estimate_tokens_from_size(8) == 2
 
     def test_large_file(self) -> None:
-        assert _estimate_tokens_from_size(10000) == 2500
+        assert estimate_tokens_from_size(10000) == 2500
 
     def test_non_multiple_of_four(self) -> None:
-        assert _estimate_tokens_from_size(10) == 2
+        assert estimate_tokens_from_size(10) == 2
 
 
 class TestCollectorLazyLoading:

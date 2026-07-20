@@ -19,8 +19,8 @@ from arian.domain.exceptions import ProcessingError
 from arian.domain.exceptions import ProjectBaseError
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
+from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.infrastructure.output_path_resolver import resolve_output_path
-from arian.renderer.markdown.renderer import MarkdownRenderer
 from arian.service.builder.context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)

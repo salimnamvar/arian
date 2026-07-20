@@ -11,11 +11,11 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
-from arian.infrastructure.language import detect_language
+from arian.domain.shared.language import detect_language
 
 logger = logging.getLogger(__name__)
 
-_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent / "template"
+_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent.parent / "template"
 
 
 class MarkdownRenderer:

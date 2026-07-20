@@ -12,7 +12,7 @@ from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import Provenance
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
-from arian.infrastructure.language import detect_language
+from arian.domain.shared.language import detect_language
 
 logger = logging.getLogger(__name__)
 

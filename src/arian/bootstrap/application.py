@@ -9,7 +9,7 @@ from __future__ import annotations
 from arian.application.application import Application
 from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.file_output_writer import FileOutputWriter
-from arian.renderer.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
