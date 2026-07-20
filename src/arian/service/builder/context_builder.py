@@ -14,6 +14,7 @@ from arian.domain.exceptions import ContextBuilderError
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import TokenBudget
+from arian.domain.shared.events import PipelineProgressProtocol
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
 from arian.service.context.materializer import ContextMaterializer
@@ -27,11 +28,27 @@ class ContextBuilder:
 
     Pipeline: collect -> analyze -> plan -> materialize -> render -> write.
 
+    The pipeline consists of four stages, each of which can be extended or
+    replaced by injecting alternative implementations through constructor
+    dependencies. To add a new stage:
+      1. Create a new service/domain class that implements the desired logic.
+      2. Inject it into ContextBuilder via the constructor.
+      3. Call it in the appropriate place within `build()`, `load_content()`,
+         or `materialize()`.
+      4. Optionally add progress hooks for visibility.
+
+    Pipelines Stages:
+      - Collect: Scans the repository for files matching configured patterns.
+      - Plan: Selects and prioritizes files based on task and budget.
+      - Load: Reads file content from disk for planned files.
+      - Materialize: Applies compression and formatting to produce chunks.
+
     Attributes:
         _collector: File collector for repository scanning.
         _index: Repository index for metadata storage.
         _planner: Context planner for file selection.
         _materializer: Context materializer for compression.
+        _progress: Optional progress reporter for pipeline stages.
     """
 
     def __init__(
@@ -40,6 +57,7 @@ class ContextBuilder:
         a_index: RepositoryIndexProtocol,
         a_planner: ContextPlanner,
         a_materializer: ContextMaterializer,
+        a_progress: PipelineProgressProtocol | None = None,
     ) -> None:
         """Initialize context builder.
 
@@ -48,11 +66,13 @@ class ContextBuilder:
             a_index: Repository index for metadata storage.
             a_planner: Context planner for file selection.
             a_materializer: Context materializer for compression.
+            a_progress: Optional progress reporter for pipeline stages.
         """
         self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
         self._planner: ContextPlanner = a_planner
         self._materializer: ContextMaterializer = a_materializer
+        self._progress: PipelineProgressProtocol | None = a_progress
 
     async def build(
         self,
@@ -86,18 +106,15 @@ class ContextBuilder:
         sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
 
         try:
-            for source in sources:
-                collected = await self._collector.collect(source, a_root=root)
-                for f in collected:
-                    if f.path not in seen:
-                        files.append(f)
-                        seen.add(f.path)
+            await self._collect_files(sources, root, files, seen)
         except Exception as e:
             msg = f"File collection failed for {a_path}: {e}"
             raise ContextBuilderError(msg, a_cause=e) from e
 
         logger.debug("Collected %d files", len(files))
+        self._notify_complete("collect")
 
+        self._notify_start("plan", 1)
         for repo_file in files:
             await self._index.save_file(repo_file)
 
@@ -126,6 +143,7 @@ class ContextBuilder:
             plan.total_tokens,
             len(all_paths),
         )
+        self._notify_complete("plan")
 
         return plan
 
@@ -133,7 +151,7 @@ class ContextBuilder:
         self,
         a_plan: ContextPlan,
         a_root: Path,
-    ) -> dict[str, FileContent]:
+    ) -> tuple[dict[str, FileContent], tuple[str, ...]]:
         """Load file content for all files in the plan.
 
         Args:
@@ -141,10 +159,12 @@ class ContextBuilder:
             a_root: Repository root path.
 
         Returns:
-            Mapping of relative file path to FileContent.
+            Tuple of content mapping and list of skipped file paths.
         """
         content_map: dict[str, FileContent] = {}
+        skipped: list[str] = []
         load_tasks: list[asyncio.Task[FileContent | None]] = []
+        task_paths: list[str] = []
 
         for chunk in a_plan.chunks:
             for planned_file in chunk.files:
@@ -154,14 +174,24 @@ class ContextBuilder:
                             self._load_single(a_root / planned_file.path, planned_file.path),
                         ),
                     )
+                    task_paths.append(planned_file.path)
 
+        self._notify_start("load", len(load_tasks))
         results: list[FileContent | None] = list(await asyncio.gather(*load_tasks))
-        for content in results:
-            if content is not None:
-                content_map[content.path] = content
+        for i, (result, rel_path) in enumerate(zip(results, task_paths, strict=True)):
+            if result is not None:
+                content_map[result.path] = result
+            else:
+                skipped.append(rel_path)
+            self._notify_progress("load", i + 1, len(results))
 
-        logger.debug("Loaded content for %d files", len(content_map))
-        return content_map
+        logger.debug(
+            "Loaded content for %d files, skipped %d",
+            len(content_map),
+            len(skipped),
+        )
+        self._notify_complete("load")
+        return content_map, tuple(skipped)
 
     def materialize(
         self,
@@ -177,7 +207,9 @@ class ContextBuilder:
         Returns:
             Tuple of MaterializedChunk with compressed content.
         """
+        self._notify_start("materialize", len(a_plan.chunks))
         result: tuple[MaterializedChunk, ...] = self._materializer.materialize(a_plan, a_content)
+        self._notify_complete("materialize")
         logger.debug("Materialized %d chunks", len(result))
         return result
 
@@ -209,3 +241,57 @@ class ContextBuilder:
         except OSError:
             logger.warning("Cannot read file: %s", a_path)
         return result
+
+    async def _collect_files(
+        self,
+        a_sources: list[Path],
+        a_root: Path,
+        a_files: list[RepositoryFile],
+        a_seen: set[str],
+    ) -> None:
+        """Collect files from all sources with progress reporting.
+
+        Args:
+            a_sources: List of source paths to collect from.
+            a_root: Root path for relative path computation.
+            a_files: Output list to append collected files to.
+            a_seen: Set of already-seen paths to avoid duplicates.
+        """
+        self._notify_start("collect", len(a_sources))
+        for i, source in enumerate(a_sources):
+            collected = await self._collector.collect(source, a_root=a_root)
+            for f in collected:
+                if f.path not in a_seen:
+                    a_files.append(f)
+                    a_seen.add(f.path)
+            self._notify_progress("collect", i + 1, len(a_sources))
+
+    def _notify_start(self, a_stage: str, a_total: int) -> None:
+        """Notify progress hook of stage start, if present.
+
+        Args:
+            a_stage: Stage name.
+            a_total: Total work units in the stage.
+        """
+        if self._progress:
+            self._progress.on_stage_start(a_stage, a_total)
+
+    def _notify_progress(self, a_stage: str, a_current: int, a_total: int) -> None:
+        """Notify progress hook of stage progress, if present.
+
+        Args:
+            a_stage: Stage name.
+            a_current: Current progress index.
+            a_total: Total work units in the stage.
+        """
+        if self._progress:
+            self._progress.on_stage_progress(a_stage, a_current, a_total)
+
+    def _notify_complete(self, a_stage: str) -> None:
+        """Notify progress hook of stage completion, if present.
+
+        Args:
+            a_stage: Stage name.
+        """
+        if self._progress:
+            self._progress.on_stage_complete(a_stage)

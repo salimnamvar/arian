@@ -44,6 +44,7 @@ from arian.domain.repository import Repository
 from arian.domain.repository import RepositoryFile
 from arian.domain.repository import Symbol
 from arian.domain.shared import CompressionLevel
+from arian.domain.shared import ConcurrencyPolicy
 from arian.domain.shared import DependencyKind
 from arian.domain.shared import FileRole
 from arian.domain.shared import SymbolKind
@@ -60,6 +61,7 @@ __all__ = [
     "ClassificationError",
     "CollectionError",
     "CompressionLevel",
+    "ConcurrencyPolicy",
     "ConfigurationError",
     "ConnectionError",
     "ContextBuilderError",

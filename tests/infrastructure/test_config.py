@@ -159,3 +159,46 @@ def test_load_from_env_frozen() -> None:
     config = ArianConfig.load_from_env()
     with pytest.raises(Exception):
         config.logging = LoggingConfig(level="ERROR")  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# ArianConfig.load_with_precedence()
+# ---------------------------------------------------------------------------
+
+
+def test_load_with_precedence_no_env() -> None:
+    """load_with_precedence with empty env returns defaults."""
+    config = ArianConfig.load_with_precedence(a_env={})
+    assert config == ArianConfig()
+
+
+def test_load_with_precedence_log_level() -> None:
+    """load_with_precedence overrides log level from env dict."""
+    config = ArianConfig.load_with_precedence(a_env={"ARIAN_LOG_LEVEL": "DEBUG"})
+    assert config.logging.level == "DEBUG"
+
+
+def test_load_with_precedence_log_level_case() -> None:
+    """load_with_precedence normalizes log level case from env dict."""
+    config = ArianConfig.load_with_precedence(a_env={"ARIAN_LOG_LEVEL": "warning"})
+    assert config.logging.level == "WARNING"
+
+
+def test_load_with_precedence_log_dir() -> None:
+    """load_with_precedence overrides log dir from env dict."""
+    config = ArianConfig.load_with_precedence(a_env={"ARIAN_LOG_DIR": "/tmp/arian-test"})
+    assert config.logging.level == "INFO"
+    assert config.logging.log_dir is not None
+
+
+def test_load_with_precedence_ignores_unrelated_env() -> None:
+    """load_with_precedence ignores env vars it does not recognize."""
+    config = ArianConfig.load_with_precedence(a_env={"UNRELATED_VAR": "value"})
+    assert config == ArianConfig()
+
+
+def test_load_with_precedence_frozen() -> None:
+    """load_with_precedence result is frozen (immutable)."""
+    config = ArianConfig.load_with_precedence(a_env={})
+    with pytest.raises(Exception):
+        config.logging = LoggingConfig(level="ERROR")  # type: ignore[misc]

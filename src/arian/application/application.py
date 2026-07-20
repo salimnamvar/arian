@@ -12,6 +12,7 @@ import time
 
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
+from arian.application.validator import ContextRequestValidator
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.exceptions import InputError
@@ -19,7 +20,7 @@ from arian.domain.exceptions import ProcessingError
 from arian.domain.exceptions import ProjectBaseError
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
-from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.output.protocols import RendererProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.service.builder.context_builder import ContextBuilder
 
@@ -32,31 +33,34 @@ class Application:
     Responsibilities:
         1. Resolve input paths and output path.
         2. Delegate to ContextBuilder for plan, content, and materialization.
-        3. Delegate to MarkdownRenderer for final output.
+         3. Delegate to RendererProtocol for final output.
         4. Delegate to OutputWriter for persistence and return a ContextResult.
 
     Attributes:
         _builder: Context builder for the full pipeline.
-        _renderer: Markdown renderer for final output.
+        _renderer: Renderer for final output (protocol-based).
         _output: Output writer (filesystem-agnostic protocol).
     """
 
     def __init__(
         self,
         a_builder: ContextBuilder,
-        a_renderer: MarkdownRenderer,
+        a_renderer: RendererProtocol,
         a_output: OutputWriterProtocol,
+        a_validator: ContextRequestValidator | None = None,
     ) -> None:
         """Initialize the application.
 
         Args:
             a_builder: Context builder for pipeline orchestration.
-            a_renderer: Markdown renderer for output generation.
+            a_renderer: Renderer for output generation (protocol-based).
             a_output: Output writer port for persisting rendered content.
+            a_validator: Request validator. Created with cwd root if None.
         """
         self._builder = a_builder
-        self._renderer = a_renderer
+        self._renderer: RendererProtocol = a_renderer
         self._output = a_output
+        self._validator = a_validator or ContextRequestValidator()
 
     async def build_context(self, a_request: ContextRequest) -> ContextResult:
         """Execute the full context generation pipeline.
@@ -79,18 +83,22 @@ class Application:
             ProcessingError: If an OS-level error occurs during processing.
         """
         try:
+            self._validator.validate(a_request)
             t_start: float = time.monotonic()
             root: Path = Path.cwd()
             task_enum: ContextTask = ContextTask(a_request.task)
             budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
             input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
 
+            skipped_files: tuple[str, ...] = ()
+            warnings: list[str] = []
+
             if a_request.group:
                 result = await self._build_grouped(root, task_enum, budget, a_request)
             elif a_request.scope == "separate":
                 result = await self._build_separate(root, task_enum, budget, a_request)
             else:
-                result = await self._build_merged(root, task_enum, budget, input_paths, a_request)
+                result, skipped_files = await self._build_merged(root, task_enum, budget, input_paths, a_request)
 
             elapsed: float = time.monotonic() - t_start
             return ContextResult(
@@ -98,6 +106,8 @@ class Application:
                 total_files=result.total_files,
                 total_tokens=result.total_tokens,
                 elapsed_seconds=elapsed,
+                skipped_files=skipped_files,
+                warnings=tuple(warnings),
             )
         except ProjectBaseError:
             raise
@@ -113,7 +123,7 @@ class Application:
         a_budget: TokenBudget,
         a_input_paths: list[Path],
         a_request: ContextRequest,
-    ) -> ContextResult:
+    ) -> tuple[ContextResult, tuple[str, ...]]:
         """Build a single merged context file.
 
         Args:
@@ -124,7 +134,7 @@ class Application:
             a_request: Original request DTO.
 
         Returns:
-            ContextResult with stats and output path.
+            Tuple of ContextResult with stats and skipped file paths.
         """
         output_path: Path = resolve_output_path(a_request.output_path)
         plan: ContextPlan = await self._builder.build(
@@ -136,22 +146,26 @@ class Application:
             a_input_paths=a_input_paths if a_request.paths else None,
         )
         plan = self._with_metadata(plan, a_root, a_request, "merged")
-        content = await self._builder.load_content(a_plan=plan, a_root=a_root)
+        content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
         materialized = self._builder.materialize(plan, content)
         rendered: str = self._renderer.render(materialized, plan)
         self._output.write(str(output_path), rendered)
         logger.info(
-            "Context generated: %d files, %d tokens, %d chunks",
+            "Context generated: %d files, %d tokens, %d chunks, %d skipped",
             plan.total_files,
             plan.total_tokens,
             len(plan.chunks),
+            len(skipped_files),
         )
         logger.info("Output: %s", output_path)
-        return ContextResult(
-            output_path=output_path,
-            total_files=plan.total_files,
-            total_tokens=plan.total_tokens,
-            elapsed_seconds=0,
+        return (
+            ContextResult(
+                output_path=output_path,
+                total_files=plan.total_files,
+                total_tokens=plan.total_tokens,
+                elapsed_seconds=0,
+            ),
+            skipped_files,
         )
 
     async def _build_separate(
@@ -191,7 +205,7 @@ class Application:
             )
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
             plan = self._with_metadata(plan, a_root, a_request, "separate", [input_name])
-            content = await self._builder.load_content(a_plan=plan, a_root=a_root)
+            content, _skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             materialized = self._builder.materialize(plan, content)
             rendered: str = self._renderer.render(materialized, plan)
             if input_path == a_root:
@@ -250,7 +264,7 @@ class Application:
             group_output = output_base.parent / f"{group_label}_context.md"
             input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
             plan = self._with_metadata(plan, a_root, a_request, "group", input_names)
-            content = await self._builder.load_content(a_plan=plan, a_root=a_root)
+            content, _skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             materialized = self._builder.materialize(plan, content)
             rendered: str = self._renderer.render(materialized, plan)
             self._output.write(str(group_output), rendered)

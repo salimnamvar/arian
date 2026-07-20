@@ -166,3 +166,33 @@ class ArianConfig(BaseModel):
             ArianConfig populated from the provided dictionary.
         """
         return cls.model_validate(a_data)
+
+    @classmethod
+    def load_with_precedence(cls, a_env: dict[str, str] | None = None) -> ArianConfig:
+        """Load config with precedence: defaults < env < CLI.
+
+        Precedence order:
+            1. Built-in defaults (class fields)
+            2. Environment variables (ARIAN_LOG_LEVEL, etc.)
+            3. CLI args (future — not yet implemented)
+
+        Args:
+            a_env: Optional environment dict (for testing). Uses os.environ if None.
+
+        Returns:
+            ArianConfig with values resolved by precedence.
+        """
+        cfg = cls.load()
+        env = a_env if a_env is not None else dict(os.environ)
+        if "ARIAN_LOG_LEVEL" in env:
+            level: str = env["ARIAN_LOG_LEVEL"].upper()
+            cfg = cfg.model_copy(
+                update={"logging": cfg.logging.model_copy(update={"level": level})}
+            )
+        if "ARIAN_LOG_DIR" in env:
+            raw: str = env["ARIAN_LOG_DIR"]
+            log_dir: Path | None = Path(raw) if raw else None
+            cfg = cfg.model_copy(
+                update={"logging": cfg.logging.model_copy(update={"log_dir": log_dir})}
+            )
+        return cfg

@@ -38,9 +38,13 @@ class ContextResult:
         total_files: Number of files included in the context.
         total_tokens: Total token count of the context.
         elapsed_seconds: Wall-clock time for the entire operation.
+        skipped_files: Files that failed to load.
+        warnings: Non-fatal warnings.
     """
 
     output_path: Path
     total_files: int
     total_tokens: int
     elapsed_seconds: float
+    skipped_files: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
