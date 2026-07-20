@@ -6,6 +6,7 @@ from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.language import detect_language
+from arian.domain.shared.output import OutputWriterProtocol
 from arian.domain.shared.security import SafePath
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.security import redact_secrets
@@ -15,6 +16,7 @@ __all__ = [
     "CompressionLevel",
     "DependencyKind",
     "FileRole",
+    "OutputWriterProtocol",
     "SafePath",
     "SymbolKind",
     "TokenBudget",

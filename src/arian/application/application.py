@@ -15,6 +15,7 @@ from arian.application.context import ContextResult
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
+from arian.domain.shared.output import OutputWriterProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.renderer.markdown.renderer import MarkdownRenderer
 from arian.service.builder.context_builder import ContextBuilder
@@ -29,26 +30,30 @@ class Application:
         1. Resolve input paths and output path.
         2. Delegate to ContextBuilder for plan, content, and materialization.
         3. Delegate to MarkdownRenderer for final output.
-        4. Write the output file and return a ContextResult.
+        4. Delegate to OutputWriter for persistence and return a ContextResult.
 
     Attributes:
         _builder: Context builder for the full pipeline.
         _renderer: Markdown renderer for final output.
+        _output: Output writer (filesystem-agnostic protocol).
     """
 
     def __init__(
         self,
         a_builder: ContextBuilder,
         a_renderer: MarkdownRenderer,
+        a_output: OutputWriterProtocol,
     ) -> None:
         """Initialize the application.
 
         Args:
             a_builder: Context builder for pipeline orchestration.
             a_renderer: Markdown renderer for output generation.
+            a_output: Output writer port for persisting rendered content.
         """
         self._builder = a_builder
         self._renderer = a_renderer
+        self._output = a_output
 
     async def build_context(self, a_request: ContextRequest) -> ContextResult:
         """Execute the full context generation pipeline.
@@ -123,7 +128,7 @@ class Application:
         content = await self._builder.load_content(a_plan=plan, a_root=a_root)
         materialized = self._builder.materialize(plan, content)
         rendered: str = self._renderer.render(materialized, plan)
-        self._write_output(output_path, rendered)
+        self._output.write(str(output_path), rendered)
         logger.info(
             "Context generated: %d files, %d tokens, %d chunks",
             plan.total_files,
@@ -183,7 +188,7 @@ class Application:
             else:
                 rel_name: Path = input_path.relative_to(a_root)
                 sep_output = output_base.parent / f"{rel_name}_context.md"
-            self._write_output(sep_output, rendered)
+            self._output.write(str(sep_output), rendered)
             logger.info("Output: %s", sep_output)
             total_files += plan.total_files
             total_tokens += plan.total_tokens
@@ -237,7 +242,7 @@ class Application:
             content = await self._builder.load_content(a_plan=plan, a_root=a_root)
             materialized = self._builder.materialize(plan, content)
             rendered: str = self._renderer.render(materialized, plan)
-            self._write_output(group_output, rendered)
+            self._output.write(str(group_output), rendered)
             logger.info("Output: %s", group_output)
             total_files += plan.total_files
             total_tokens += plan.total_tokens
@@ -289,14 +294,3 @@ class Application:
             },
             repository_files=a_plan.repository_files,
         )
-
-    @staticmethod
-    def _write_output(a_path: Path, a_content: str) -> None:
-        """Write rendered content to an output file.
-
-        Args:
-            a_path: Output file path.
-            a_content: Rendered content string.
-        """
-        a_path.parent.mkdir(parents=True, exist_ok=True)
-        a_path.write_text(a_content, encoding="utf-8")

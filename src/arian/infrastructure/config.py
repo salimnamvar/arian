@@ -146,15 +146,11 @@ class ArianConfig(BaseModel):
         collector_kwargs: dict[str, Any] = {}
         extensions_raw: str | None = os.environ.get("ARIAN_EXTENSIONS")
         if extensions_raw:
-            collector_kwargs["extensions"] = frozenset(
-                ext.strip() for ext in extensions_raw.split(",") if ext.strip()
-            )
+            collector_kwargs["extensions"] = frozenset(ext.strip() for ext in extensions_raw.split(",") if ext.strip())
 
         exclude_raw: str | None = os.environ.get("ARIAN_EXCLUDE")
         if exclude_raw:
-            collector_kwargs["exclude"] = frozenset(
-                name.strip() for name in exclude_raw.split(",") if name.strip()
-            )
+            collector_kwargs["exclude"] = frozenset(name.strip() for name in exclude_raw.split(",") if name.strip())
 
         collector_cfg = FileCollectorConfig(**collector_kwargs)
         return cls(logging=logging_cfg, collector=collector_cfg)

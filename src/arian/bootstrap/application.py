@@ -22,7 +22,7 @@ from arian.service.planner.context_planner import ContextPlanner
 def create_application(a_config: ArianConfig | None = None) -> Application:
     """Create and wire the Application instance.
 
-    Single composition root with manual constructor injection.
+    Follows tenas pattern: single composition root, manual constructor injection.
 
     Args:
         a_config: Application configuration. Uses defaults if None.
