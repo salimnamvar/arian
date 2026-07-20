@@ -186,13 +186,9 @@ class ArianConfig(BaseModel):
         env = a_env if a_env is not None else dict(os.environ)
         if "ARIAN_LOG_LEVEL" in env:
             level: str = env["ARIAN_LOG_LEVEL"].upper()
-            cfg = cfg.model_copy(
-                update={"logging": cfg.logging.model_copy(update={"level": level})}
-            )
+            cfg = cfg.model_copy(update={"logging": cfg.logging.model_copy(update={"level": level})})
         if "ARIAN_LOG_DIR" in env:
             raw: str = env["ARIAN_LOG_DIR"]
             log_dir: Path | None = Path(raw) if raw else None
-            cfg = cfg.model_copy(
-                update={"logging": cfg.logging.model_copy(update={"log_dir": log_dir})}
-            )
+            cfg = cfg.model_copy(update={"logging": cfg.logging.model_copy(update={"log_dir": log_dir})})
         return cfg

@@ -94,5 +94,5 @@ class TestContextBuilderIntegration:
             )
         )
 
-        content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
+        content_map, _skipped = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
         assert len(content_map) >= 1

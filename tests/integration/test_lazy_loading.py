@@ -151,7 +151,7 @@ class TestHashLifecycle:
 
         budget = TokenBudget(max_tokens=5000)
         plan = asyncio.run(builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget))
-        content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
+        content_map, _skipped = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
 
         for _path, content in content_map.items():
             assert content.hash != ""
@@ -192,7 +192,7 @@ class TestSingleReadVerification:
             return original_read_text(self, *args, **kwargs)
 
         with patch.object(Path, "read_text", counting_read_text):
-            content_map = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
+            content_map, _skipped = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
 
         assert read_count == len(content_map)
 

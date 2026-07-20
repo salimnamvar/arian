@@ -21,7 +21,13 @@ class TestRunContextFilter:
     def test_filter_attaches_run_id(self) -> None:
         f = RunContextFilter()
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0, msg="test", args=None, exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test",
+            args=None,
+            exc_info=None,
         )
         result = f.filter(record)
         assert result is True
