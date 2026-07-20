@@ -109,6 +109,9 @@ class FileCollector:
             entries = await asyncio.to_thread(
                 lambda: sorted(a_directory.iterdir(), key=lambda p: (p.is_dir(), p.name)),
             )
+        except PermissionError:
+            logger.debug("Skipping (permission denied): %s", a_directory)
+            entries = []
         except OSError:
             logger.warning("Cannot read directory: %s", a_directory)
             entries = []

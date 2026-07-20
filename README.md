@@ -1,96 +1,108 @@
 # Arian
 
-Build optimized LLM-ready context from source code repositories. Arian scans a codebase, classifies files by architectural role, analyzes supported languages, applies token-aware compression strategies, and renders Markdown optimized for Large Language Model workflows.
+> *Your documentation is a direct reflection of your software, so hold it to the same standards.*
 
-> **Status:** Alpha — Core architecture is established. APIs, CLI interfaces, and output schemas may evolve.
+Arian generates LLM-optimized context from source code repositories. Instead of dumping raw files, it intelligently selects, compresses, and organizes code so that language models get the most relevant information — within token limits.
 
-## Prerequisites
+> **Status:** Alpha — Core architecture is established. APIs, CLI, and output may evolve.
 
-- Python 3.10 or higher
 
-## Quick Start
+## Highlights
 
-Install from PyPI:
+- **Task-aware** — File selection and compression adapt to what you're doing (bug fix, feature, review, onboarding...)
+- **Token-budget-first** — Set a limit, Arian respects it. Never exceeds your budget
+- **Smart compression** — Large files get compressed to signatures or structure outlines automatically
+- **Python deep analysis** — Extracts classes, functions, methods via AST for precise fragmentation
+- **One command** — `arian` scans your repo and produces a single, organized Markdown context file
+- **Flexible output** — Merged, separate, or grouped context files per directory
 
-```bash
-pip install arian
-```
 
-Or install locally for development:
+## Overview
 
-```bash
-git clone https://github.com/salimnamvar/arian.git
-cd arian
-pip install -e ".[dev]"
-```
-
-Generate context for a repository:
+Arian does not concatenate files. It builds a structured context plan: collects files, classifies them by architectural role, analyzes symbols, applies compression, and renders Markdown optimized for LLM workflows.
 
 ```bash
-arian --task bug_fix
+# Generate context for a bug fix
+arian src/ tests/ --task bug_fix
+
+# Onboard to a new project
+arian --task onboarding
+
+# Set a token budget
+arian src/ --budget 5000
 ```
 
-Output is written to `.tmp/` by default. Specify a custom path with `--output`:
+Output goes to `~/.arian/output/context.md` by default. Each file contains a YAML manifest, full directory tree, and syntax-highlighted code blocks organized by importance.
 
-```bash
-arian --task feature --output context.md
-```
 
-Scope to specific directories:
+### ✍️ Author
 
-```bash
-arian src/ lib/
-```
+Created by [Salim Namvar](https://github.com/salimnamvar). Built out of the need to feed LLMs the *right* code context — not just *all* the code.
 
-Generate separate context files per directory:
-
-```bash
-arian src/ lib/ --scope separate
-```
 
 ## Usage
+
+### Quick examples
+
+```bash
+# Current directory
+arian
+
+# Specific paths with a task
+arian src/ lib/ --task feature
+
+# Token budget
+arian src/ --budget 10000
+
+# Separate output per directory
+arian src/ lib/ --scope separate
+
+# Grouped output
+arian --group src/,lib/ --group tests/
+
+# Verbose logging
+arian src/ --verbose
+```
+
+### Task types
+
+| Task | What gets prioritized |
+|------|----------------------|
+| `bug_fix` | Tests, implementation, dependencies |
+| `feature` | Domain logic, services, test coverage |
+| `review` | Services, domain logic |
+| `onboarding` | README, configuration, entry points |
+| `refactor` | Services, infrastructure |
+| `document` | README, domain, services |
+| `general` | No special prioritization (default) |
+
+### CLI options
 
 ```
 arian [OPTIONS] [paths]...
 ```
 
 | Option | Default | Description |
-|---|---|---|
-| `paths` | CWD | Directories or files to include |
-| `--task` | `general` | Task type driving file selection priorities |
-| `--output` / `-o` | `.tmp` | Output file path |
-| `--max-tokens` | `5000` | Maximum tokens for context |
-| `--per-chunk` | `4000` | Target tokens per chunk |
-| `--query` / `-q` | — | Optional task context hint for relevance planning |
-| `--scope` | `merged` | Scope mode: `merged` (single file) or `separate` (one per path) |
-| `--verbose` / `-v` | `False` | Enable debug logging |
+|--------|---------|-------------|
+| `--task` | `general` | Task type driving file priorities |
+| `--budget` | Unlimited | Maximum tokens for context |
+| `--output`, `-o` | `~/.arian/output/context.md` | Output file path |
+| `--scope` | `merged` | `merged` or `separate` |
+| `--group` | — | Group paths (repeatable) |
+| `--verbose`, `-v` | Off | Debug logging |
 
-### Task Types
+For detailed usage, see [docs/USAGE.md](docs/USAGE.md).
 
-| Task | Purpose |
-|---|---|
-| `bug_fix` | Prioritizes likely affected implementation, tests, and dependencies |
-| `feature` | Prioritizes domain, services, and test coverage |
-| `review` | Prioritizes services and domain logic |
-| `onboarding` | Prioritizes README, configuration, and entry points |
-| `refactor` | Prioritizes services and infrastructure |
-| `document` | Prioritizes README, domain, and services |
-| `general` | No special prioritization |
 
-## How Arian Works
+## Installation
 
-Arian does not simply concatenate repository files. It creates a context plan:
+```bash
+pip install arian
+```
 
-1. Scans repository structure
-2. Classifies files by architectural role
-3. Analyzes supported languages using language-specific analyzers (Python via AST)
-4. Uses repository structure and dependency information to improve context selection
-5. Applies token-budget-aware compression
-6. Generates optimized context output
+Requires Python 3.10+.
 
-## Development
-
-Clone the repository and install with dev dependencies:
+### From source (development)
 
 ```bash
 git clone https://github.com/salimnamvar/arian.git
@@ -98,51 +110,34 @@ cd arian
 pip install -e ".[dev]"
 ```
 
-Run the linter:
+*Development instructions are kept to a minimum here. See [docs/developer/GITFLOW.md](docs/developer/GITFLOW.md) for the full development workflow.*
 
-```bash
-ruff check src/ tests/
-```
 
-Run the formatter:
+## How it works
 
-```bash
-ruff format src/ tests/
-```
+1. **Collect** — Scans repository for files matching configured extensions
+2. **Classify** — Assigns each file an architectural role (readme, test, domain, service, infrastructure...)
+3. **Analyze** — Extracts symbols from Python via AST (other languages get role-based classification)
+4. **Plan** — Ranks files by relevance to the task, applies compression, enforces token budgets
+5. **Materialize** — Loads content, applies compression (full → signatures → structure → summary), fragments large files along symbol boundaries
+6. **Render** — Produces Markdown with manifest, directory tree, and syntax-highlighted code
 
-Run the type checker:
+### Compression levels
 
-```bash
-pyright
-```
+| Level | When | What it keeps |
+|-------|------|---------------|
+| Full | Small, high-priority files | Complete content |
+| Signatures | Medium files | Class/function signatures and docstrings |
+| Structure | Large files (>5000 tokens) | File structure outline |
+| Summary | Very large files | Brief summary only |
 
-Run the tests:
 
-```bash
-pytest
-```
+## Feedback and Contributing
 
-## Scope
+Contributions are welcome! Open an issue or submit a pull request at the [source repository](https://github.com/salimnamvar/arian).
 
-Arian builds structured context representations from source repositories and renders them into LLM-friendly formats. Markdown is currently the supported output renderer. It is not a code analysis platform, a documentation generator, or a general-purpose linter.
+For development setup and workflow, see [docs/developer/GITFLOW.md](docs/developer/GITFLOW.md).
 
-Currently supported: Python source analysis via AST. Other languages receive role-based classification and basic compression without deep language analysis.
-
-## Design Principles
-
-Arian uses a planner-driven architecture where context selection, compression decisions, and rendering are separate stages.
-
-Arian follows:
-
-- Domain-driven modeling with immutable entities and value objects
-- Separation between planning and rendering
-- Token-budget-first context generation
-- Language-specific analysis through pluggable analyzers
-- Deterministic transformations where possible
-
-## Contributing
-
-Contributions are accepted. Open an issue or submit a pull request at the [source repository](https://github.com/salimnamvar/arian).
 
 ## License
 

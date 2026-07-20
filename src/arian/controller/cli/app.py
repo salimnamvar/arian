@@ -1,33 +1,30 @@
-"""Typer CLI application for Arian."""
+"""Typer CLI controller for Arian.
+
+Thin interface layer: parses CLI args → constructs ContextRequest →
+delegates to Application → displays result. No service construction,
+no pipeline logic, no output writing.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import logging.handlers
 from pathlib import Path
 
 import typer
 
-from arian.bootstrap.logging import configure_logging
-from arian.domain.context.models import ContextPlan
+from arian.application.context import ContextRequest
+from arian.bootstrap.application import create_application
+from arian.bootstrap.lifespan import lifespan
 from arian.domain.context.models import ContextTask
-from arian.domain.shared.enums import TokenBudget
+from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.config import LoggingConfig
-from arian.infrastructure.ignore.default_patterns import DEFAULT_EXCLUDES
-from arian.infrastructure.output_path_resolver import resolve_output_path
-from arian.renderer.markdown.renderer import MarkdownRenderer
-from arian.repository.filesystem.collector import FileCollector
-from arian.repository.index.memory_repository import MemoryRepositoryIndex
-from arian.service.analyzer.python_analyzer import PythonAnalyzer
-from arian.service.builder.context_builder import ContextBuilder
-from arian.service.classifier.file_classifier import FileClassifier
-from arian.service.context.materializer import ContextMaterializer
-from arian.service.planner.context_planner import ContextPlanner
 
 app: typer.Typer = typer.Typer(help="Repository intelligence and context planning engine.", add_completion=False)
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+_VALID_SCOPES: frozenset[str] = frozenset({"merged", "separate"})
 
 
 def _parse_budget(a_value: str | None) -> int | None:
@@ -50,7 +47,7 @@ def _parse_budget(a_value: str | None) -> int | None:
             try:
                 budget_value = int(a_value)
             except ValueError:
-                logger.exception("Invalid budget: %s. Must be a number or 'none'.", a_value)
+                logger.error("Invalid budget: %s. Must be a number or 'none'.", a_value)  # noqa: TRY400
                 raise typer.Exit(code=1) from None
             if budget_value <= 0:
                 logger.error("Budget must be > 0, got: %d", budget_value)
@@ -58,191 +55,54 @@ def _parse_budget(a_value: str | None) -> int | None:
     return budget_value
 
 
-_DEFAULT_EXTENSIONS: frozenset[str] = frozenset({".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json"})
-
-
-def _run_separate(
-    a_builder: ContextBuilder,
-    a_input_paths: list[Path],
-    a_task: ContextTask,
-    a_budget: TokenBudget,
-    a_query: str | None,
-    a_root: Path,
-    a_output_path: Path,
-    a_scope: str,
-) -> None:
-    """Build and write separate context files for each path.
+def _parse_groups(a_group: list[str] | None) -> tuple[tuple[str, ...], ...]:
+    """Parse --group options into tuple of path-tuples.
 
     Args:
-        a_builder: Context builder instance.
-        a_input_paths: Paths to process individually.
-        a_task: Task type.
-        a_budget: Token budget.
-        a_query: Optional query.
-        a_root: Repository root.
-        a_output_path: Base output path.
-        a_scope: Scope mode string.
+        a_group: Raw group strings from CLI (comma-separated paths).
+
+    Returns:
+        Tuple of path-tuples, one per group.
     """
-    for input_path in a_input_paths:
-        if not input_path.exists():
-            logger.error("Path does not exist: %s", input_path)
-            raise typer.Exit(code=1) from None
-        plan = asyncio.run(
-            a_builder.build(a_path=input_path, a_task=a_task, a_budget=a_budget, a_query=a_query, a_root=a_root)
-        )
-        input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
-        plan = ContextPlan(
-            chunks=plan.chunks,
-            total_tokens=plan.total_tokens,
-            total_files=plan.total_files,
-            task=plan.task,
-            query=plan.query,
-            metadata={
-                "repository": a_root.name,
-                "paths": [input_name],
-                "budget": {"max": a_budget.max_tokens},
-                "scope": a_scope,
-            },
-            repository_files=plan.repository_files,
-        )
-        content_map = asyncio.run(a_builder.load_content(a_plan=plan, a_root=a_root))
-        materialized = a_builder.materialize(plan, content_map)
-        renderer: MarkdownRenderer = MarkdownRenderer()
-        rendered: str = renderer.render(materialized, plan)
-        if input_path == a_root:
-            sep_output = a_output_path.parent / "root_context.md"
-        else:
-            rel_name: Path = input_path.relative_to(a_root)
-            sep_output = a_output_path.parent / f"{rel_name}_context.md"
-        sep_output.parent.mkdir(parents=True, exist_ok=True)
-        sep_output.write_text(rendered, encoding="utf-8")
-        logger.info("Output: %s", sep_output)
+    result: tuple[tuple[str, ...], ...] = ()
+    if a_group:
+        parsed: list[tuple[str, ...]] = []
+        for group_spec in a_group:
+            group_paths: tuple[str, ...] = tuple(p.strip() for p in group_spec.split(","))
+            parsed.append(group_paths)
+        result = tuple(parsed)
+    return result
 
 
-def _run_merged(
-    a_builder: ContextBuilder,
-    a_input_paths: list[Path],
-    a_task: ContextTask,
-    a_budget: TokenBudget,
-    a_query: str | None,
-    a_root: Path,
-    a_output_path: Path,
-    a_scope: str,
-    a_paths_provided: bool,
-) -> None:
-    """Build and write a single merged context file.
+def _validate_request(a_request: ContextRequest) -> None:
+    """Validate a ContextRequest before passing to Application.
 
     Args:
-        a_builder: Context builder instance.
-        a_input_paths: All input paths.
-        a_task: Task type.
-        a_budget: Token budget.
-        a_query: Optional query.
-        a_root: Repository root.
-        a_output_path: Output file path.
-        a_scope: Scope mode string.
-        a_paths_provided: Whether user provided explicit paths.
+        a_request: Request DTO to validate.
+
+    Raises:
+        typer.Exit: If validation fails.
     """
-    plan = asyncio.run(
-        a_builder.build(
-            a_path=a_root,
-            a_task=a_task,
-            a_budget=a_budget,
-            a_query=a_query,
-            a_root=a_root,
-            a_input_paths=a_input_paths if a_paths_provided else None,
-        )
-    )
+    try:
+        ContextTask(a_request.task)
+    except ValueError:
+        msg = f"Invalid task: {a_request.task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
+        logger.error(msg)  # noqa: TRY400
+        raise typer.Exit(code=1) from None
 
-    input_names = [str(p.relative_to(a_root)) if p != a_root else "." for p in a_input_paths]
-    plan = ContextPlan(
-        chunks=plan.chunks,
-        total_tokens=plan.total_tokens,
-        total_files=plan.total_files,
-        task=plan.task,
-        query=plan.query,
-        metadata={
-            "repository": a_root.name,
-            "paths": input_names,
-            "budget": {"max": a_budget.max_tokens},
-            "scope": a_scope,
-        },
-        repository_files=plan.repository_files,
-    )
+    if a_request.scope not in _VALID_SCOPES:
+        msg = f"Invalid scope: {a_request.scope}. Valid scopes: merged, separate"
+        logger.error(msg)
+        raise typer.Exit(code=1) from None
 
-    content_map = asyncio.run(a_builder.load_content(a_plan=plan, a_root=a_root))
-    materialized = a_builder.materialize(plan, content_map)
-    renderer_final: MarkdownRenderer = MarkdownRenderer()
-    rendered_final: str = renderer_final.render(materialized, plan)
-    a_output_path.parent.mkdir(parents=True, exist_ok=True)
-    a_output_path.write_text(rendered_final, encoding="utf-8")
-
-    logger.info(
-        "Context generated: %d files, %d tokens, %d chunks",
-        plan.total_files,
-        plan.total_tokens,
-        len(plan.chunks),
-    )
-    logger.info("Output: %s", a_output_path)
-
-
-def _run_group(
-    a_builder: ContextBuilder,
-    a_group_paths: list[Path],
-    a_task: ContextTask,
-    a_budget: TokenBudget,
-    a_query: str | None,
-    a_root: Path,
-    a_output_path: Path,
-) -> None:
-    """Build and write context for a single group of paths.
-
-    Args:
-        a_builder: Context builder instance.
-        a_group_paths: Paths belonging to this group.
-        a_task: Task type.
-        a_budget: Token budget.
-        a_query: Optional query.
-        a_root: Repository root.
-        a_output_path: Base output path.
-    """
-    plan = asyncio.run(
-        a_builder.build(
-            a_path=a_root,
-            a_task=a_task,
-            a_budget=a_budget,
-            a_query=a_query,
-            a_root=a_root,
-            a_input_paths=a_group_paths,
-        )
-    )
-    group_names: list[str] = [p.name for p in a_group_paths]
-    group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
-    group_output = a_output_path.parent / f"{group_label}_context.md"
-    group_output.parent.mkdir(parents=True, exist_ok=True)
-
-    input_names = [str(p.relative_to(a_root)) for p in a_group_paths]
-    plan = ContextPlan(
-        chunks=plan.chunks,
-        total_tokens=plan.total_tokens,
-        total_files=plan.total_files,
-        task=plan.task,
-        query=plan.query,
-        metadata={
-            "repository": a_root.name,
-            "paths": input_names,
-            "budget": {"max": a_budget.max_tokens},
-            "scope": "group",
-        },
-        repository_files=plan.repository_files,
-    )
-
-    content_map = asyncio.run(a_builder.load_content(a_plan=plan, a_root=a_root))
-    materialized = a_builder.materialize(plan, content_map)
-    renderer: MarkdownRenderer = MarkdownRenderer()
-    rendered: str = renderer.render(materialized, plan)
-    group_output.write_text(rendered, encoding="utf-8")
-    logger.info("Output: %s", group_output)
+    root: Path = Path.cwd()
+    if a_request.group:
+        for group_spec in a_request.group:
+            for p in group_spec:
+                gp: Path = root / p
+                if not gp.exists():
+                    logger.error("Path does not exist: %s", gp)
+                    raise typer.Exit(code=1) from None
 
 
 @app.command()  # a-prefix-ignore: Typer CLI public names
@@ -268,63 +128,30 @@ def context(  # a-prefix-ignore: Typer CLI public names
     paths: list[str] = typer.Argument(default=None, help="Directories or files to include (default: cwd)"),
 ) -> None:
     """Generate task-aware context from a repository."""
-    listener: logging.handlers.QueueListener | None = configure_logging(
-        LoggingConfig(level="DEBUG" if verbose else "INFO")
-    )
+    logging_level: str = "DEBUG" if verbose else "INFO"
+    config: ArianConfig = ArianConfig(logging=LoggingConfig(level=logging_level))
 
-    try:
-        logger.info("Generating context for task=%s", task)
-
-        try:
-            task_enum: ContextTask = ContextTask(task.lower())
-        except ValueError:
-            msg = f"Invalid task: {task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
-            logger.exception(msg)
-            raise typer.Exit(code=1) from None
-
-        if scope not in ("merged", "separate"):
-            msg = f"Invalid scope: {scope}. Valid scopes: merged, separate"
-            logger.error(msg)
-            raise typer.Exit(code=1) from None
-
-        token_budget: TokenBudget = TokenBudget(max_tokens=_parse_budget(budget))
-        root: Path = Path.cwd()
-        output_path: Path = resolve_output_path(output)
-
-        input_paths: list[Path] = [root / p for p in paths] if paths else [root]
-
-        classifier: FileClassifier = FileClassifier()
-        collector: FileCollector = FileCollector(
-            a_extensions=_DEFAULT_EXTENSIONS,
-            a_exclude=DEFAULT_EXCLUDES,
-            a_classifier=classifier,
-        )
-        index: MemoryRepositoryIndex = MemoryRepositoryIndex()
-        analyzer: PythonAnalyzer = PythonAnalyzer()
-        planner: ContextPlanner = ContextPlanner(a_classifier=classifier)
-        materializer: ContextMaterializer = ContextMaterializer(a_analyzer=analyzer)
-        builder: ContextBuilder = ContextBuilder(
-            a_collector=collector,
-            a_index=index,
-            a_planner=planner,
-            a_materializer=materializer,
+    with lifespan(config):
+        request: ContextRequest = ContextRequest(
+            task=task.lower(),
+            budget=_parse_budget(budget),
+            output_path=output,
+            scope=scope,
+            group=_parse_groups(group),
+            query=query,
+            paths=tuple(paths) if paths else (),
         )
 
-        if group:
-            if scope != "merged":
-                logger.warning("--scope is ignored when --group is used")
-            for group_spec in group:
-                group_paths: list[Path] = [root / p.strip() for p in group_spec.split(",")]
-                for gp in group_paths:
-                    if not gp.exists():
-                        logger.error("Path does not exist: %s", gp)
-                        raise typer.Exit(code=1) from None
-                _run_group(builder, group_paths, task_enum, token_budget, query, root, output_path)
+        _validate_request(request)
 
-        elif scope == "separate":
-            _run_separate(builder, input_paths, task_enum, token_budget, query, root, output_path, scope)
-        else:
-            _run_merged(builder, input_paths, task_enum, token_budget, query, root, output_path, scope, bool(paths))
-    finally:
-        if listener is not None:
-            listener.stop()
+        logger.info("Generating context for task=%s", request.task)
+        application = create_application(config)
+        result = asyncio.run(application.build_context(request))
+
+        logger.info(
+            "Context generated: %d files, %d tokens in %.2fs",
+            result.total_files,
+            result.total_tokens,
+            result.elapsed_seconds,
+        )
+        logger.info("Output: %s", result.output_path)

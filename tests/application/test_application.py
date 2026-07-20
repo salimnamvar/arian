@@ -1,0 +1,156 @@
+"""Unit tests for application layer DTOs and Application class."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from pathlib import Path
+
+import pytest
+
+from arian.application.application import Application
+from arian.application.context import ContextRequest
+from arian.application.context import ContextResult
+from arian.bootstrap.application import create_application
+from arian.infrastructure.config import ArianConfig
+
+
+class TestContextRequest:
+    """Tests for ContextRequest DTO."""
+
+    def test_defaults(self) -> None:
+        """Verify default values."""
+        req = ContextRequest()
+        assert req.task == "general"
+        assert req.budget is None
+        assert req.output_path == "~/.arian/output/context.md"
+        assert req.scope == "merged"
+        assert req.paths == ()
+        assert req.group == ()
+        assert req.query is None
+
+    def test_custom_values(self) -> None:
+        """Verify custom values are stored."""
+        req = ContextRequest(
+            task="bug_fix",
+            budget=5000,
+            output_path="/tmp/out.md",
+            scope="separate",
+            paths=("src/", "lib/"),
+            group=(("src/", "lib/"),),
+            query="auth",
+        )
+        assert req.task == "bug_fix"
+        assert req.budget == 5000
+        assert req.paths == ("src/", "lib/")
+        assert req.group == (("src/", "lib/"),)
+
+    def test_frozen(self) -> None:
+        """Verify DTO is immutable."""
+        req = ContextRequest()
+        with pytest.raises(AttributeError):
+            req.task = "feature"  # type: ignore[misc]
+
+
+class TestContextResult:
+    """Tests for ContextResult DTO."""
+
+    def test_creation(self) -> None:
+        """Verify ContextResult stores values."""
+        result = ContextResult(
+            output_path=Path("/tmp/context.md"),
+            total_files=10,
+            total_tokens=5000,
+            elapsed_seconds=1.23,
+        )
+        assert result.output_path == Path("/tmp/context.md")
+        assert result.total_files == 10
+        assert result.total_tokens == 5000
+        assert result.elapsed_seconds == 1.23
+
+    def test_frozen(self) -> None:
+        """Verify DTO is immutable."""
+        result = ContextResult(
+            output_path=Path("/tmp/context.md"),
+            total_files=10,
+            total_tokens=5000,
+            elapsed_seconds=1.0,
+        )
+        with pytest.raises(AttributeError):
+            result.total_files = 20  # type: ignore[misc]
+
+
+class TestCreateApplication:
+    """Tests for bootstrap factory."""
+
+    def test_create_default(self) -> None:
+        """Verify factory creates a wired Application with defaults."""
+        app = create_application()
+        assert isinstance(app, Application)
+
+    def test_create_with_config(self) -> None:
+        """Verify factory accepts custom config."""
+        config = ArianConfig()
+        app = create_application(config)
+        assert isinstance(app, Application)
+
+
+class TestApplicationBuildContext:
+    """Integration tests for Application.build_context."""
+
+    def test_build_empty_directory(self, tmp_path: Path) -> None:
+        """Verify building context for empty directory produces zero files."""
+        app = create_application()
+        request = ContextRequest(
+            paths=(str(tmp_path),),
+            output_path=str(tmp_path / "out.md"),
+        )
+
+        async def _run() -> ContextResult:
+            return await app.build_context(request)
+
+        result = asyncio.run(_run())
+        assert result.total_files == 0
+        assert result.total_tokens == 0
+        assert result.output_path.exists()
+
+    def test_build_with_files(self, tmp_path: Path) -> None:
+        """Verify building context with files produces output."""
+        (tmp_path / "hello.py").write_text("def hello():\n    return 'world'\n")
+        app = create_application()
+
+        original_cwd: Path = Path.cwd()
+        try:
+            os.chdir(tmp_path)
+            request = ContextRequest(
+                paths=("hello.py",),
+                output_path=str(tmp_path / "out.md"),
+            )
+
+            async def _run() -> ContextResult:
+                return await app.build_context(request)
+
+            result = asyncio.run(_run())
+        finally:
+            os.chdir(original_cwd)
+
+        assert result.total_files >= 1
+        assert result.total_tokens > 0
+        assert result.elapsed_seconds > 0
+        assert result.output_path.exists()
+        content = result.output_path.read_text()
+        assert "hello.py" in content
+
+    def test_build_returns_elapsed_time(self, tmp_path: Path) -> None:
+        """Verify elapsed_seconds is positive."""
+        app = create_application()
+        request = ContextRequest(
+            paths=(str(tmp_path),),
+            output_path=str(tmp_path / "out.md"),
+        )
+
+        async def _run() -> ContextResult:
+            return await app.build_context(request)
+
+        result = asyncio.run(_run())
+        assert result.elapsed_seconds >= 0
