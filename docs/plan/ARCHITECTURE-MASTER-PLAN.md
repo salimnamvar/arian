@@ -1,9 +1,34 @@
 # Arian -- Architecture Audit & Master Plan
 
-> **Status:** Active -- Comprehensive architecture audit and remediation plan
+> **Status:** Completed -- All 40 issues resolved
 > **Date:** 2026-07-20
 > **Branch:** `feature/architecture-refactoring`
 > **Principles:** Clean Architecture, CSR, SOLID, DRY, KISS, SPR
+
+### Resolution Summary
+
+| Batch | Issues | Commits | Status |
+|-------|--------|---------|--------|
+| 1: Domain Foundation | #9, #10, #11 | `bb0a9d4` | Done |
+| 2: Config DI | #6 | `f83b35f` | Done |
+| 3: Application I/O | #3 | `474f920` | Done |
+| 4: Dependency Fix | #4, #5 | `7f85c80` | Done |
+| 5: Controller Slim | #1 | `f900c24` | Done |
+| 6: Repository Boundary | #8, #12 | `6a5894c` | Done |
+| 7: Domain Events | #13 | `eb4e924` | Done |
+| 8: Pipeline + Progress | #14, #32, #34 | `39f8568` | Done |
+| 9: Config Lifecycle | #16, #17, #23 | `39f8568` | Done |
+| 10: Validation + Concurrency | #18, #19, #22 | `969c7b6` | Done |
+| 11: Architecture Tests | #2, #20 | `81480d6` | Done |
+| 12: Contract Tests | #7, #28 | `b752689` | Done |
+| 13: Bootstrap Tests | #21, #27 | `b752689` | Done |
+| 14: Memory + Retry | #33, #39, #40 | `e9b53a5` | Done |
+| 15: CI/CD Pipeline | — | `17cff1a` | Done |
+| 16: Secrets + MCP | #35, #36, #37 | `29be17f` | Done |
+| 17: Doc Corrections | #29, #30, #31 | (in doc) | Done |
+| 18: Revisit Triggers | #26, #38 | (in doc) | Done |
+
+**Total: 15 commits, 367 tests passing, all lint clean.**
 
 ---
 
