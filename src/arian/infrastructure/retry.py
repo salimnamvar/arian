@@ -6,8 +6,11 @@ import asyncio
 from collections.abc import Callable
 import logging
 import time
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 async def retry_with_backoff(
@@ -54,7 +57,7 @@ async def retry_with_backoff(
     raise last_exception
 
 
-def retry_sync_with_backoff[T](
+def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     a_func: Callable[..., T],
     *args: object,
     a_max_retries: int = 3,
@@ -63,6 +66,8 @@ def retry_sync_with_backoff[T](
     **kwargs: object,
 ) -> T:
     """Retry a synchronous function with exponential backoff.
+
+    Compatible with Python 3.10+ (uses typing.TypeVar, not PEP 695 syntax).
 
     Args:
         a_func: Sync function to retry.
