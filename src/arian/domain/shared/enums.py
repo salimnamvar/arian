@@ -48,6 +48,20 @@ class CompressionLevel(Enum):
     AUTO = "auto"
 
 
+class ConcurrencyPolicy(Enum):
+    """Controls how parallel operations are executed.
+
+    Attributes:
+        SEQUENTIAL: One file at a time (debugging).
+        CONCURRENT: asyncio.gather (default).
+        BOUNDED: asyncio.Semaphore-limited.
+    """
+
+    SEQUENTIAL = "sequential"
+    CONCURRENT = "concurrent"
+    BOUNDED = "bounded"
+
+
 @dataclass(frozen=True)
 class TokenBudget:
     """Token budget constraints for context planning.

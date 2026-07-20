@@ -1,5 +1,11 @@
 # Arian
 
+[![CI](https://github.com/salimnamvar/arian/actions/workflows/ci.yml/badge.svg)](https://github.com/salimnamvar/arian/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/arian)](https://pypi.org/project/arian/)
+[![Python versions](https://img.shields.io/pypi/pyversions/arian)](https://pypi.org/project/arian/)
+[![License](https://img.shields.io/pypi/l/arian)](LICENSE)
+
+
 > *Your documentation is a direct reflection of your software, so hold it to the same standards.*
 
 Arian generates LLM-optimized context from source code repositories. Instead of dumping raw files, it intelligently selects, compresses, and organizes code so that language models get the most relevant information — within token limits.

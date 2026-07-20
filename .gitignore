@@ -72,8 +72,11 @@ dmypy.json
 build/
 dist/
 out/
-output/
+# Generated CLI/tool output directories (not the package path under src/)
+/output/
 outputs/
+!src/arian/infrastructure/output/
+!src/arian/infrastructure/output/**
 *.egg-info/
 .eggs/
 *.egg
@@ -119,6 +122,7 @@ TEST*.xml
 !.env.example
 secrets/
 secrets*
+!src/arian/domain/shared/secrets.py
 *.jwt
 *.pem
 *.key

@@ -5,6 +5,44 @@ All notable changes to Arian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-20
+
+### Added
+
+- **Clean Architecture hardening**: full CSR layering with Protocol-based DI across Application, Service, Repository, and Infrastructure.
+- **Domain security**: `SafePath`, path-traversal validation, binary detection, and secret redaction.
+- **Exception hierarchy**: structured domain exceptions with `reason`, `exit_code`, and `recoverable`.
+- **Atomic output writes**: temp-file + rename writer with sync retry/backoff.
+- **Concurrency policy**: `ConcurrencyPolicy` (sequential / concurrent / bounded) for file content loads.
+- **Partial-failure reporting**: `ContextResult.skipped_files` and `warnings`; CLI logs skips.
+- **Progress reporting**: `PipelineProgressProtocol` with logging reporter wired in bootstrap.
+- **Architecture tests**: AST-based layer boundary enforcement in CI.
+- **Repository contract tests**: parameterized Memory/SQLite index contracts.
+- **Startup and request validation**: `StartupValidator` and `ContextRequestValidator`.
+- **Secrets protocol**: `SecretProvider` / `EnvironmentSecretProvider` for future LLM keys.
+- **MCP trust boundary docs**: security notes under `infrastructure/mcp/`.
+- **CI/CD**: GitHub Actions lint, test, build, and tag-triggered PyPI publish.
+
+### Changed
+
+- **Module renames**: `application/application.py` → `orchestrator.py`; `controller/cli/app.py` → `commands.py`.
+- **Renderer location**: moved to `infrastructure/output/markdown/`.
+- **Config lifecycle**: injectable frozen config with `load_with_precedence()` (no `lru_cache` singleton).
+- **Controller**: slim CLI entrypoint under 100 lines; orchestration in Application.
+
+### Fixed
+
+- Application no longer performs direct filesystem writes (uses `OutputWriterProtocol`).
+- Exception translation at Application boundary with path-sanitized messages.
+- Missing Jinja templates packaging path preserved for wheel installs.
+
+## [0.5.1] - 2026-07-19
+
+### Fixed
+
+- Package wheel includes Jinja2 templates required at runtime.
+- Logging enhancements and CSR bootstrap/application layer foundations.
+
 ## [0.5.0] - 2026-07-19
 
 ### Added

@@ -1,4 +1,4 @@
-.PHONY: help check start-feature start-release sync develop
+.PHONY: help check start-feature start-release sync develop lint test build ci coverage
 
 help:
 	@echo "Arian Development Commands"
@@ -11,6 +11,8 @@ help:
 	@echo "make lint               # Run all linters"
 	@echo "make test               # Run all tests"
 	@echo "make build              # Build the package"
+	@echo "make ci                 # Run lint + test + architecture tests"
+	@echo "make coverage           # Run tests with coverage report"
 
 check:
 	@./scripts/gitflow.sh check
@@ -38,3 +40,11 @@ test:
 build:
 	@python -m build
 	@twine check dist/* || echo "Install twine: pip install twine"
+
+ci: lint
+	@python -m pytest tests/test_architecture.py -v
+	@python -m pytest tests/ -x --ignore=tests/integration -v
+	@python -m pytest tests/integration/ -v
+
+coverage:
+	@python -m pytest tests/ --cov=arian --cov-report=term-missing --cov-report=html -v

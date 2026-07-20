@@ -10,7 +10,7 @@ from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import PlannedFile
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
-from arian.renderer.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 
 
 class TestMarkdownRenderer:

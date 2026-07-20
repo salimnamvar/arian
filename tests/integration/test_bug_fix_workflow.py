@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
 
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
-from arian.renderer.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
@@ -23,7 +22,7 @@ from arian.service.planner.context_planner import ContextPlanner
 class TestBugFixWorkflow:
     """Integration test for the north-star bug fix workflow."""
 
-    def test_bug_fix_context_includes_correct_files(self, tmp_path: Path) -> None:
+    async def test_bug_fix_context_includes_correct_files(self, tmp_path: Path) -> None:
         """Test that bug-fix context includes README, auth, tests with correct compression."""
         (tmp_path / "README.md").write_text("# Auth Service\n\nAuthentication module.\n")
         src_dir = tmp_path / "src"
@@ -63,8 +62,8 @@ class TestBugFixWorkflow:
         renderer = MarkdownRenderer()
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout"))
-        content_map = asyncio.run(builder.load_content(plan, tmp_path))
+        plan = await builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout")
+        content_map, _skipped = await builder.load_content(plan, tmp_path)
         materialized = materializer.materialize(plan, content_map)
         output = renderer.render(materialized, plan)
 
@@ -74,7 +73,7 @@ class TestBugFixWorkflow:
         assert plan.total_tokens <= 5000
         assert len(plan.chunks) >= 1
 
-    def test_onboarding_context_prioritizes_readme(self, tmp_path: Path) -> None:
+    async def test_onboarding_context_prioritizes_readme(self, tmp_path: Path) -> None:
         """Test that onboarding context puts README first."""
         (tmp_path / "README.md").write_text("# Project\n\nDescription.\n")
         src_dir = tmp_path / "src"
@@ -98,7 +97,7 @@ class TestBugFixWorkflow:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(tmp_path, ContextTask.ONBOARDING, budget))
+        plan = await builder.build(tmp_path, ContextTask.ONBOARDING, budget)
 
         first_file: str = plan.chunks[0].files[0].path if plan.chunks and plan.chunks[0].files else ""
         assert "README" in first_file

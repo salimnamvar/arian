@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 from pathlib import Path
+from typing import NamedTuple
 
-import pytest
-
-from arian.application.application import Application
+from arian.application.orchestrator import Application
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.bootstrap.application import create_application
 from arian.infrastructure.config import ArianConfig
+
+
+class _WriteCall(NamedTuple):
+    path: str
+    content: str
+
+
+class _StubOutputWriter:
+    """In-memory output writer for testing."""
+
+    def __init__(self) -> None:
+        self.calls: list[_WriteCall] = []
+
+    def write(self, a_path: str, a_content: str) -> None:
+        self.calls.append(_WriteCall(path=a_path, content=a_content))
 
 
 class TestContextRequest:
@@ -48,6 +61,8 @@ class TestContextRequest:
     def test_frozen(self) -> None:
         """Verify DTO is immutable."""
         req = ContextRequest()
+        import pytest
+
         with pytest.raises(AttributeError):
             req.task = "feature"  # type: ignore[misc]
 
@@ -76,6 +91,8 @@ class TestContextResult:
             total_tokens=5000,
             elapsed_seconds=1.0,
         )
+        import pytest
+
         with pytest.raises(AttributeError):
             result.total_files = 20  # type: ignore[misc]
 
@@ -98,39 +115,32 @@ class TestCreateApplication:
 class TestApplicationBuildContext:
     """Integration tests for Application.build_context."""
 
-    def test_build_empty_directory(self, tmp_path: Path) -> None:
+    async def test_build_empty_directory(self, tmp_path: Path) -> None:
         """Verify building context for empty directory produces zero files."""
         app = create_application()
         request = ContextRequest(
             paths=(str(tmp_path),),
             output_path=str(tmp_path / "out.md"),
         )
-
-        async def _run() -> ContextResult:
-            return await app.build_context(request)
-
-        result = asyncio.run(_run())
+        result = await app.build_context(request)
         assert result.total_files == 0
         assert result.total_tokens == 0
         assert result.output_path.exists()
 
-    def test_build_with_files(self, tmp_path: Path) -> None:
+    async def test_build_with_files(self, tmp_path: Path) -> None:
         """Verify building context with files produces output."""
         (tmp_path / "hello.py").write_text("def hello():\n    return 'world'\n")
-        app = create_application()
 
         original_cwd: Path = Path.cwd()
         try:
             os.chdir(tmp_path)
+            # Composition root captures cwd; create after chdir.
+            app = create_application()
             request = ContextRequest(
                 paths=("hello.py",),
                 output_path=str(tmp_path / "out.md"),
             )
-
-            async def _run() -> ContextResult:
-                return await app.build_context(request)
-
-            result = asyncio.run(_run())
+            result = await app.build_context(request)
         finally:
             os.chdir(original_cwd)
 
@@ -141,16 +151,41 @@ class TestApplicationBuildContext:
         content = result.output_path.read_text()
         assert "hello.py" in content
 
-    def test_build_returns_elapsed_time(self, tmp_path: Path) -> None:
+    async def test_build_returns_elapsed_time(self, tmp_path: Path) -> None:
         """Verify elapsed_seconds is positive."""
         app = create_application()
         request = ContextRequest(
             paths=(str(tmp_path),),
             output_path=str(tmp_path / "out.md"),
         )
-
-        async def _run() -> ContextResult:
-            return await app.build_context(request)
-
-        result = asyncio.run(_run())
+        result = await app.build_context(request)
         assert result.elapsed_seconds >= 0
+
+    async def test_output_writer_called_with_correct_args(self, tmp_path: Path) -> None:
+        """Verify OutputWriterProtocol.write receives correct path and content."""
+        (tmp_path / "hello.py").write_text("def hello():\n    return 'world'\n")
+        stub = _StubOutputWriter()
+
+        original_cwd: Path = Path.cwd()
+        try:
+            os.chdir(tmp_path)
+            wired = create_application()
+            app = Application(
+                a_builder=wired._builder,
+                a_renderer=wired._renderer,
+                a_output=stub,
+                a_root=tmp_path,
+            )
+            request = ContextRequest(
+                paths=("hello.py",),
+                output_path=str(tmp_path / "out.md"),
+            )
+            await app.build_context(request)
+        finally:
+            os.chdir(original_cwd)
+
+        assert len(stub.calls) == 1
+        call = stub.calls[0]
+        assert call.path == str(tmp_path / "out.md")
+        assert "hello.py" in call.content
+        assert len(call.content) > 0
