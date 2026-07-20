@@ -36,8 +36,8 @@ Log directory is created automatically if it does not exist.
 
 from __future__ import annotations
 
-from datetime import UTC
 from datetime import datetime
+from datetime import timezone
 import logging
 import logging.config
 import logging.handlers
@@ -53,6 +53,9 @@ _PROPAGATING_LOGGERS = (APPLICATION_LOGGER_NAME,)
 
 _MODULE = "arian.bootstrap.logging"
 
+# datetime.UTC is 3.11+; timezone.utc works on 3.10+
+_UTC = timezone.utc  # noqa: UP017
+
 
 def _format_utc_timestamp(a_epoch_seconds: float) -> str:
     """Format Unix epoch seconds as canonical UTC ISO-8601 (microseconds + Z).
@@ -63,8 +66,8 @@ def _format_utc_timestamp(a_epoch_seconds: float) -> str:
     Returns:
         Formatted string like ``2026-07-18T23:45:12.345678Z``.
     """
-    dt: datetime = datetime.fromtimestamp(a_epoch_seconds, tz=UTC)
-    return dt.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    dt: datetime = datetime.fromtimestamp(a_epoch_seconds, tz=_UTC)
+    return dt.astimezone(_UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 class IsoUtcFormatter(logging.Formatter):
