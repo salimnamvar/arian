@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
@@ -43,7 +42,7 @@ class TestEstimateTokensFromSize:
 class TestCollectorLazyLoading:
     """Tests that collector does not read file content."""
 
-    def test_collect_uses_stat_not_read(self, tmp_path: Path) -> None:
+    async def test_collect_uses_stat_not_read(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("def main(): pass")
 
         collector = FileCollector(
@@ -52,13 +51,13 @@ class TestCollectorLazyLoading:
         )
 
         with patch.object(Path, "read_text", side_effect=Exception("should not be called")):
-            files = asyncio.run(collector.collect(tmp_path))
+            files = await collector.collect(tmp_path)
 
         assert len(files) == 1
         assert files[0].hash == ""
         assert files[0].size_bytes > 0
 
-    def test_collect_sets_size_bytes(self, tmp_path: Path) -> None:
+    async def test_collect_sets_size_bytes(self, tmp_path: Path) -> None:
         content = "x = 1\n"
         (tmp_path / "test.py").write_text(content)
 
@@ -66,19 +65,19 @@ class TestCollectorLazyLoading:
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
         )
-        files = asyncio.run(collector.collect(tmp_path))
+        files = await collector.collect(tmp_path)
 
         assert len(files) == 1
         assert files[0].size_bytes == len(content.encode("utf-8"))
 
-    def test_collect_estimates_tokens(self, tmp_path: Path) -> None:
+    async def test_collect_estimates_tokens(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("x = 1\n")
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
         )
-        files = asyncio.run(collector.collect(tmp_path))
+        files = await collector.collect(tmp_path)
 
         assert len(files) == 1
         assert files[0].tokens == max(1, files[0].size_bytes // 4)
@@ -87,14 +86,14 @@ class TestCollectorLazyLoading:
 class TestEmptyFileCollection:
     """Tests for empty file handling."""
 
-    def test_empty_file_collected(self, tmp_path: Path) -> None:
+    async def test_empty_file_collected(self, tmp_path: Path) -> None:
         (tmp_path / "empty.py").write_text("")
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
         )
-        files = asyncio.run(collector.collect(tmp_path))
+        files = await collector.collect(tmp_path)
 
         assert len(files) == 1
         assert files[0].size_bytes == 0
@@ -104,7 +103,7 @@ class TestEmptyFileCollection:
 class TestHashLifecycle:
     """Tests for hash field lifecycle: empty during collection, filled after load_content."""
 
-    def test_hash_empty_after_build(self, tmp_path: Path) -> None:
+    async def test_hash_empty_after_build(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("x = 1\n")
 
         classifier = FileClassifier()
@@ -124,13 +123,13 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        asyncio.run(builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget))
+        await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
 
-        stored_files = asyncio.run(index.list_files())
+        stored_files = await index.list_files()
         for f in stored_files:
             assert f.hash == ""
 
-    def test_hash_populated_after_load_content(self, tmp_path: Path) -> None:
+    async def test_hash_populated_after_load_content(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("x = 1\n")
 
         classifier = FileClassifier()
@@ -150,8 +149,8 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget))
-        content_map, _skipped = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
+        plan = await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
+        content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
 
         for _path, content in content_map.items():
             assert content.hash != ""
@@ -161,7 +160,7 @@ class TestHashLifecycle:
 class TestSingleReadVerification:
     """Tests that files are read exactly once during load_content."""
 
-    def test_single_read_per_file(self, tmp_path: Path) -> None:
+    async def test_single_read_per_file(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("x = 1\n")
 
         classifier = FileClassifier()
@@ -181,7 +180,7 @@ class TestSingleReadVerification:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget))
+        plan = await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
 
         read_count = 0
         original_read_text = Path.read_text
@@ -192,7 +191,7 @@ class TestSingleReadVerification:
             return original_read_text(self, *args, **kwargs)
 
         with patch.object(Path, "read_text", counting_read_text):
-            content_map, _skipped = asyncio.run(builder.load_content(a_plan=plan, a_root=tmp_path))
+            content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
 
         assert read_count == len(content_map)
 
@@ -200,7 +199,7 @@ class TestSingleReadVerification:
 class TestBinaryFileSkipping:
     """Tests that binary files are skipped by extension filter."""
 
-    def test_binary_not_collected(self, tmp_path: Path) -> None:
+    async def test_binary_not_collected(self, tmp_path: Path) -> None:
         (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n")
         (tmp_path / "main.py").write_text("x = 1\n")
 
@@ -208,7 +207,7 @@ class TestBinaryFileSkipping:
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
         )
-        files = asyncio.run(collector.collect(tmp_path))
+        files = await collector.collect(tmp_path)
 
         assert len(files) == 1
         assert files[0].path == "main.py"
@@ -217,7 +216,7 @@ class TestBinaryFileSkipping:
 class TestSymlinkDeduplication:
     """Tests that symlinks are deduplicated."""
 
-    def test_symlink_deduplicated(self, tmp_path: Path) -> None:
+    async def test_symlink_deduplicated(self, tmp_path: Path) -> None:
         (tmp_path / "main.py").write_text("x = 1\n")
         (tmp_path / "link.py").symlink_to(tmp_path / "main.py")
 
@@ -225,6 +224,6 @@ class TestSymlinkDeduplication:
             a_extensions=frozenset({".py"}),
             a_exclude=frozenset(),
         )
-        files = asyncio.run(collector.collect(tmp_path))
+        files = await collector.collect(tmp_path)
 
         assert len(files) == 1

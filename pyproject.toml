@@ -45,6 +45,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "pytest-asyncio",
   "pytest-cov",
   "ruff",
   "pyright",
@@ -223,6 +224,7 @@ addopts = [
   "--import-mode=importlib",
   "-v",
 ]
+asyncio_mode = "auto"
 filterwarnings = [
   "error",
 ]

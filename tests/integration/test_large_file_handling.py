@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -23,7 +22,7 @@ from arian.service.planner.context_planner import ContextPlanner
 class TestLargeFileHandling:
     """Integration test for large file handling with fragmentation."""
 
-    def test_large_file_fragmentation(self, tmp_path: Path) -> None:
+    async def test_large_file_fragmentation(self, tmp_path: Path) -> None:
         """Test that large files are fragmented into semantic segments."""
         (tmp_path / "README.md").write_text("# Project\n\nDescription.\n")
 
@@ -62,8 +61,8 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=10000, per_chunk_target=500)
-        plan = asyncio.run(builder.build(tmp_path, ContextTask.GENERAL, budget))
-        content_map, _skipped = asyncio.run(builder.load_content(plan, tmp_path))
+        plan = await builder.build(tmp_path, ContextTask.GENERAL, budget)
+        content_map, _skipped = await builder.load_content(plan, tmp_path)
         materialized = materializer.materialize(plan, content_map)
 
         assert plan.total_files >= 2
@@ -77,7 +76,7 @@ class TestLargeFileHandling:
 
         assert has_fragment or plan.total_files > 1
 
-    def test_full_pipeline_with_renderer(self, tmp_path: Path) -> None:
+    async def test_full_pipeline_with_renderer(self, tmp_path: Path) -> None:
         """Test full pipeline from files to rendered Markdown."""
         (tmp_path / "README.md").write_text("# Auth Service\n\nAuthentication module.\n")
         src_dir = tmp_path / "src"
@@ -109,8 +108,8 @@ class TestLargeFileHandling:
         renderer = MarkdownRenderer()
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout"))
-        content_map, _skipped = asyncio.run(builder.load_content(plan, tmp_path))
+        plan = await builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout")
+        content_map, _skipped = await builder.load_content(plan, tmp_path)
         materialized = materializer.materialize(plan, content_map)
         output = renderer.render(materialized, plan)
 
@@ -121,7 +120,7 @@ class TestLargeFileHandling:
         assert "auth.py" in output
         assert plan.total_tokens <= 5000
 
-    def test_provenance_in_materialized_output(self, tmp_path: Path) -> None:
+    async def test_provenance_in_materialized_output(self, tmp_path: Path) -> None:
         """Test that provenance is present in materialized entries."""
         (tmp_path / "README.md").write_text("# Project\n\nDescription.\n")
         src_dir = tmp_path / "src"
@@ -146,8 +145,8 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = asyncio.run(builder.build(tmp_path, ContextTask.GENERAL, budget))
-        content_map, _skipped = asyncio.run(builder.load_content(plan, tmp_path))
+        plan = await builder.build(tmp_path, ContextTask.GENERAL, budget)
+        content_map, _skipped = await builder.load_content(plan, tmp_path)
         materialized = materializer.materialize(plan, content_map)
 
         for chunk in materialized:
