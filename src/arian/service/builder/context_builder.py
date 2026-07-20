@@ -10,10 +10,11 @@ from pathlib import Path
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import MaterializedChunk
+from arian.domain.exceptions import ContextBuilderError
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import TokenBudget
-from arian.repository.filesystem.collector import FileCollector
+from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
 from arian.service.context.materializer import ContextMaterializer
 from arian.service.planner.context_planner import ContextPlanner
@@ -35,7 +36,7 @@ class ContextBuilder:
 
     def __init__(
         self,
-        a_collector: FileCollector,
+        a_collector: FileCollectorProtocol,
         a_index: RepositoryIndexProtocol,
         a_planner: ContextPlanner,
         a_materializer: ContextMaterializer,
@@ -43,12 +44,12 @@ class ContextBuilder:
         """Initialize context builder.
 
         Args:
-            a_collector: File collector for repository scanning.
+            a_collector: File collector protocol for repository scanning.
             a_index: Repository index for metadata storage.
             a_planner: Context planner for file selection.
             a_materializer: Context materializer for compression.
         """
-        self._collector: FileCollector = a_collector
+        self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
         self._planner: ContextPlanner = a_planner
         self._materializer: ContextMaterializer = a_materializer
@@ -83,19 +84,29 @@ class ContextBuilder:
         files: list[RepositoryFile] = []
         seen: set[str] = set()
         sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
-        for source in sources:
-            collected = await self._collector.collect(source, a_root=root)
-            for f in collected:
-                if f.path not in seen:
-                    files.append(f)
-                    seen.add(f.path)
+
+        try:
+            for source in sources:
+                collected = await self._collector.collect(source, a_root=root)
+                for f in collected:
+                    if f.path not in seen:
+                        files.append(f)
+                        seen.add(f.path)
+        except Exception as e:
+            msg = f"File collection failed for {a_path}: {e}"
+            raise ContextBuilderError(msg, a_cause=e) from e
+
         logger.debug("Collected %d files", len(files))
 
         for repo_file in files:
             await self._index.save_file(repo_file)
 
-        plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
-        plan.validate()
+        try:
+            plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
+            plan.validate()
+        except Exception as e:
+            msg = f"Context planning failed: {e}"
+            raise ContextBuilderError(msg, a_cause=e) from e
 
         all_paths: tuple[str, ...] = tuple(f.path for f in files)
         plan = ContextPlan(

@@ -14,6 +14,9 @@ from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
+from arian.domain.exceptions import InputError
+from arian.domain.exceptions import ProcessingError
+from arian.domain.exceptions import ProjectBaseError
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
@@ -72,28 +75,36 @@ class Application:
             ContextResult with output path and statistics.
 
         Raises:
-            ValueError: If task name is invalid.
+            InputError: If task name is invalid or input is bad.
+            ProcessingError: If an OS-level error occurs during processing.
         """
-        t_start: float = time.monotonic()
-        root: Path = Path.cwd()
-        task_enum: ContextTask = ContextTask(a_request.task)
-        budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
-        input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
+        try:
+            t_start: float = time.monotonic()
+            root: Path = Path.cwd()
+            task_enum: ContextTask = ContextTask(a_request.task)
+            budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
+            input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
 
-        if a_request.group:
-            result = await self._build_grouped(root, task_enum, budget, a_request)
-        elif a_request.scope == "separate":
-            result = await self._build_separate(root, task_enum, budget, a_request)
-        else:
-            result = await self._build_merged(root, task_enum, budget, input_paths, a_request)
+            if a_request.group:
+                result = await self._build_grouped(root, task_enum, budget, a_request)
+            elif a_request.scope == "separate":
+                result = await self._build_separate(root, task_enum, budget, a_request)
+            else:
+                result = await self._build_merged(root, task_enum, budget, input_paths, a_request)
 
-        elapsed: float = time.monotonic() - t_start
-        return ContextResult(
-            output_path=result.output_path,
-            total_files=result.total_files,
-            total_tokens=result.total_tokens,
-            elapsed_seconds=elapsed,
-        )
+            elapsed: float = time.monotonic() - t_start
+            return ContextResult(
+                output_path=result.output_path,
+                total_files=result.total_files,
+                total_tokens=result.total_tokens,
+                elapsed_seconds=elapsed,
+            )
+        except ProjectBaseError:
+            raise
+        except ValueError as e:
+            raise InputError(str(e)) from e
+        except OSError as e:
+            raise ProcessingError(str(e)) from e
 
     async def _build_merged(
         self,
