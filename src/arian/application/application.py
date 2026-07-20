@@ -20,6 +20,7 @@ from arian.domain.exceptions import ProcessingError
 from arian.domain.exceptions import ProjectBaseError
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
+from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.output.protocols import RendererProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.service.builder.context_builder import ContextBuilder
@@ -82,10 +83,10 @@ class Application:
             InputError: If task name is invalid or input is bad.
             ProcessingError: If an OS-level error occurs during processing.
         """
+        root: Path = Path.cwd()
         try:
             self._validator.validate(a_request)
             t_start: float = time.monotonic()
-            root: Path = Path.cwd()
             task_enum: ContextTask = ContextTask(a_request.task)
             budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
             input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
@@ -112,9 +113,11 @@ class Application:
         except ProjectBaseError:
             raise
         except ValueError as e:
-            raise InputError(str(e)) from e
+            sanitized = sanitize_error_message(str(e), str(root))
+            raise InputError(sanitized) from e
         except OSError as e:
-            raise ProcessingError(str(e)) from e
+            sanitized = sanitize_error_message(str(e), str(root))
+            raise ProcessingError(sanitized) from e
 
     async def _build_merged(
         self,

@@ -11,8 +11,10 @@ from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.exceptions import ContextBuilderError
+from arian.domain.exceptions import InputError
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
+from arian.domain.shared.constants import MAX_COLLECTED_FILES
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
 from arian.repository.filesystem.protocols import FileCollectorProtocol
@@ -113,6 +115,10 @@ class ContextBuilder:
 
         logger.debug("Collected %d files", len(files))
         self._notify_complete("collect")
+
+        if len(files) > MAX_COLLECTED_FILES:
+            msg = f"Too many files collected ({len(files)}), limit is {MAX_COLLECTED_FILES}"
+            raise InputError(msg)
 
         self._notify_start("plan", 1)
         for repo_file in files:

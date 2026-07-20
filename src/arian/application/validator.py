@@ -6,6 +6,7 @@ from pathlib import Path
 
 from arian.application.context import ContextRequest
 from arian.domain.exceptions import InputError
+from arian.domain.shared.constants import MAX_TOKEN_BUDGET
 from arian.domain.shared.security import validate_input_path
 
 
@@ -37,6 +38,10 @@ class ContextRequestValidator:
 
         if a_request.budget is not None and a_request.budget <= 0:
             msg = f"Budget must be positive, got: {a_request.budget}"
+            raise InputError(msg)
+
+        if a_request.budget is not None and a_request.budget > MAX_TOKEN_BUDGET:
+            msg = f"Budget exceeds maximum ({MAX_TOKEN_BUDGET}), got: {a_request.budget}"
             raise InputError(msg)
 
         if a_request.scope not in ("merged", "separate"):

@@ -92,3 +92,16 @@ class TestContextRequestValidator:
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=(), budget=None, scope="merged")
         validator.validate(request)
+
+    def test_budget_exceeding_max_raises(self, tmp_path: Path) -> None:
+        """Verify budget exceeding MAX_TOKEN_BUDGET raises InputError."""
+        validator = ContextRequestValidator(a_root=tmp_path)
+        request = ContextRequest(budget=2_000_000, scope="merged")
+        with pytest.raises(InputError, match="Budget exceeds maximum"):
+            validator.validate(request)
+
+    def test_budget_at_max_passes(self, tmp_path: Path) -> None:
+        """Verify budget exactly at MAX_TOKEN_BUDGET passes validation."""
+        validator = ContextRequestValidator(a_root=tmp_path)
+        request = ContextRequest(budget=1_000_000, scope="merged")
+        validator.validate(request)

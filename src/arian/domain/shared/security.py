@@ -132,3 +132,17 @@ def redact_secrets(a_text: str) -> str:
     for pattern in _SECRET_PATTERNS:
         result = pattern.sub(_REDACTED, result)
     return result
+
+
+def sanitize_error_message(a_message: str, a_root: str | None = None) -> str:
+    """Sanitize error messages to avoid leaking internal paths.
+
+    Args:
+        a_message: Raw error message.
+        a_root: Repository root to mask.
+
+    Returns:
+        Sanitized message.
+    """
+    message: str = a_message.replace(a_root, "<repository>") if a_root else a_message
+    return message

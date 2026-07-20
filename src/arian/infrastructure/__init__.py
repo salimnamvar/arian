@@ -10,6 +10,7 @@ from arian.infrastructure.config import LoggingConfig
 from arian.infrastructure.gitignore_filter import PathFilter
 from arian.infrastructure.language import detect_language
 from arian.infrastructure.output_path_resolver import resolve_output_path
+from arian.infrastructure.retry import retry_with_backoff
 from arian.infrastructure.tokenizer import count_tokens
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "count_tokens",
     "detect_language",
     "resolve_output_path",
+    "retry_with_backoff",
 ]
