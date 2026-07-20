@@ -5,7 +5,6 @@ Pydantic-settings based configuration loaded from CLI args or environment.
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -61,7 +60,9 @@ class LoggingConfig(BaseModel):
             msg = "Logging level must be a string"
             raise TypeError(msg)
         level: str = a_value.upper()
-        if level not in logging.getLevelNamesMapping():
+        # logging.getLevelNamesMapping() is 3.11+; keep 3.10-compatible set.
+        valid_levels = frozenset({"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", "NOTSET"})
+        if level not in valid_levels:
             msg = f"Invalid logging level: {a_value}"
             raise ValueError(msg)
         return level
