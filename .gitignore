@@ -77,6 +77,9 @@ out/
 outputs/
 !src/arian/infrastructure/output/
 !src/arian/infrastructure/output/**
+# Re-ignore bytecode under the package path (un-ignore above is broad)
+src/arian/infrastructure/output/**/__pycache__/
+src/arian/infrastructure/output/**/*.py[cod]
 *.egg-info/
 .eggs/
 *.egg
