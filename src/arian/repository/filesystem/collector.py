@@ -9,25 +9,11 @@ from pathlib import Path
 from arian.domain.protocols import FileClassifierProtocol
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import FileRole
+from arian.domain.shared.language import detect_language
+from arian.domain.shared.tokenizer import estimate_tokens_from_size
 from arian.infrastructure.gitignore_filter import PathFilter
-from arian.infrastructure.language import detect_language
 
 logger = logging.getLogger(__name__)
-
-
-def _estimate_tokens_from_size(a_size_bytes: int) -> int:
-    """Estimate token count from file size without reading content.
-
-    Heuristic: ~4 characters per token for code. Uses conservative
-    overestimate to ensure budget enforcement is safe.
-
-    Args:
-        a_size_bytes: File size in bytes.
-
-    Returns:
-        Estimated token count (minimum 1).
-    """
-    return max(1, a_size_bytes // 4)
 
 
 class FileCollector:
@@ -109,6 +95,9 @@ class FileCollector:
             entries = await asyncio.to_thread(
                 lambda: sorted(a_directory.iterdir(), key=lambda p: (p.is_dir(), p.name)),
             )
+        except PermissionError:
+            logger.debug("Skipping (permission denied): %s", a_directory)
+            entries = []
         except OSError:
             logger.warning("Cannot read directory: %s", a_directory)
             entries = []
@@ -152,7 +141,7 @@ class FileCollector:
                 stat_result = await asyncio.to_thread(a_path.stat)
                 size_bytes: int = stat_result.st_size
                 a_emitted.add(a_path.resolve())
-                tokens: int = _estimate_tokens_from_size(size_bytes)
+                tokens: int = estimate_tokens_from_size(size_bytes)
                 language: str = detect_language(a_path)
                 role: FileRole = FileRole.UNKNOWN
                 if self._classifier is not None:

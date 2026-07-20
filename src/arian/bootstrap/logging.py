@@ -143,14 +143,14 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
             "class": "logging.StreamHandler",
             "level": "NOTSET",
             "formatter": "diagnostic",
-            "filters": ["diagnostic_level", "resource"],
+            "filters": ["run_context", "diagnostic_level", "resource"],
             "stream": "ext://sys.stderr",
         },
         "console_ops": {
             "class": "logging.StreamHandler",
             "level": "INFO",
             "formatter": "operational",
-            "filters": ["resource"],
+            "filters": ["run_context", "resource"],
             "stream": "ext://sys.stderr",
         },
     }
@@ -166,7 +166,7 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
             "class": "logging.handlers.RotatingFileHandler",
             "level": "NOTSET",
             "formatter": "file",
-            "filters": ["resource"],
+            "filters": ["run_context", "resource"],
             "filename": str(log_file),
             "maxBytes": a_config.max_bytes,
             "backupCount": a_config.backup_count,
@@ -184,19 +184,22 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
             "diagnostic_level": {
                 "()": f"{_MODULE}.DiagnosticLevelFilter",
             },
+            "run_context": {
+                "()": "arian.bootstrap.logging_filters.RunContextFilter",
+            },
         },
         "formatters": {
             "diagnostic": {
                 "()": f"{_MODULE}.IsoUtcFormatter",
-                "format": "%(levelname)s %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
+                "format": "%(levelname)s [%(run_id)s] %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
             "operational": {
                 "()": f"{_MODULE}.IsoUtcFormatter",
-                "format": "%(levelname)s %(asctime)s%(resource)s : %(message)s",
+                "format": "%(levelname)s [%(run_id)s] %(asctime)s%(resource)s : %(message)s",
             },
             "file": {
                 "()": f"{_MODULE}.IsoUtcFormatter",
-                "format": "%(levelname)s %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
+                "format": "%(levelname)s [%(run_id)s] %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
         },
         "handlers": handlers,
