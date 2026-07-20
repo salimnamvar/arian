@@ -5,8 +5,8 @@ Pydantic-settings based configuration loaded from CLI args or environment.
 
 from __future__ import annotations
 
-from functools import lru_cache
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -103,9 +103,7 @@ class FileCollectorConfig(BaseModel):
 
 
 class ArianConfig(BaseModel):
-    """Root configuration for Arian — hierarchical, frozen, env-driven.
-
-    Follows tenas ServiceConfig pattern: @lru_cache singleton via load().
+    """Root configuration for Arian — hierarchical, frozen, injectable.
 
     Attributes:
         logging: Logging configuration.
@@ -118,11 +116,57 @@ class ArianConfig(BaseModel):
     collector: FileCollectorConfig = Field(default_factory=FileCollectorConfig)
 
     @staticmethod
-    @lru_cache(maxsize=1)
     def load() -> ArianConfig:
-        """Load configuration as a singleton (cached after first call).
+        """Create a fresh ArianConfig with default values.
 
         Returns:
-            ArianConfig instance.
+            New ArianConfig instance.
         """
         return ArianConfig()
+
+    @classmethod
+    def load_from_env(cls) -> ArianConfig:
+        """Create ArianConfig from environment variables.
+
+        Environment variables:
+            ARIAN_LOG_LEVEL: Logging level (default: INFO).
+            ARIAN_LOG_DIR: Log directory path (default: ~/.arian/logs).
+            ARIAN_EXTENSIONS: Comma-separated file extensions (default: standard set).
+            ARIAN_EXCLUDE: Comma-separated directory names to exclude.
+
+        Returns:
+            ArianConfig populated from environment variables.
+        """
+        log_level: str = os.environ.get("ARIAN_LOG_LEVEL", "INFO")
+        log_dir_raw: str | None = os.environ.get("ARIAN_LOG_DIR")
+        log_dir: Path | None = Path(log_dir_raw) if log_dir_raw else Path("~/.arian/logs")
+
+        logging_cfg = LoggingConfig(level=log_level, log_dir=log_dir)
+
+        collector_kwargs: dict[str, Any] = {}
+        extensions_raw: str | None = os.environ.get("ARIAN_EXTENSIONS")
+        if extensions_raw:
+            collector_kwargs["extensions"] = frozenset(
+                ext.strip() for ext in extensions_raw.split(",") if ext.strip()
+            )
+
+        exclude_raw: str | None = os.environ.get("ARIAN_EXCLUDE")
+        if exclude_raw:
+            collector_kwargs["exclude"] = frozenset(
+                name.strip() for name in exclude_raw.split(",") if name.strip()
+            )
+
+        collector_cfg = FileCollectorConfig(**collector_kwargs)
+        return cls(logging=logging_cfg, collector=collector_cfg)
+
+    @classmethod
+    def load_from_dict(cls, a_data: dict[str, Any]) -> ArianConfig:
+        """Create ArianConfig from a dictionary — useful for testing.
+
+        Args:
+            a_data: Dictionary with optional 'logging' and 'collector' keys.
+
+        Returns:
+            ArianConfig populated from the provided dictionary.
+        """
+        return cls.model_validate(a_data)

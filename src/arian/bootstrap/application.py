@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from arian.application.application import Application
 from arian.infrastructure.config import ArianConfig
+from arian.infrastructure.file_output_writer import FileOutputWriter
 from arian.renderer.markdown.renderer import MarkdownRenderer
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
@@ -21,7 +22,7 @@ from arian.service.planner.context_planner import ContextPlanner
 def create_application(a_config: ArianConfig | None = None) -> Application:
     """Create and wire the Application instance.
 
-    Follows tenas pattern: single composition root, manual constructor injection.
+    Single composition root with manual constructor injection.
 
     Args:
         a_config: Application configuration. Uses defaults if None.
@@ -49,4 +50,6 @@ def create_application(a_config: ArianConfig | None = None) -> Application:
     )
     renderer: MarkdownRenderer = MarkdownRenderer()
 
-    return Application(a_builder=builder, a_renderer=renderer)
+    output: FileOutputWriter = FileOutputWriter()
+
+    return Application(a_builder=builder, a_renderer=renderer, a_output=output)
