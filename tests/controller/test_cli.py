@@ -6,10 +6,19 @@ and output defaults after the budget/async-logging refactoring.
 
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 import sys
 
 import pytest
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(a_text: str) -> str:
+    """Remove ANSI escape sequences from terminal output."""
+    return _ANSI_RE.sub("", a_text)
 
 
 def _run_cli(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -20,15 +29,26 @@ def _run_cli(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[
         cwd: Optional working directory for the subprocess.
 
     Returns:
-        CompletedProcess with captured stdout and stderr.
+        CompletedProcess with captured stdout and stderr (ANSI stripped).
     """
-    return subprocess.run(  # noqa: S603
+    env = os.environ.copy()
+    env["NO_COLOR"] = "1"
+    env["TERM"] = "dumb"
+    env["FORCE_COLOR"] = "0"
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "arian", *args],
         capture_output=True,
         check=False,
         text=True,
         cwd=cwd,
         timeout=30,
+        env=env,
+    )
+    return subprocess.CompletedProcess(
+        args=result.args,
+        returncode=result.returncode,
+        stdout=_strip_ansi(result.stdout),
+        stderr=_strip_ansi(result.stderr),
     )
 
 
