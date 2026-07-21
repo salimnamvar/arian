@@ -15,7 +15,7 @@ from pydantic import Field
 from pydantic import field_validator
 
 _DEFAULT_EXTENSIONS: frozenset[str] = frozenset(
-    {".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json"},
+    {".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json", ".sql"},
 )
 
 

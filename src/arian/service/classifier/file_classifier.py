@@ -31,7 +31,7 @@ _CONFIG_NAMES: frozenset[str] = frozenset(
 _GENERATED_PARTS: frozenset[str] = frozenset(
     {"migrations", "generated", "__generated__", "vendor", "node_modules"},
 )
-_CONFIG_SUFFIXES: frozenset[str] = frozenset({".toml", ".yaml", ".yml", ".ini", ".cfg"})
+_CONFIG_SUFFIXES: frozenset[str] = frozenset({".toml", ".yaml", ".yml", ".ini", ".cfg", ".sql"})
 _DOC_SUFFIXES: frozenset[str] = frozenset({".md", ".rst"})
 _DOC_PARTS: frozenset[str] = frozenset({"docs", "doc"})
 _TEST_PARTS: frozenset[str] = frozenset({"test", "tests", "testing"})
