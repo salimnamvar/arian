@@ -179,6 +179,25 @@ class MarkdownRenderer(RendererProtocol):
         lines.append("tokens: " + str(a_plan.total_tokens))
         if "scope" in meta:
             lines.append("scope: " + str(meta["scope"]))
+        self._append_collection_stats(lines, meta)
 
         result: str = "\n".join(lines)
         return result
+
+    def _append_collection_stats(
+        self,
+        a_lines: list[str],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | list[str]],
+    ) -> None:
+        """Append collection statistics to manifest lines.
+
+        Args:
+            a_lines: Manifest lines to append to.
+            a_meta: Metadata dict from ContextPlan.
+        """
+        if "collection" in a_meta:
+            raw_collection = a_meta["collection"]
+            if isinstance(raw_collection, dict):
+                a_lines.append("collection:")
+                for key in raw_collection:
+                    a_lines.append(f"  {key}: {raw_collection[key]}")
