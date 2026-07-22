@@ -208,10 +208,16 @@ Log file: `~/.arian/logs/arian.log`
 
 ### Supported files
 
-Arian collects files with these extensions by default:
-- `.py` — Python (full AST analysis)
-- `.md`, `.txt`, `.toml`, `.yaml`, `.yml`, `.json` — Config and documentation
-- `.rs`, `.go`, `.ts`, `.js` — Other languages (role-based only)
+Arian collects **all text files** by default. Binary files and files exceeding
+the size limit are automatically excluded. Language detection uses file extension,
+filename, shebang, and modeline.
+
+To narrow collection to specific extensions, set the `ARIAN_EXTENSIONS` environment
+variable:
+
+```bash
+ARIAN_EXTENSIONS=.py,.md arian build .
+```
 
 ### Ignored files
 
@@ -219,7 +225,7 @@ Arian respects `.gitignore` patterns and excludes:
 - `.git/`, `node_modules/`, `__pycache__/`
 - `.venv/`, `venv/`, `.env`
 - `.mypy_cache/`, `.pytest_cache/`
-- Binary files and common build artifacts
+- Binary files and files exceeding the size limit
 
 ### Large files
 

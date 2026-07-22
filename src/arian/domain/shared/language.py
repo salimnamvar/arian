@@ -144,7 +144,7 @@ def detect_language(a_path: Path) -> str:
     result: str = ""
 
     ext: str = a_path.suffix.lower()
-    if ext in _LANG_MAP:
+    if _LANG_MAP.get(ext):
         result = _LANG_MAP[ext]
     else:
         name: str = a_path.name.lower()
@@ -169,7 +169,11 @@ def _detect_by_content(a_path: Path) -> str:
             first_line: str = fh.readline(256)
             if first_line.startswith("#!"):
                 parts: list[str] = first_line.split("/")
-                interpreter: str = parts[-1].strip().split()[0] if parts else ""
+                tail: str = parts[-1].strip() if parts else ""
+                tokens: list[str] = tail.split()
+                interpreter: str = (
+                    tokens[1] if len(tokens) >= 2 and tokens[0] == "env" else (tokens[0] if tokens else "")
+                )
                 if interpreter in _SHEBANG_MAP:
                     result = _SHEBANG_MAP[interpreter]
     except OSError:
