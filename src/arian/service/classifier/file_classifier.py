@@ -7,13 +7,13 @@ from pathlib import Path
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 
-_README_NAMES: frozenset[str] = frozenset(
+README_NAMES: frozenset[str] = frozenset(
     {"readme", "readme.md", "readme.rst", "readme.txt", "contributing", "contributing.md"},
 )
 _ENTRY_NAMES: frozenset[str] = frozenset(
     {"main.py", "__main__.py", "app.py", "cli.py"},
 )
-_CONFIG_NAMES: frozenset[str] = frozenset(
+CONFIG_NAMES: frozenset[str] = frozenset(
     {
         "pyproject.toml",
         "setup.py",
@@ -141,13 +141,13 @@ class FileClassifier:
             Tuple of (role, importance, compression).
         """
         result: tuple[FileRole, int, CompressionLevel]
-        if a_name in _README_NAMES or a_name.startswith("readme"):
+        if a_name in README_NAMES or a_name.startswith("readme"):
             result = (FileRole.README, 0, CompressionLevel.FULL)
         elif any(part in _DOC_PARTS for part in a_parts) or a_suffix in _DOC_SUFFIXES:
             result = (FileRole.DOCUMENTATION, 1, CompressionLevel.FULL)
         elif a_name in _ENTRY_NAMES:
             result = (FileRole.ENTRY_POINT, 1, CompressionLevel.FULL)
-        elif a_name in _CONFIG_NAMES or a_suffix in _CONFIG_SUFFIXES:
+        elif a_name in CONFIG_NAMES or a_suffix in _CONFIG_SUFFIXES:
             result = (FileRole.CONFIGURATION, 2, CompressionLevel.FULL)
         elif any(part in _GENERATED_PARTS for part in a_parts):
             result = (FileRole.GENERATED, 9, CompressionLevel.STRUCTURE)
