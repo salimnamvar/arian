@@ -31,8 +31,42 @@ CONFIG_NAMES: frozenset[str] = frozenset(
 _GENERATED_PARTS: frozenset[str] = frozenset(
     {"migrations", "generated", "__generated__", "vendor", "node_modules"},
 )
-_CONFIG_SUFFIXES: frozenset[str] = frozenset({".toml", ".yaml", ".yml", ".ini", ".cfg", ".sql"})
-_DOC_SUFFIXES: frozenset[str] = frozenset({".md", ".rst"})
+_CONFIG_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".ini",
+        ".cfg",
+        ".sql",
+        ".json",
+        ".jsonl",
+        ".xml",
+        ".env",
+    }
+)
+_DOC_SUFFIXES: frozenset[str] = frozenset({".md", ".markdown", ".rst", ".txt"})
+_WEB_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
+        ".svelte",
+        ".vue",
+        ".astro",
+    }
+)
+_BASENAME_CONFIG: frozenset[str] = frozenset(
+    {
+        "makefile",
+        "dockerfile",
+        "cmakelists.txt",
+        "justfile",
+    }
+)
 _DOC_PARTS: frozenset[str] = frozenset({"docs", "doc"})
 _TEST_PARTS: frozenset[str] = frozenset({"test", "tests", "testing"})
 _UTIL_PARTS: frozenset[str] = frozenset({"util", "utils", "utility", "helpers", "common"})
@@ -143,12 +177,16 @@ class FileClassifier:
         result: tuple[FileRole, int, CompressionLevel]
         if a_name in README_NAMES or a_name.startswith("readme"):
             result = (FileRole.README, 0, CompressionLevel.FULL)
+        elif a_name in _BASENAME_CONFIG:
+            result = (FileRole.CONFIGURATION, 2, CompressionLevel.FULL)
         elif any(part in _DOC_PARTS for part in a_parts) or a_suffix in _DOC_SUFFIXES:
             result = (FileRole.DOCUMENTATION, 1, CompressionLevel.FULL)
         elif a_name in _ENTRY_NAMES:
             result = (FileRole.ENTRY_POINT, 1, CompressionLevel.FULL)
         elif a_name in CONFIG_NAMES or a_suffix in _CONFIG_SUFFIXES:
             result = (FileRole.CONFIGURATION, 2, CompressionLevel.FULL)
+        elif a_suffix in _WEB_SUFFIXES:
+            result = (FileRole.SERVICE, 3, CompressionLevel.FULL)
         elif any(part in _GENERATED_PARTS for part in a_parts):
             result = (FileRole.GENERATED, 9, CompressionLevel.STRUCTURE)
         elif any(part in _TEST_PARTS for part in a_parts) or a_name.startswith("test_"):
