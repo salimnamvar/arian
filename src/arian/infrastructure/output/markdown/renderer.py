@@ -11,7 +11,6 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
-from arian.domain.shared.language import detect_language
 from arian.infrastructure.output.protocols import RendererProtocol
 
 logger = logging.getLogger(__name__)
@@ -60,7 +59,7 @@ class MarkdownRenderer(RendererProtocol):
         for chunk in a_chunks:
             files_data: list[dict[str, object]] = []
             for entry in chunk.entries:
-                lang: str = detect_language(Path(entry.path)) or ""
+                lang: str = entry.language or ""
 
                 file_data: dict[str, object] = {
                     "path": entry.path,
@@ -180,6 +179,25 @@ class MarkdownRenderer(RendererProtocol):
         lines.append("tokens: " + str(a_plan.total_tokens))
         if "scope" in meta:
             lines.append("scope: " + str(meta["scope"]))
+        self._append_collection_stats(lines, meta)
 
         result: str = "\n".join(lines)
         return result
+
+    def _append_collection_stats(
+        self,
+        a_lines: list[str],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | list[str]],
+    ) -> None:
+        """Append collection statistics to manifest lines.
+
+        Args:
+            a_lines: Manifest lines to append to.
+            a_meta: Metadata dict from ContextPlan.
+        """
+        if "collection" in a_meta:
+            raw_collection = a_meta["collection"]
+            if isinstance(raw_collection, dict):
+                a_lines.append("collection:")
+                for key in raw_collection:
+                    a_lines.append(f"  {key}: {raw_collection[key]}")

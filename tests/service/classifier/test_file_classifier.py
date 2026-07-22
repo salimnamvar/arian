@@ -72,3 +72,17 @@ class TestFileClassifier:
         """Test get_importance helper."""
         importance = self.classifier.get_importance("README.md")
         assert importance == 0
+
+    def test_classify_sql_file(self) -> None:
+        """Test classifying SQL DDL files as configuration."""
+        role, importance, compression = self.classifier.classify("sql/execution.sql")
+        assert role == FileRole.CONFIGURATION
+        assert importance == 2
+        assert compression == CompressionLevel.FULL
+
+    def test_classify_sql_root_file(self) -> None:
+        """Test classifying a SQL file at root level."""
+        role, importance, compression = self.classifier.classify("schema.sql")
+        assert role == FileRole.CONFIGURATION
+        assert importance == 2
+        assert compression == CompressionLevel.FULL

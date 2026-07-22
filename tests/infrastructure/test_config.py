@@ -52,7 +52,7 @@ def test_logging_config_non_string_level() -> None:
 def test_file_collector_config_defaults() -> None:
     """Test default file collector config values."""
     config = FileCollectorConfig()
-    assert ".py" in config.extensions
+    assert config.extensions is None
     assert ".git" in config.exclude
 
 
