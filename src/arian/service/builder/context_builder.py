@@ -21,6 +21,7 @@ from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.security import redact_secrets
+from arian.repository.filesystem.collector import CollectionStats
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
 from arian.service.context.materializer import ContextMaterializer
@@ -86,6 +87,12 @@ class ContextBuilder:
         self._progress: PipelineProgressProtocol | None = a_progress
         self._concurrency: ConcurrencyPolicy = a_concurrency
         self._max_concurrent: int = a_max_concurrent
+        self._collection_stats: CollectionStats = CollectionStats()
+
+    @property
+    def collection_stats(self) -> CollectionStats:
+        """Return collection statistics from the last build() call."""
+        return self._collection_stats
 
     async def build(
         self,
@@ -339,6 +346,7 @@ class ContextBuilder:
         self._notify_start("collect", len(a_sources))
         for i, source in enumerate(a_sources):
             collected = await self._collector.collect(source, a_root=a_root)
+            self._collection_stats = self._collector.stats
             for f in collected:
                 if f.path not in a_seen:
                     a_files.append(f)

@@ -109,6 +109,7 @@ class PlannedFile:
         compression: Compression level to apply.
         representation: Human-readable representation name.
         tokens: Estimated token count at this compression level.
+        language: Detected language identifier (computed once at collection).
         is_fragment: True if this is a file fragment (not a full file).
         fragment_index: Fragment position within the file (None for full files).
         fragment_total: Total fragments for this file (None for full files).
@@ -122,6 +123,7 @@ class PlannedFile:
     compression: CompressionLevel
     representation: str
     tokens: int
+    language: str = ""
     is_fragment: bool = False
     fragment_index: int | None = None
     fragment_total: int | None = None

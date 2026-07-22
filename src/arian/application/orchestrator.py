@@ -25,6 +25,7 @@ from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.output.protocols import RendererProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
+from arian.repository.filesystem.collector import CollectionStats
 from arian.service.builder.context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
@@ -162,7 +163,8 @@ class Application:
             a_root=a_root,
             a_input_paths=a_input_paths if a_request.paths else None,
         )
-        plan = self._with_metadata(plan, a_root, a_request, "merged")
+        stats: CollectionStats = self._builder.collection_stats
+        plan = self._with_metadata(plan, a_root, a_request, "merged", a_stats=stats)
         content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
         materialized = self._builder.materialize(plan, content)
         rendered: str = redact_secrets(self._renderer.render(materialized, plan))
@@ -219,7 +221,8 @@ class Application:
                 a_root=a_root,
             )
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
-            plan = self._with_metadata(plan, a_root, a_request, "separate", [input_name])
+            stats_sep: CollectionStats = self._builder.collection_stats
+            plan = self._with_metadata(plan, a_root, a_request, "separate", [input_name], a_stats=stats_sep)
             content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             all_skipped.extend(skipped)
             materialized = self._builder.materialize(plan, content)
@@ -283,7 +286,8 @@ class Application:
             group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
             group_output = output_base.parent / f"{group_label}_context.md"
             input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
-            plan = self._with_metadata(plan, a_root, a_request, "group", input_names)
+            stats_grp: CollectionStats = self._builder.collection_stats
+            plan = self._with_metadata(plan, a_root, a_request, "group", input_names, a_stats=stats_grp)
             content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             all_skipped.extend(skipped)
             materialized = self._builder.materialize(plan, content)
@@ -311,6 +315,7 @@ class Application:
         a_request: ContextRequest,
         a_scope: str,
         a_paths: list[str] | None = None,
+        a_stats: CollectionStats | None = None,
     ) -> ContextPlan:
         """Return a new ContextPlan with metadata attached.
 
@@ -320,6 +325,7 @@ class Application:
             a_request: Original request DTO.
             a_scope: Scope mode string.
             a_paths: Optional explicit path names.
+            a_stats: Optional collection statistics.
 
         Returns:
             New ContextPlan with metadata dict.
@@ -329,17 +335,30 @@ class Application:
             if a_request.paths
             else ["."]
         )
+        meta: dict[str, str | int | dict[str, str | int | None] | list[str]] = {
+            "repository": a_root.name,
+            "paths": paths,
+            "budget": {"max": a_request.budget},
+            "scope": a_scope,
+        }
+        if a_stats is not None:
+            meta["collection"] = {
+                "total_scanned": a_stats.total_scanned,
+                "collected": a_stats.collected,
+                "skipped_binary": a_stats.skipped_binary,
+                "skipped_size": a_stats.skipped_size,
+                "skipped_gitignore": a_stats.skipped_gitignore,
+                "skipped_permission": a_stats.skipped_permission,
+                "skipped_error": a_stats.skipped_error,
+                "skipped_by_extension": a_stats.skipped_by_extension,
+                "unknown_language": a_stats.unknown_language,
+            }
         return ContextPlan(
             chunks=a_plan.chunks,
             total_tokens=a_plan.total_tokens,
             total_files=a_plan.total_files,
             task=a_plan.task,
             query=a_plan.query,
-            metadata={
-                "repository": a_root.name,
-                "paths": paths,
-                "budget": {"max": a_request.budget},
-                "scope": a_scope,
-            },
+            metadata=meta,
             repository_files=a_plan.repository_files,
         )

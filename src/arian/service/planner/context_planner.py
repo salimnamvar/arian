@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from arian.domain.context.models import ContextChunk
 from arian.domain.context.models import ContextPlan
@@ -15,6 +16,8 @@ from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
+from arian.service.classifier.file_classifier import CONFIG_NAMES
+from arian.service.classifier.file_classifier import README_NAMES
 from arian.service.classifier.file_classifier import FileClassifier
 
 logger = logging.getLogger(__name__)
@@ -171,6 +174,7 @@ class ContextPlanner:
                             compression=fragment.compression,
                             representation=f"fragment {fragment.fragment_index + 1}/{fragment.fragment_total}",
                             tokens=fragment.estimated_tokens,
+                            language=repo_file.language,
                             is_fragment=True,
                             fragment_index=fragment.fragment_index,
                             fragment_total=fragment.fragment_total,
@@ -187,6 +191,7 @@ class ContextPlanner:
                         compression=compression,
                         representation=representation,
                         tokens=tokens,
+                        language=repo_file.language,
                     )
                 )
 
@@ -456,20 +461,21 @@ def a_role_is_critical(a_path: str, a_task: ContextTask) -> bool:
         True if the file should always be included at full compression.
     """
     path_lower: str = a_path.lower()
+    name: str = Path(path_lower).name
     result: bool = False
 
     if a_task == ContextTask.BUG_FIX:
         if "test" in path_lower or "spec" in path_lower:
             result = True
-        if path_lower.endswith("readme.md"):
+        if name in README_NAMES or name.startswith("readme"):
             result = True
     elif a_task == ContextTask.REVIEW:
-        if path_lower.endswith("readme.md"):
+        if name in README_NAMES or name.startswith("readme"):
             result = True
     elif a_task == ContextTask.ONBOARDING:
-        if path_lower.endswith("readme.md"):
+        if name in README_NAMES or name.startswith("readme"):
             result = True
-        if "pyproject.toml" in path_lower or "setup.py" in path_lower:
+        if name in CONFIG_NAMES:
             result = True
 
     return result

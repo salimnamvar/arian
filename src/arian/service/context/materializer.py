@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Protocol
 
 from arian.domain.context.models import ContextPlan
@@ -12,7 +11,6 @@ from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import Provenance
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
-from arian.domain.shared.language import detect_language
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +94,7 @@ class ContextMaterializer:
                         is_fragment=planned_file.is_fragment,
                         fragment_index=planned_file.fragment_index,
                         fragment_total=planned_file.fragment_total,
-                        language=detect_language(Path(planned_file.path)),
+                        language=planned_file.language,
                         provenance=provenance,
                     )
                 )
