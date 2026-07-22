@@ -30,18 +30,18 @@ class FileCollector:
 
     def __init__(
         self,
-        a_extensions: frozenset[str],
+        a_extensions: frozenset[str] | None,
         a_exclude: frozenset[str],
         a_classifier: FileClassifierProtocol | None = None,
     ) -> None:
         """Initialize collector.
 
         Args:
-            a_extensions: File extensions to include (e.g. {".py", ".md"}).
+            a_extensions: File extensions to include. None means all text files.
             a_exclude: Directory names to exclude.
             a_classifier: Optional file classifier for role detection.
         """
-        self._extensions: frozenset[str] = a_extensions
+        self._extensions: frozenset[str] | None = a_extensions
         self._filter: PathFilter = PathFilter(a_exclude)
         self._classifier: FileClassifierProtocol | None = a_classifier
 
@@ -132,7 +132,7 @@ class FileCollector:
         """
         result: RepositoryFile | None = None
 
-        if a_path.suffix not in self._extensions:
+        if self._extensions is not None and a_path.suffix not in self._extensions:
             logger.debug("Skipping %s (extension not in filter)", a_path)
         elif a_path.resolve() in a_emitted:
             logger.debug("Skipping %s (duplicate)", a_path)

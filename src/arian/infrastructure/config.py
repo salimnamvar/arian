@@ -14,9 +14,7 @@ from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import field_validator
 
-_DEFAULT_EXTENSIONS: frozenset[str] = frozenset(
-    {".py", ".md", ".txt", ".rst", ".toml", ".yaml", ".yml", ".json", ".sql"},
-)
+from arian.domain.shared.constants import MAX_FILE_SIZE_BYTES
 
 
 class LoggingConfig(BaseModel):
@@ -72,15 +70,21 @@ class FileCollectorConfig(BaseModel):
     """File collector configuration — extensions and exclusions.
 
     Attributes:
-        extensions: File extensions to include.
+        extensions: File extensions to include. None means all text files.
+            A frozenset acts as a narrowing filter (only these extensions).
+        max_file_size: Maximum file size in bytes. Files exceeding this are skipped.
         exclude: Directory names to exclude from scanning.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    extensions: frozenset[str] = Field(
-        default=_DEFAULT_EXTENSIONS,
-        description="File extensions to include.",
+    extensions: frozenset[str] | None = Field(
+        default=None,
+        description="File extensions to include. None = all text files.",
+    )
+    max_file_size: int = Field(
+        default=MAX_FILE_SIZE_BYTES,
+        description="Maximum file size in bytes.",
     )
     exclude: frozenset[str] = Field(
         default=frozenset(
@@ -132,7 +136,9 @@ class ArianConfig(BaseModel):
         Environment variables:
             ARIAN_LOG_LEVEL: Logging level (default: INFO).
             ARIAN_LOG_DIR: Log directory path (default: ~/.arian/logs).
-            ARIAN_EXTENSIONS: Comma-separated file extensions (default: standard set).
+            ARIAN_EXTENSIONS: Comma-separated file extensions (narrowing filter).
+                When set, only these extensions are collected.
+                When unset, all text files are collected.
             ARIAN_EXCLUDE: Comma-separated directory names to exclude.
 
         Returns:
@@ -147,7 +153,11 @@ class ArianConfig(BaseModel):
         collector_kwargs: dict[str, Any] = {}
         extensions_raw: str | None = os.environ.get("ARIAN_EXTENSIONS")
         if extensions_raw:
-            collector_kwargs["extensions"] = frozenset(ext.strip() for ext in extensions_raw.split(",") if ext.strip())
+            collector_kwargs["extensions"] = frozenset(
+                ext.strip() if ext.strip().startswith(".") else f".{ext.strip()}"
+                for ext in extensions_raw.split(",")
+                if ext.strip()
+            )
 
         exclude_raw: str | None = os.environ.get("ARIAN_EXCLUDE")
         if exclude_raw:
