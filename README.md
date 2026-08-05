@@ -130,12 +130,16 @@ pip install -e ".[dev]"
 
 ### Compression levels
 
+Compression is **budget-driven** — by default every file is included at Full content. Only when a token budget is set and the total would exceed it does Arian decide per file:
+
 | Level | When | What it keeps |
 |-------|------|---------------|
-| Full | Small, high-priority files | Complete content |
-| Signatures | Medium files | Class/function signatures and docstrings |
-| Structure | Large files (>5000 tokens) | File structure outline |
-| Summary | Very large files | Brief summary only |
+| Full | No budget, or file fits within budget | Complete content |
+| Signatures | Budget pressure (file too big to fit at Full) | Class/function signatures and docstrings |
+| Structure | Reserved for very large generated files | File structure outline |
+| Summary | Reserved for very large files | Brief summary only |
+
+Files are prioritized by relevance to the task: the most important files keep Full content, the next best fit as Signatures, and the rest are dropped to stay within budget.
 
 
 ## Feedback and Contributing
