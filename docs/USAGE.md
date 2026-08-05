@@ -125,9 +125,9 @@ arian                  # No limit — all files included
 ```
 
 When the budget is exceeded:
-- Remaining files are dropped with a warning
+- Least important files are compressed to Signatures first
+- Files that still do not fit are dropped with a warning
 - The output includes a note about truncated files
-- Files already added are not removed
 
 ### How token estimation works
 
@@ -229,10 +229,11 @@ Arian respects `.gitignore` patterns and excludes:
 
 ### Large files
 
-Files exceeding the token budget or size thresholds are automatically compressed:
-- Files >5000 tokens → Structure compression
-- Files >2000 tokens → Signatures compression
-- Files with symbols → Fragmented along class/function boundaries
+By default every file is included at Full content. When a `--budget` is set and the total would exceed it, Arian selects per file by importance:
+- Most important files keep **Full** content
+- The next best fit are compressed to **Signatures** (~30% of tokens)
+- The rest are dropped to stay within budget
+- Files with symbols are fragmented along class/function boundaries when a per-chunk target applies
 
 ## Examples
 

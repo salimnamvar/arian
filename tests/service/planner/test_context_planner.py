@@ -62,8 +62,8 @@ class TestContextPlanner:
         plan = self.planner.plan(files, ContextTask.GENERAL, budget)
         assert len(plan.chunks) > 1
 
-    def test_plan_compression_for_large_files(self) -> None:
-        """Test that large files get compressed."""
+    def test_plan_large_file_stays_full_when_budget_allows(self) -> None:
+        """Test that large files stay FULL when they fit within the budget."""
         files = [
             RepositoryFile(path="src/large.py", language="python", role=FileRole.UNKNOWN, tokens=6000, hash="big"),
         ]
@@ -72,7 +72,58 @@ class TestContextPlanner:
         for chunk in plan.chunks:
             for pf in chunk.files:
                 if pf.path == "src/large.py":
-                    assert pf.compression in (CompressionLevel.SIGNATURES, CompressionLevel.STRUCTURE)
+                    assert pf.compression == CompressionLevel.FULL
+
+    def test_plan_all_files_full_without_budget(self) -> None:
+        """Test that every file stays FULL when no budget is set."""
+        files = [
+            RepositoryFile(path="src/large.py", language="python", role=FileRole.UNKNOWN, tokens=6000, hash="big"),
+            RepositoryFile(path="tests/test_main.py", language="python", role=FileRole.TEST, tokens=3000, hash="t"),
+            RepositoryFile(path="src/utils.py", language="python", role=FileRole.UTILITY, tokens=1500, hash="u"),
+        ]
+        plan = self.planner.plan(files, ContextTask.GENERAL, TokenBudget())
+        for chunk in plan.chunks:
+            for pf in chunk.files:
+                assert pf.compression == CompressionLevel.FULL
+        assert plan.total_files == 3
+        assert plan.total_tokens == 10500
+
+    def test_budget_downgrades_least_important_to_signatures(self) -> None:
+        """Test that under budget pressure only the least important file is compressed."""
+        files = [
+            RepositoryFile(path="src/domain.py", language="python", role=FileRole.DOMAIN, tokens=400, hash="d"),
+            RepositoryFile(path="src/utils.py", language="python", role=FileRole.UNKNOWN, tokens=400, hash="u"),
+        ]
+        budget = TokenBudget(max_tokens=600)
+        plan = self.planner.plan(files, ContextTask.GENERAL, budget)
+        compression_by_path = {pf.path: pf.compression for chunk in plan.chunks for pf in chunk.files}
+        assert compression_by_path["src/domain.py"] == CompressionLevel.FULL
+        assert compression_by_path["src/utils.py"] == CompressionLevel.SIGNATURES
+        assert plan.total_tokens <= 600
+
+    def test_budget_drops_files_that_cannot_fit(self) -> None:
+        """Test that files are dropped when even signatures would exceed the budget."""
+        files = [
+            RepositoryFile(path="src/domain.py", language="python", role=FileRole.DOMAIN, tokens=1000, hash="d"),
+            RepositoryFile(path="src/utils.py", language="python", role=FileRole.UNKNOWN, tokens=1000, hash="u"),
+        ]
+        budget = TokenBudget(max_tokens=1100)
+        plan = self.planner.plan(files, ContextTask.GENERAL, budget)
+        compression_by_path = {pf.path: pf.compression for chunk in plan.chunks for pf in chunk.files}
+        assert compression_by_path["src/domain.py"] == CompressionLevel.FULL
+        assert "src/utils.py" not in compression_by_path
+        assert plan.total_tokens <= 1100
+
+    def test_budget_never_exceeded_for_task_relevant_files(self) -> None:
+        """Test that the budget is respected even for a task-relevant file set."""
+        files = [
+            RepositoryFile(path=f"src/file{i}.py", language="python", role=FileRole.UNKNOWN, tokens=500, hash=f"h{i}")
+            for i in range(20)
+        ]
+        budget = TokenBudget(max_tokens=1000)
+        plan = self.planner.plan(files, ContextTask.BUG_FIX, budget)
+        assert plan.total_tokens <= 1000
+        assert plan.total_files <= 20
 
     def test_large_file_creates_fragments(self) -> None:
         """Test that large files with symbols create fragments."""
