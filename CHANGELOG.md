@@ -5,6 +5,16 @@ All notable changes to Arian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-05
+
+### Changed
+
+- **Budget-driven compression**: without a `--budget` every file is now included at
+  Full content (the hardcoded `>2000`/`>5000`-token demotion to Signatures/Structure
+  is removed). When a budget is set and the total would exceed it, files are selected
+  by importance — most important stay Full, the next best fit as Signatures, the rest
+  are dropped. The budget is absolute and never exceeded.
+
 ## [0.6.3] - 2026-07-20
 
 ### Fixed

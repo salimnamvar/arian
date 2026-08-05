@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import logging
-from pathlib import Path
 
 from arian.domain.context.models import ContextChunk
 from arian.domain.context.models import ContextPlan
@@ -16,8 +16,6 @@ from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
-from arian.service.classifier.file_classifier import CONFIG_NAMES
-from arian.service.classifier.file_classifier import README_NAMES
 from arian.service.classifier.file_classifier import FileClassifier
 
 logger = logging.getLogger(__name__)
@@ -145,14 +143,9 @@ class ContextPlanner:
         for repo_file in a_files:
             role: FileRole
             importance: int
-            compression: CompressionLevel
-            role, importance, compression = self._classifier.classify(repo_file.path)
+            role, importance, _ = self._classifier.classify(repo_file.path)
 
             importance = self._adjust_importance(importance, role, a_task)
-            compression = self._decide_compression(compression, repo_file, a_task)
-
-            representation: str = compression.value
-            tokens: int = self._estimate_tokens(repo_file.tokens, compression)
 
             if (
                 a_budget.per_chunk_target is not None
@@ -188,15 +181,16 @@ class ContextPlanner:
                         path=repo_file.path,
                         role=role,
                         importance=importance,
-                        compression=compression,
-                        representation=representation,
-                        tokens=tokens,
+                        compression=CompressionLevel.FULL,
+                        representation=CompressionLevel.FULL.value,
+                        tokens=repo_file.tokens,
                         language=repo_file.language,
                     )
                 )
 
         planned.sort(key=lambda f: (f.importance, _ROLE_ORDER.get(f.role, 10), f.path))
-        return planned
+        result: list[PlannedFile] = self._fit_budget(planned, a_budget)
+        return result
 
     def _adjust_importance(
         self,
@@ -219,32 +213,109 @@ class ContextPlanner:
         result: int = max(0, a_base_importance + boost)
         return result
 
-    def _decide_compression(
+    def _fit_budget(
         self,
-        a_default: CompressionLevel,
-        a_file: RepositoryFile,
-        a_task: ContextTask,
-    ) -> CompressionLevel:
-        """Decide compression level for a file.
+        a_planned: list[PlannedFile],
+        a_budget: TokenBudget,
+    ) -> list[PlannedFile]:
+        """Resolve compression so planned files fit within the token budget.
+
+        Without a budget every file stays at FULL. When a budget is set and
+        the total would exceed it, files are selected greedily by importance:
+        the most important files keep FULL content, the next best fit as
+        SIGNATURES, and the rest are dropped.
 
         Args:
-            a_default: Default compression from classifier.
-            a_file: Repository file metadata.
-            a_task: Context task type.
+            a_planned: Planned files sorted by importance.
+            a_budget: Token budget constraints.
 
         Returns:
-            Decided compression level.
+            Planned files that fit within the budget (same importance order).
         """
-        result: CompressionLevel = a_default
+        max_tokens: int | None = a_budget.max_tokens
+        result: list[PlannedFile]
+        if max_tokens is None:
+            result = a_planned
+        else:
+            decisions = self._select_for_budget(a_planned, max_tokens)
+            result = self._apply_decisions(a_planned, decisions)
+            dropped_count: int = len(a_planned) - len(result)
+            if dropped_count > 0:
+                logger.warning(
+                    "Dropped %d file(s) to fit within the %d-token budget",
+                    dropped_count,
+                    max_tokens,
+                )
+        return result
 
-        if a_file.tokens > 5000 and result == CompressionLevel.FULL:
-            result = CompressionLevel.STRUCTURE
-        elif a_file.tokens > 2000 and result == CompressionLevel.FULL:
-            result = CompressionLevel.SIGNATURES
+    def _select_for_budget(
+        self,
+        a_planned: list[PlannedFile],
+        a_max_tokens: int,
+    ) -> dict[int, tuple[CompressionLevel, int]]:
+        """Choose a compression level per file to fit within a token budget.
 
-        if a_role_is_critical(a_file.path, a_task):
-            result = CompressionLevel.FULL
+        Files are processed in importance order: FULL when it fits, otherwise
+        SIGNATURES, otherwise the file is dropped. The budget is never
+        exceeded.
 
+        Args:
+            a_planned: Planned files sorted by importance.
+            a_max_tokens: Maximum total tokens.
+
+        Returns:
+            Per-index mapping of the chosen compression level and token count.
+        """
+        decisions: dict[int, tuple[CompressionLevel, int]] = {}
+        remaining_budget: int = a_max_tokens
+
+        for index, planned_file in enumerate(a_planned):
+            if planned_file.compression != CompressionLevel.FULL:
+                if planned_file.tokens <= remaining_budget:
+                    decisions[index] = (planned_file.compression, planned_file.tokens)
+                    remaining_budget -= planned_file.tokens
+                continue
+            if planned_file.tokens <= remaining_budget:
+                decisions[index] = (CompressionLevel.FULL, planned_file.tokens)
+                remaining_budget -= planned_file.tokens
+                continue
+            signature_tokens: int = self._estimate_tokens(planned_file.tokens, CompressionLevel.SIGNATURES)
+            if signature_tokens <= remaining_budget:
+                decisions[index] = (CompressionLevel.SIGNATURES, signature_tokens)
+                remaining_budget -= signature_tokens
+
+        return decisions
+
+    def _apply_decisions(
+        self,
+        a_planned: list[PlannedFile],
+        a_decisions: dict[int, tuple[CompressionLevel, int]],
+    ) -> list[PlannedFile]:
+        """Emit planned files in original order, applying budget decisions.
+
+        Args:
+            a_planned: Planned files sorted by importance.
+            a_decisions: Per-index compression level and token count.
+
+        Returns:
+            Planned files that fit within the budget, in original order.
+        """
+        result: list[PlannedFile] = []
+        for index, planned_file in enumerate(a_planned):
+            if index not in a_decisions:
+                continue
+            level, tokens = a_decisions[index]
+            if level == planned_file.compression and tokens == planned_file.tokens:
+                result.append(planned_file)
+                continue
+            result.append(
+                replace(
+                    planned_file,
+                    compression=level,
+                    representation=level.value,
+                    tokens=tokens,
+                )
+            )
         return result
 
     def _estimate_tokens(self, a_original_tokens: int, a_level: CompressionLevel) -> int:
@@ -405,18 +476,8 @@ class ContextPlanner:
         current_files: list[PlannedFile] = []
         current_tokens: int = 0
         chunk_index: int = 0
-        total_tokens: int = 0
 
         for planned_file in a_planned:
-            if a_budget.max_tokens is not None and total_tokens + planned_file.tokens > a_budget.max_tokens:
-                logger.warning(
-                    "Token budget exceeded: %d + %d > %d. Stopping.",
-                    total_tokens,
-                    planned_file.tokens,
-                    a_budget.max_tokens,
-                )
-                break
-
             if (
                 a_budget.per_chunk_target is not None
                 and current_tokens + planned_file.tokens > a_budget.per_chunk_target
@@ -435,7 +496,6 @@ class ContextPlanner:
 
             current_files.append(planned_file)
             current_tokens += planned_file.tokens
-            total_tokens += planned_file.tokens
 
         if current_files:
             chunks.append(
@@ -448,34 +508,3 @@ class ContextPlanner:
 
         result: tuple[ContextChunk, ...] = tuple(chunks)
         return result
-
-
-def a_role_is_critical(a_path: str, a_task: ContextTask) -> bool:
-    """Check if a file is critical for the given task.
-
-    Args:
-        a_path: File path.
-        a_task: Context task type.
-
-    Returns:
-        True if the file should always be included at full compression.
-    """
-    path_lower: str = a_path.lower()
-    name: str = Path(path_lower).name
-    result: bool = False
-
-    if a_task == ContextTask.BUG_FIX:
-        if "test" in path_lower or "spec" in path_lower:
-            result = True
-        if name in README_NAMES or name.startswith("readme"):
-            result = True
-    elif a_task == ContextTask.REVIEW:
-        if name in README_NAMES or name.startswith("readme"):
-            result = True
-    elif a_task == ContextTask.ONBOARDING:
-        if name in README_NAMES or name.startswith("readme"):
-            result = True
-        if name in CONFIG_NAMES:
-            result = True
-
-    return result
