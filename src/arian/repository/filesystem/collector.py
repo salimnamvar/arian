@@ -11,11 +11,12 @@ from pathlib import Path
 
 from arian.domain.protocols import FileClassifierProtocol
 from arian.domain.repository.models import RepositoryFile
-from arian.domain.shared.constants import MAX_FILE_SIZE_BYTES
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.language import detect_language
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.tokenizer import estimate_tokens_from_size
+from arian.infrastructure.config import LanguageConfig
+from arian.infrastructure.gitignore_filter import GitignoreOptions
 from arian.infrastructure.gitignore_filter import PathFilter
 
 logger = logging.getLogger(__name__)
@@ -81,9 +82,9 @@ class FileCollector:
         a_extensions: frozenset[str] | None,
         a_exclude: frozenset[str],
         a_classifier: FileClassifierProtocol | None = None,
-        a_max_file_size: int = MAX_FILE_SIZE_BYTES,
-        a_use_gitignore: bool = True,
-        a_nested_gitignore: bool = False,
+        a_max_file_size: int = 10 * 1024 * 1024,
+        a_gitignore_options: GitignoreOptions = GitignoreOptions(),
+        a_language_config: LanguageConfig = LanguageConfig(),
     ) -> None:
         """Initialize collector.
 
@@ -92,21 +93,14 @@ class FileCollector:
             a_exclude: Directory names to exclude.
             a_classifier: Optional file classifier for role detection.
             a_max_file_size: Maximum file size in bytes.
-            a_use_gitignore: When False, ``.gitignore`` rules are
-                ignored for the whole collector. The directory-exclude
-                set still applies.
-            a_nested_gitignore: When True, ``.gitignore`` files in
-                ancestor directories between cwd and the scan root
-                are also honored. Off by default to preserve the
-                pre-existing single-file behaviour.
+            a_gitignore_options: Static gitignore layer configuration
+                passed through to the underlying :class:`PathFilter`.
+            a_language_config: Language detection lookup tables.
         """
         self._extensions: frozenset[str] | None = a_extensions
         self._max_file_size: int = a_max_file_size
-        self._filter: PathFilter = PathFilter(
-            a_exclude,
-            a_gitignore=a_use_gitignore,
-            a_nested_gitignore=a_nested_gitignore,
-        )
+        self._language_config: LanguageConfig = a_language_config
+        self._filter: PathFilter = PathFilter(a_exclude, a_gitignore_options)
         self._classifier: FileClassifierProtocol | None = a_classifier
         self._stats: CollectionStats = CollectionStats()
 
@@ -287,7 +281,7 @@ class FileCollector:
                     self._stats = self._bump(skipped_by_extension=self._stats.skipped_by_extension + 1)
                 else:
                     a_emitted.add(a_path.resolve())
-                    language: str = detect_language(a_path)
+                    language: str = detect_language(a_path, self._language_config)
                     tokens: int = estimate_tokens_from_size(size_bytes)
                     role: FileRole = FileRole.UNKNOWN
                     if self._classifier is not None:

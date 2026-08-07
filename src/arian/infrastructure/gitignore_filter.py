@@ -20,10 +20,30 @@ collector can attribute skips to the offending pattern.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pathspec
+
+
+@dataclass(frozen=True)
+class GitignoreOptions:
+    """Static configuration for the gitignore layer.
+
+    The filter accepts these as a single object so its public surface
+    stays free of boolean positional parameters — a safe-coding
+    no-no (NASA JPL Power-of-Ten rule 4: limit function arguments).
+
+    Attributes:
+        enabled: When False, no ``.gitignore`` rules are honored.
+        nested: When True, ``.gitignore`` files in every directory
+            under cwd are also loaded, deepest first. Off by default
+            to preserve the pre-existing single-file behaviour.
+    """
+
+    enabled: bool = True
+    nested: bool = False
 
 
 class PathFilter:
@@ -33,8 +53,6 @@ class PathFilter:
         _exclude: Directory names that are always excluded.
         _gitignore_specs: Loaded ``(root, spec)`` pairs, deepest first.
         _explicit_paths: Paths whose contents always pass the filter.
-        _nested_gitignore: Whether to also load ``.gitignore`` from
-            descendant directories of cwd.
         last_matched_pattern: After ``should_include`` returns False for
             a gitignore reason, the source pattern. ``None`` otherwise.
     """
@@ -42,26 +60,22 @@ class PathFilter:
     def __init__(
         self,
         a_exclude: frozenset[str],
-        a_gitignore: bool = True,
-        a_explicit_paths: frozenset[Path] = frozenset(),
-        a_nested_gitignore: bool = False,
+        a_gitignore_options: GitignoreOptions = GitignoreOptions(),
     ) -> None:
         """Initialize path filter.
 
         Args:
             a_exclude: Directory names to always exclude (e.g. ``.git``).
-            a_gitignore: Whether to honor ``.gitignore`` rules at all.
-            a_explicit_paths: Paths (or path roots) whose contents
-                always pass the filter, overriding gitignore.
-            a_nested_gitignore: When True, ``.gitignore`` files in
-                every directory under cwd are also loaded, deepest
-                first. Off by default to preserve the pre-existing
-                single-file behaviour.
+            a_gitignore_options: Static gitignore layer configuration.
+                The explicit-path allow-list is set at runtime via
+                :meth:`set_explicit_paths` because it changes per
+                collection call.
         """
         self._exclude: frozenset[str] = a_exclude
-        self._explicit_paths: frozenset[Path] = a_explicit_paths
-        self._nested_gitignore: bool = a_nested_gitignore
-        self._gitignore_specs: list[tuple[Path, Any]] = self._load_gitignore_specs() if a_gitignore else []
+        self._explicit_paths: frozenset[Path] = frozenset()
+        self._gitignore_specs: list[tuple[Path, Any]] = (
+            self._load_gitignore_specs(a_gitignore_options) if a_gitignore_options.enabled else []
+        )
         self.last_matched_pattern: str | None = None
 
     def set_explicit_paths(self, a_paths: frozenset[Path]) -> None:
@@ -72,14 +86,17 @@ class PathFilter:
         """
         self._explicit_paths = a_paths
 
-    def _load_gitignore_specs(self) -> list[tuple[Path, Any]]:
+    def _load_gitignore_specs(self, a_options: GitignoreOptions) -> list[tuple[Path, Any]]:
         """Return ``(dir, spec)`` pairs for every ``.gitignore`` to honor.
 
-        When ``_nested_gitignore`` is disabled, only ``<cwd>/.gitignore``
-        is loaded. When enabled, every ``.gitignore`` under cwd is
+        When ``nested`` is disabled, only ``<cwd>/.gitignore`` is
+        loaded. When enabled, every ``.gitignore`` under cwd is
         loaded, deepest first — so a deeper file's rules take
-        precedence over a shallower one (matching git's own behaviour).
-        The list is empty when no ``.gitignore`` is found.
+        precedence over a shallower one (matching git's own
+        behaviour). The list is empty when no ``.gitignore`` is found.
+
+        Args:
+            a_options: Gitignore layer configuration.
 
         Returns:
             List of ``(directory, PathSpec)`` tuples, deepest first.
@@ -89,7 +106,7 @@ class PathFilter:
         primary: Path = cwd / ".gitignore"
         if primary.is_file():
             gitignore_files.append(primary)
-        if self._nested_gitignore:
+        if a_options.nested:
             for descendant in cwd.rglob(".gitignore"):
                 if descendant != primary and descendant.is_file():
                     gitignore_files.append(descendant)
