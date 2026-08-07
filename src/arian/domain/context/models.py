@@ -50,7 +50,7 @@ class ContextPlan:
     total_files: int
     task: ContextTask
     query: str | None = None
-    metadata: dict[str, str | int | dict[str, str | int | None] | list[str]] | None = None
+    metadata: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] | None = None
     repository_files: tuple[str, ...] = ()
 
     def validate(self) -> None:

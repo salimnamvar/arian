@@ -155,6 +155,12 @@ class Application:
             Tuple of ContextResult with stats and skipped file paths.
         """
         output_path: Path = self._resolve_output(a_request.output_path)
+        # Only user-named paths are explicit. The implicit ``a_root``
+        # default (when the user passes no paths) is NOT explicit, so
+        # ``.gitignore`` rules still apply during a default scan.
+        explicit_paths: frozenset[Path] = (
+            frozenset(a_root / p for p in a_request.paths) if a_request.paths else frozenset()
+        )
         plan: ContextPlan = await self._builder.build(
             a_path=a_root,
             a_task=a_task,
@@ -162,6 +168,7 @@ class Application:
             a_query=a_request.query,
             a_root=a_root,
             a_input_paths=a_input_paths if a_request.paths else None,
+            a_explicit_paths=explicit_paths,
         )
         stats: CollectionStats = self._builder.collection_stats
         plan = self._with_metadata(plan, a_root, a_request, "merged", a_stats=stats)
@@ -219,6 +226,7 @@ class Application:
                 a_budget=a_budget,
                 a_query=a_request.query,
                 a_root=a_root,
+                a_explicit_paths=frozenset({input_path}),
             )
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
             stats_sep: CollectionStats = self._builder.collection_stats
@@ -281,6 +289,7 @@ class Application:
                 a_query=a_request.query,
                 a_root=a_root,
                 a_input_paths=group_paths,
+                a_explicit_paths=frozenset(group_paths),
             )
             group_names: list[str] = [p.name for p in group_paths]
             group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
@@ -335,14 +344,14 @@ class Application:
             if a_request.paths
             else ["."]
         )
-        meta: dict[str, str | int | dict[str, str | int | None] | list[str]] = {
+        meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] = {
             "repository": a_root.name,
             "paths": paths,
             "budget": {"max": a_request.budget},
             "scope": a_scope,
         }
         if a_stats is not None:
-            meta["collection"] = {
+            collection_block: dict[str, int] = {
                 "total_scanned": a_stats.total_scanned,
                 "collected": a_stats.collected,
                 "skipped_binary": a_stats.skipped_binary,
@@ -353,6 +362,8 @@ class Application:
                 "skipped_by_extension": a_stats.skipped_by_extension,
                 "unknown_language": a_stats.unknown_language,
             }
+            meta["collection"] = collection_block
+            meta["skipped_gitignore_by_pattern"] = dict(a_stats.skipped_gitignore_by_pattern)
         return ContextPlan(
             chunks=a_plan.chunks,
             total_tokens=a_plan.total_tokens,

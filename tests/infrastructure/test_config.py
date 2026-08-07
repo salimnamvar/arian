@@ -54,6 +54,15 @@ def test_file_collector_config_defaults() -> None:
     config = FileCollectorConfig()
     assert config.extensions is None
     assert ".git" in config.exclude
+    assert config.use_gitignore is True
+    assert config.nested_gitignore is False
+
+
+def test_file_collector_config_gitignore_overrides() -> None:
+    """Test that use_gitignore and nested_gitignore accept overrides."""
+    config = FileCollectorConfig(use_gitignore=False, nested_gitignore=True)
+    assert config.use_gitignore is False
+    assert config.nested_gitignore is True
 
 
 # ---------------------------------------------------------------------------
@@ -119,8 +128,12 @@ def test_load_from_env_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ARIAN_LOG_DIR", raising=False)
     monkeypatch.delenv("ARIAN_EXTENSIONS", raising=False)
     monkeypatch.delenv("ARIAN_EXCLUDE", raising=False)
+    monkeypatch.delenv("ARIAN_NO_GITIGNORE", raising=False)
+    monkeypatch.delenv("ARIAN_NESTED_GITIGNORE", raising=False)
     config = ArianConfig.load_from_env()
     assert config.logging.level == "INFO"
+    assert config.collector.use_gitignore is True
+    assert config.collector.nested_gitignore is False
 
 
 def test_load_from_env_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -129,6 +142,8 @@ def test_load_from_env_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ARIAN_LOG_DIR", raising=False)
     monkeypatch.delenv("ARIAN_EXTENSIONS", raising=False)
     monkeypatch.delenv("ARIAN_EXCLUDE", raising=False)
+    monkeypatch.delenv("ARIAN_NO_GITIGNORE", raising=False)
+    monkeypatch.delenv("ARIAN_NESTED_GITIGNORE", raising=False)
     config = ArianConfig.load_from_env()
     assert config.logging.level == "DEBUG"
 
@@ -139,6 +154,8 @@ def test_load_from_env_extensions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ARIAN_LOG_DIR", raising=False)
     monkeypatch.setenv("ARIAN_EXTENSIONS", ".py, .ts, .js")
     monkeypatch.delenv("ARIAN_EXCLUDE", raising=False)
+    monkeypatch.delenv("ARIAN_NO_GITIGNORE", raising=False)
+    monkeypatch.delenv("ARIAN_NESTED_GITIGNORE", raising=False)
     config = ArianConfig.load_from_env()
     assert config.collector.extensions == frozenset({".py", ".ts", ".js"})
 
@@ -149,9 +166,36 @@ def test_load_from_env_exclude(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ARIAN_LOG_DIR", raising=False)
     monkeypatch.delenv("ARIAN_EXTENSIONS", raising=False)
     monkeypatch.setenv("ARIAN_EXCLUDE", "vendor, tmp")
+    monkeypatch.delenv("ARIAN_NO_GITIGNORE", raising=False)
+    monkeypatch.delenv("ARIAN_NESTED_GITIGNORE", raising=False)
     config = ArianConfig.load_from_env()
     assert "vendor" in config.collector.exclude
     assert "tmp" in config.collector.exclude
+
+
+def test_load_from_env_no_gitignore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """load_from_env reads ARIAN_NO_GITIGNORE truthy values."""
+    for truthy in ("1", "true", "yes", "on", "TRUE", "Yes"):
+        monkeypatch.setenv("ARIAN_NO_GITIGNORE", truthy)
+        monkeypatch.delenv("ARIAN_NESTED_GITIGNORE", raising=False)
+        config = ArianConfig.load_from_env()
+        assert config.collector.use_gitignore is False, f"truthy={truthy!r}"
+
+
+def test_load_from_env_no_gitignore_falsy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """load_from_env treats ARIAN_NO_GITIGNORE falsy as default."""
+    for falsy in ("0", "false", "no", "off", ""):
+        monkeypatch.setenv("ARIAN_NO_GITIGNORE", falsy)
+        config = ArianConfig.load_from_env()
+        assert config.collector.use_gitignore is True, f"falsy={falsy!r}"
+
+
+def test_load_from_env_nested_gitignore(monkeypatch: pytest.MonkeyPatch) -> None:
+    """load_from_env reads ARIAN_NESTED_GITIGNORE truthy values."""
+    monkeypatch.delenv("ARIAN_NO_GITIGNORE", raising=False)
+    monkeypatch.setenv("ARIAN_NESTED_GITIGNORE", "1")
+    config = ArianConfig.load_from_env()
+    assert config.collector.nested_gitignore is True
 
 
 def test_load_from_env_frozen() -> None:

@@ -149,7 +149,7 @@ class MarkdownRenderer(RendererProtocol):
         Returns:
             YAML manifest string.
         """
-        meta: dict[str, str | int | dict[str, str | int | None] | list[str]] = (
+        meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] = (
             a_plan.metadata if a_plan.metadata is not None else {}
         )
         collected_count: int = len(a_plan.repository_files)
@@ -180,6 +180,7 @@ class MarkdownRenderer(RendererProtocol):
         if "scope" in meta:
             lines.append("scope: " + str(meta["scope"]))
         self._append_collection_stats(lines, meta)
+        self._append_pattern_tally(lines, meta)
 
         result: str = "\n".join(lines)
         return result
@@ -187,7 +188,7 @@ class MarkdownRenderer(RendererProtocol):
     def _append_collection_stats(
         self,
         a_lines: list[str],
-        a_meta: dict[str, str | int | dict[str, str | int | None] | list[str]],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]],
     ) -> None:
         """Append collection statistics to manifest lines.
 
@@ -201,3 +202,26 @@ class MarkdownRenderer(RendererProtocol):
                 a_lines.append("collection:")
                 for key in raw_collection:
                     a_lines.append(f"  {key}: {raw_collection[key]}")
+
+    def _append_pattern_tally(
+        self,
+        a_lines: list[str],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]],
+    ) -> None:
+        """Append the per-pattern gitignore skip tally to manifest lines.
+
+        Args:
+            a_lines: Manifest lines to append to.
+            a_meta: Metadata dict from ContextPlan.
+        """
+        if "skipped_gitignore_by_pattern" not in a_meta:
+            return
+        raw_patterns = a_meta["skipped_gitignore_by_pattern"]
+        if not isinstance(raw_patterns, dict):
+            return
+        a_lines.append("skipped_gitignore_by_pattern:")
+        if not raw_patterns:
+            a_lines.append("  {}")
+            return
+        for key in raw_patterns:
+            a_lines.append(f"  {key}: {raw_patterns[key]}")

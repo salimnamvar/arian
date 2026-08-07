@@ -102,6 +102,7 @@ class ContextBuilder:
         a_query: str | None = None,
         a_root: Path | None = None,
         a_input_paths: list[Path] | None = None,
+        a_explicit_paths: frozenset[Path] = frozenset(),
     ) -> ContextPlan:
         """Build a context plan from a repository path.
 
@@ -114,6 +115,9 @@ class ContextBuilder:
             a_query: Optional query for relevance matching.
             a_root: Root for computing relative paths. Defaults to a_path.
             a_input_paths: Optional list of specific input paths to scan.
+            a_explicit_paths: Paths whose contents always pass the
+                ``.gitignore`` filter. Mirrors ``git add -f`` semantics
+                so user-named inputs always win over a too-broad rule.
 
         Returns:
             ContextPlan with chunks and metadata.
@@ -126,7 +130,7 @@ class ContextBuilder:
         sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
 
         try:
-            await self._collect_files(sources, root, files, seen)
+            await self._collect_files(sources, root, files, seen, a_explicit_paths)
         except Exception as e:
             msg = f"File collection failed for {a_path}: {e}"
             raise ContextBuilderError(msg, a_cause=e) from e
@@ -334,6 +338,7 @@ class ContextBuilder:
         a_root: Path,
         a_files: list[RepositoryFile],
         a_seen: set[str],
+        a_explicit_paths: frozenset[Path] = frozenset(),
     ) -> None:
         """Collect files from all sources with progress reporting.
 
@@ -342,10 +347,16 @@ class ContextBuilder:
             a_root: Root path for relative path computation.
             a_files: Output list to append collected files to.
             a_seen: Set of already-seen paths to avoid duplicates.
+            a_explicit_paths: Paths whose contents always pass the
+                ``.gitignore`` filter.
         """
         self._notify_start("collect", len(a_sources))
         for i, source in enumerate(a_sources):
-            collected = await self._collector.collect(source, a_root=a_root)
+            collected = await self._collector.collect(
+                source,
+                a_root=a_root,
+                a_explicit_paths=a_explicit_paths,
+            )
             self._collection_stats = self._collector.stats
             for f in collected:
                 if f.path not in a_seen:

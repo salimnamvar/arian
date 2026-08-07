@@ -16,6 +16,20 @@ from pydantic import field_validator
 
 from arian.domain.shared.constants import MAX_FILE_SIZE_BYTES
 
+_TRUTHY: frozenset[str] = frozenset({"1", "true", "yes", "on", "TRUE", "True", "YES", "Yes", "ON", "On"})
+
+
+def _is_truthy(a_value: str | None) -> bool:
+    """Return True if ``a_value`` is a recognized truthy string.
+
+    Args:
+        a_value: Raw environment variable value (or None).
+
+    Returns:
+        True for ``"1"``, ``"true"``, ``"yes"``, ``"on"`` (any case).
+    """
+    return a_value in _TRUTHY if a_value is not None else False
+
 
 class LoggingConfig(BaseModel):
     """Logging configuration — level, transport, and file output.
@@ -74,6 +88,10 @@ class FileCollectorConfig(BaseModel):
             A frozenset acts as a narrowing filter (only these extensions).
         max_file_size: Maximum file size in bytes. Files exceeding this are skipped.
         exclude: Directory names to exclude from scanning.
+        use_gitignore: When False, ``.gitignore`` rules are ignored.
+            The ``exclude`` set still applies.
+        nested_gitignore: When True, ``.gitignore`` files in ancestor
+            directories of the scan root are also honored.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -105,6 +123,14 @@ class FileCollectorConfig(BaseModel):
         ),
         description="Directory names to exclude.",
     )
+    use_gitignore: bool = Field(
+        default=True,
+        description="Honor .gitignore rules. False disables gitignore filtering entirely.",
+    )
+    nested_gitignore: bool = Field(
+        default=False,
+        description="Also load .gitignore from ancestor directories of the scan root.",
+    )
 
 
 class ArianConfig(BaseModel):
@@ -135,11 +161,16 @@ class ArianConfig(BaseModel):
 
         Environment variables:
             ARIAN_LOG_LEVEL: Logging level (default: INFO).
-            ARIAN_LOG_DIR: Log directory path (default: ~/.arian/logs).
+            ARIAN_LOG_DIR: Logging directory path (default: ~/.arian/logs).
             ARIAN_EXTENSIONS: Comma-separated file extensions (narrowing filter).
                 When set, only these extensions are collected.
                 When unset, all text files are collected.
             ARIAN_EXCLUDE: Comma-separated directory names to exclude.
+            ARIAN_NO_GITIGNORE: When set to a truthy value (``1``, ``true``,
+                ``yes``, ``on``), ``.gitignore`` rules are ignored.
+            ARIAN_NESTED_GITIGNORE: When set to a truthy value, ``.gitignore``
+                files in ancestor directories of the scan root are also
+                honored.
 
         Returns:
             ArianConfig populated from environment variables.
@@ -162,6 +193,11 @@ class ArianConfig(BaseModel):
         exclude_raw: str | None = os.environ.get("ARIAN_EXCLUDE")
         if exclude_raw:
             collector_kwargs["exclude"] = frozenset(name.strip() for name in exclude_raw.split(",") if name.strip())
+
+        if _is_truthy(os.environ.get("ARIAN_NO_GITIGNORE")):
+            collector_kwargs["use_gitignore"] = False
+        if _is_truthy(os.environ.get("ARIAN_NESTED_GITIGNORE")):
+            collector_kwargs["nested_gitignore"] = True
 
         collector_cfg = FileCollectorConfig(**collector_kwargs)
         return cls(logging=logging_cfg, collector=collector_cfg)

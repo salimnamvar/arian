@@ -43,6 +43,8 @@ def create_application(a_config: ArianConfig | None = None) -> Application:
         a_extensions=cfg.collector.extensions,
         a_exclude=cfg.collector.exclude,
         a_classifier=classifier,
+        a_use_gitignore=cfg.collector.use_gitignore,
+        a_nested_gitignore=cfg.collector.nested_gitignore,
     )
     index: MemoryRepositoryIndex = MemoryRepositoryIndex()
     analyzer: PythonAnalyzer = PythonAnalyzer()

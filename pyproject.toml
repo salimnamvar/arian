@@ -179,6 +179,10 @@ ignore = [
     "FBT001",  # boolean positional — internal flag
     "FBT002",  # boolean default — internal flag
 ]
+"src/arian/repository/filesystem/collector.py" = [
+    "FBT001",  # boolean positional — internal flag
+    "FBT002",  # boolean default — internal flag
+]
 "src/arian/infrastructure/output/markdown/renderer.py" = [
     "FBT001",  # boolean positional — renderer option flags
     "FBT002",  # boolean default — renderer option flags
