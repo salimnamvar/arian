@@ -216,7 +216,7 @@ To narrow collection to specific extensions, set the `ARIAN_EXTENSIONS` environm
 variable:
 
 ```bash
-ARIAN_EXTENSIONS=.py,.md arian build .
+ARIAN_EXTENSIONS=.py,.md arian
 ```
 
 ### Ignored files
@@ -226,6 +226,41 @@ Arian respects `.gitignore` patterns and excludes:
 - `.venv/`, `venv/`, `.env`
 - `.mypy_cache/`, `.pytest_cache/`
 - Binary files and files exceeding the size limit
+
+Positional paths passed on the command line are treated as **explicit** and bypass
+`.gitignore` — like `git add -f`. Use this to include ignored files on purpose:
+
+```bash
+# Include a gitignored vendor directory
+arian vendored/
+
+# Include a single ignored file
+arian secrets/config.example.yaml
+```
+
+To ignore `.gitignore` rules entirely for one invocation:
+
+```bash
+arian --no-gitignore
+```
+
+By default only the scan root's `.gitignore` is loaded. To also honor `.gitignore`
+files in ancestor directories of the root (mirroring git's sub-tree behavior):
+
+```bash
+arian --nested-gitignore
+```
+
+## Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ARIAN_EXTENSIONS` | all text files | Comma-separated file extensions to collect |
+| `ARIAN_EXCLUDE` | — | Comma-separated directory names to exclude |
+| `ARIAN_LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `ARIAN_LOG_DIR` | `~/.arian/logs` | Directory for log files |
+| `ARIAN_NO_GITIGNORE` | — | Truthy value (`1`, `true`, `yes`, `on`) disables `.gitignore` rules |
+| `ARIAN_NESTED_GITIGNORE` | — | Truthy value enables nested `.gitignore` loading |
 
 ### Large files
 

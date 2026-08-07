@@ -47,15 +47,6 @@ from typing import Any
 
 from arian.infrastructure.config import LoggingConfig
 
-APPLICATION_LOGGER_NAME = "arian"
-
-_PROPAGATING_LOGGERS = (APPLICATION_LOGGER_NAME,)
-
-_MODULE = "arian.bootstrap.logging"
-
-# datetime.UTC is 3.11+; timezone.utc works on 3.10+
-_UTC = timezone.utc  # noqa: UP017
-
 
 def _format_utc_timestamp(a_epoch_seconds: float) -> str:
     """Format Unix epoch seconds as canonical UTC ISO-8601 (microseconds + Z).
@@ -66,8 +57,8 @@ def _format_utc_timestamp(a_epoch_seconds: float) -> str:
     Returns:
         Formatted string like ``2026-07-18T23:45:12.345678Z``.
     """
-    dt: datetime = datetime.fromtimestamp(a_epoch_seconds, tz=_UTC)
-    return dt.astimezone(_UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    dt: datetime = datetime.fromtimestamp(a_epoch_seconds, tz=timezone.utc)  # noqa: UP017 — timezone.utc works on 3.10+
+    return dt.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")  # noqa: UP017 — timezone.utc works on 3.10+
 
 
 class IsoUtcFormatter(logging.Formatter):
@@ -182,10 +173,10 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
         "disable_existing_loggers": False,
         "filters": {
             "resource": {
-                "()": f"{_MODULE}.ResourceFilter",
+                "()": f"{a_config.module}.ResourceFilter",
             },
             "diagnostic_level": {
-                "()": f"{_MODULE}.DiagnosticLevelFilter",
+                "()": f"{a_config.module}.DiagnosticLevelFilter",
             },
             "run_context": {
                 "()": "arian.bootstrap.logging_filters.RunContextFilter",
@@ -193,15 +184,15 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
         },
         "formatters": {
             "diagnostic": {
-                "()": f"{_MODULE}.IsoUtcFormatter",
+                "()": f"{a_config.module}.IsoUtcFormatter",
                 "format": "%(levelname)s [%(run_id)s] %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
             "operational": {
-                "()": f"{_MODULE}.IsoUtcFormatter",
+                "()": f"{a_config.module}.IsoUtcFormatter",
                 "format": "%(levelname)s [%(run_id)s] %(asctime)s%(resource)s : %(message)s",
             },
             "file": {
-                "()": f"{_MODULE}.IsoUtcFormatter",
+                "()": f"{a_config.module}.IsoUtcFormatter",
                 "format": "%(levelname)s [%(run_id)s] %(asctime)s %(filename)s:%(lineno)d%(resource)s : %(message)s",
             },
         },
@@ -212,7 +203,7 @@ def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
                 "handlers": [],
                 "propagate": True,
             }
-            for name in _PROPAGATING_LOGGERS
+            for name in a_config.propagating_loggers
         },
         "root": {
             "level": "WARNING",
@@ -276,7 +267,7 @@ def configure_logging(a_config: LoggingConfig | None = None) -> logging.handlers
     config: LoggingConfig = a_config or LoggingConfig()
 
     logging.config.dictConfig(_build_logging_config(config))
-    logging.captureWarnings(True)
+    logging.captureWarnings(capture=True)
 
     listener: logging.handlers.QueueListener | None = None
     if config.async_logging:

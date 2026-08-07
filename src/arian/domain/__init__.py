@@ -53,6 +53,7 @@ from arian.domain.shared import SymbolKind
 from arian.domain.shared import TokenBudget
 from arian.domain.shared import detect_language
 from arian.domain.shared import is_binary
+from arian.domain.shared import lang_extensions
 from arian.domain.shared import redact_secrets
 from arian.domain.shared import validate_input_path
 
@@ -106,6 +107,7 @@ __all__ = [
     "ValidationError",
     "detect_language",
     "is_binary",
+    "lang_extensions",
     "redact_secrets",
     "validate_input_path",
 ]

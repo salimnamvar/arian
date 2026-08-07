@@ -38,7 +38,7 @@ class TestCreateApplication:
 
     def test_progress_reporter_wired(self) -> None:
         app = create_application()
-        assert app._builder._progress is not None
+        assert app._builder._options.progress is not None
 
     def test_root_injected(self) -> None:
         app = create_application()

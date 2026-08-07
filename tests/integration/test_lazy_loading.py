@@ -11,6 +11,7 @@ from arian.domain.shared.tokenizer import estimate_tokens_from_size
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
+from arian.service.builder.context_builder import BuildRequest
 from arian.service.builder.context_builder import ContextBuilder
 from arian.service.classifier.file_classifier import FileClassifier
 from arian.service.context.materializer import ContextMaterializer
@@ -123,7 +124,7 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
+        await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
 
         stored_files = await index.list_files()
         for f in stored_files:
@@ -149,7 +150,7 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
+        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
 
         for _path, content in content_map.items():
@@ -180,7 +181,7 @@ class TestSingleReadVerification:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(a_path=tmp_path, a_task=ContextTask.GENERAL, a_budget=budget)
+        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
 
         read_count = 0
         original_read_bytes = Path.read_bytes

@@ -16,54 +16,10 @@ from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
+from arian.infrastructure.config import PlannerConfig
 from arian.service.classifier.file_classifier import FileClassifier
 
 logger = logging.getLogger(__name__)
-
-_ROLE_ORDER: dict[FileRole, int] = {
-    FileRole.README: 0,
-    FileRole.DOCUMENTATION: 1,
-    FileRole.ENTRY_POINT: 2,
-    FileRole.CONFIGURATION: 3,
-    FileRole.DOMAIN: 4,
-    FileRole.SERVICE: 5,
-    FileRole.INFRASTRUCTURE: 6,
-    FileRole.UTILITY: 7,
-    FileRole.TEST: 8,
-    FileRole.GENERATED: 9,
-    FileRole.UNKNOWN: 10,
-}
-
-_TASK_FILE_BOOST: dict[ContextTask, dict[FileRole, int]] = {
-    ContextTask.BUG_FIX: {
-        FileRole.TEST: -3,
-        FileRole.SERVICE: -2,
-        FileRole.DOMAIN: -1,
-    },
-    ContextTask.FEATURE: {
-        FileRole.DOMAIN: -2,
-        FileRole.SERVICE: -1,
-        FileRole.TEST: -1,
-    },
-    ContextTask.REVIEW: {
-        FileRole.SERVICE: -2,
-        FileRole.DOMAIN: -1,
-    },
-    ContextTask.ONBOARDING: {
-        FileRole.README: -5,
-        FileRole.CONFIGURATION: -1,
-    },
-    ContextTask.REFACTOR: {
-        FileRole.SERVICE: -2,
-        FileRole.INFRASTRUCTURE: -1,
-    },
-    ContextTask.DOCUMENT: {
-        FileRole.README: -3,
-        FileRole.DOMAIN: -1,
-        FileRole.SERVICE: -1,
-    },
-    ContextTask.GENERAL: {},
-}
 
 
 class ContextPlanner:
@@ -74,15 +30,22 @@ class ContextPlanner:
 
     Attributes:
         _classifier: File classifier for role detection.
+        _config: Planner configuration (role ordering, task boosts).
     """
 
-    def __init__(self, a_classifier: FileClassifier | None = None) -> None:
+    def __init__(
+        self,
+        a_classifier: FileClassifier | None = None,
+        a_config: PlannerConfig = PlannerConfig(),
+    ) -> None:
         """Initialize planner.
 
         Args:
             a_classifier: Optional file classifier (defaults to new instance).
+            a_config: Planner configuration (role ordering, task boosts).
         """
         self._classifier: FileClassifier = a_classifier if a_classifier is not None else FileClassifier()
+        self._config: PlannerConfig = a_config
 
     def plan(
         self,
@@ -188,7 +151,7 @@ class ContextPlanner:
                     )
                 )
 
-        planned.sort(key=lambda f: (f.importance, _ROLE_ORDER.get(f.role, 10), f.path))
+        planned.sort(key=lambda f: (f.importance, self._config.role_order.get(f.role, 10), f.path))
         result: list[PlannedFile] = self._fit_budget(planned, a_budget)
         return result
 
@@ -208,7 +171,7 @@ class ContextPlanner:
         Returns:
             Adjusted importance score.
         """
-        boost_map: dict[FileRole, int] = _TASK_FILE_BOOST.get(a_task, {})
+        boost_map: dict[FileRole, int] = self._config.task_file_boost.get(a_task, {})
         boost: int = boost_map.get(a_role, 0)
         result: int = max(0, a_base_importance + boost)
         return result
@@ -328,14 +291,7 @@ class ContextPlanner:
         Returns:
             Estimated token count.
         """
-        ratios: dict[CompressionLevel, float] = {
-            CompressionLevel.FULL: 1.0,
-            CompressionLevel.SIGNATURES: 0.3,
-            CompressionLevel.STRUCTURE: 0.1,
-            CompressionLevel.SUMMARY: 0.05,
-            CompressionLevel.AUTO: 1.0,
-        }
-        ratio: float = ratios.get(a_level, 1.0)
+        ratio: float = self._config.compression_ratios.get(a_level, 1.0)
         result: int = max(1, int(a_original_tokens * ratio))
         return result
 
@@ -435,7 +391,7 @@ class ContextPlanner:
                     line_end=None,
                     compression=CompressionLevel.SIGNATURES,
                     importance=a_importance,
-                    estimated_tokens=int(a_file.tokens * 0.3),
+                    estimated_tokens=int(a_file.tokens * self._config.fragment_signature_ratio),
                 )
             )
 

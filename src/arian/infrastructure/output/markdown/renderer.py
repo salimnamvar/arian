@@ -11,11 +11,10 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
+from arian.infrastructure.config import RendererConfig
 from arian.infrastructure.output.protocols import RendererProtocol
 
 logger = logging.getLogger(__name__)
-
-_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent.parent / "template"
 
 
 class MarkdownRenderer(RendererProtocol):
@@ -29,10 +28,14 @@ class MarkdownRenderer(RendererProtocol):
         _template: Loaded Jinja2 template.
     """
 
-    def __init__(self) -> None:
-        """Initialize renderer with template environment."""
+    def __init__(self, a_config: RendererConfig = RendererConfig()) -> None:
+        """Initialize renderer with template environment.
+
+        Args:
+            a_config: Renderer configuration (template location).
+        """
         self._environment: Environment = Environment(
-            loader=FileSystemLoader(str(_TEMPLATE_DIR)),
+            loader=FileSystemLoader(str(a_config.template_dir)),
             trim_blocks=True,
             lstrip_blocks=True,
             autoescape=select_autoescape(),
@@ -149,7 +152,7 @@ class MarkdownRenderer(RendererProtocol):
         Returns:
             YAML manifest string.
         """
-        meta: dict[str, str | int | dict[str, str | int | None] | list[str]] = (
+        meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] = (
             a_plan.metadata if a_plan.metadata is not None else {}
         )
         collected_count: int = len(a_plan.repository_files)
@@ -180,6 +183,7 @@ class MarkdownRenderer(RendererProtocol):
         if "scope" in meta:
             lines.append("scope: " + str(meta["scope"]))
         self._append_collection_stats(lines, meta)
+        self._append_pattern_tally(lines, meta)
 
         result: str = "\n".join(lines)
         return result
@@ -187,7 +191,7 @@ class MarkdownRenderer(RendererProtocol):
     def _append_collection_stats(
         self,
         a_lines: list[str],
-        a_meta: dict[str, str | int | dict[str, str | int | None] | list[str]],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]],
     ) -> None:
         """Append collection statistics to manifest lines.
 
@@ -201,3 +205,23 @@ class MarkdownRenderer(RendererProtocol):
                 a_lines.append("collection:")
                 for key in raw_collection:
                     a_lines.append(f"  {key}: {raw_collection[key]}")
+
+    def _append_pattern_tally(
+        self,
+        a_lines: list[str],
+        a_meta: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]],
+    ) -> None:
+        """Append the per-pattern gitignore skip tally to manifest lines.
+
+        Args:
+            a_lines: Manifest lines to append to.
+            a_meta: Metadata dict from ContextPlan.
+        """
+        raw_patterns = a_meta.get("skipped_gitignore_by_pattern")
+        if isinstance(raw_patterns, dict):
+            a_lines.append("skipped_gitignore_by_pattern:")
+            if not raw_patterns:
+                a_lines.append("  {}")
+            else:
+                for key in raw_patterns:
+                    a_lines.append(f"  {key}: {raw_patterns[key]}")

@@ -16,38 +16,9 @@ from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import DependencyKind
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
+from arian.infrastructure.config import RepositoryConfig
 
 logger = logging.getLogger(__name__)
-
-_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS files (
-    path TEXT PRIMARY KEY,
-    language TEXT NOT NULL,
-    role TEXT NOT NULL,
-    tokens INTEGER NOT NULL,
-    hash TEXT NOT NULL,
-    size_bytes INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS symbols (
-    name TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    signature TEXT NOT NULL,
-    docstring TEXT DEFAULT '',
-    line_start INTEGER DEFAULT 0,
-    line_end INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS dependencies (
-    source_path TEXT NOT NULL,
-    target_path TEXT NOT NULL,
-    kind TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS modules (
-    name TEXT PRIMARY KEY,
-    path TEXT NOT NULL,
-    files TEXT DEFAULT '[]'
-);
-"""
 
 
 class SQLiteRepositoryIndex:
@@ -59,16 +30,19 @@ class SQLiteRepositoryIndex:
     Attributes:
         _db_path: Path to the SQLite database file.
         _connection: Active database connection.
+        _config: Repository configuration (schema DDL).
     """
 
-    def __init__(self, a_db_path: Path) -> None:
+    def __init__(self, a_db_path: Path, a_config: RepositoryConfig = RepositoryConfig()) -> None:
         """Initialize SQLite index.
 
         Args:
             a_db_path: Path to the SQLite database file.
+            a_config: Repository configuration (schema DDL).
         """
         self._db_path: Path = a_db_path
         self._connection: sqlite3.Connection | None = None
+        self._config: RepositoryConfig = a_config
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create the database connection.
@@ -79,7 +53,7 @@ class SQLiteRepositoryIndex:
         if self._connection is None:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._connection = sqlite3.connect(str(self._db_path))
-            self._connection.executescript(_SCHEMA_SQL)
+            self._connection.executescript(self._config.schema_sql)
         return self._connection
 
     async def save_repository(self, a_repo: Repository) -> None:
