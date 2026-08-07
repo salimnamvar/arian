@@ -6,98 +6,7 @@ from pathlib import Path
 
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
-
-README_NAMES: frozenset[str] = frozenset(
-    {"readme", "readme.md", "readme.rst", "readme.txt", "contributing", "contributing.md"},
-)
-_ENTRY_NAMES: frozenset[str] = frozenset(
-    {"main.py", "__main__.py", "app.py", "cli.py"},
-)
-CONFIG_NAMES: frozenset[str] = frozenset(
-    {
-        "pyproject.toml",
-        "setup.py",
-        "setup.cfg",
-        "package.json",
-        "tsconfig.json",
-        "cargo.toml",
-        "go.mod",
-        "makefile",
-        "dockerfile",
-        ".env",
-        ".env.example",
-    },
-)
-_GENERATED_PARTS: frozenset[str] = frozenset(
-    {"migrations", "generated", "__generated__", "vendor", "node_modules"},
-)
-_CONFIG_SUFFIXES: frozenset[str] = frozenset(
-    {
-        ".toml",
-        ".yaml",
-        ".yml",
-        ".ini",
-        ".cfg",
-        ".sql",
-        ".json",
-        ".jsonl",
-        ".xml",
-        ".env",
-    }
-)
-_DOC_SUFFIXES: frozenset[str] = frozenset({".md", ".markdown", ".rst", ".txt"})
-_WEB_SUFFIXES: frozenset[str] = frozenset(
-    {
-        ".html",
-        ".htm",
-        ".css",
-        ".scss",
-        ".sass",
-        ".less",
-        ".svelte",
-        ".vue",
-        ".astro",
-    }
-)
-_BASENAME_CONFIG: frozenset[str] = frozenset(
-    {
-        "makefile",
-        "dockerfile",
-        "cmakelists.txt",
-        "justfile",
-    }
-)
-_DOC_PARTS: frozenset[str] = frozenset({"docs", "doc"})
-_TEST_PARTS: frozenset[str] = frozenset({"test", "tests", "testing"})
-_UTIL_PARTS: frozenset[str] = frozenset({"util", "utils", "utility", "helpers", "common"})
-
-_ROLE_IMPORTANCE: dict[FileRole, int] = {
-    FileRole.README: 0,
-    FileRole.DOCUMENTATION: 1,
-    FileRole.ENTRY_POINT: 1,
-    FileRole.CONFIGURATION: 2,
-    FileRole.DOMAIN: 2,
-    FileRole.SERVICE: 3,
-    FileRole.INFRASTRUCTURE: 4,
-    FileRole.UTILITY: 5,
-    FileRole.UNKNOWN: 6,
-    FileRole.TEST: 7,
-    FileRole.GENERATED: 9,
-}
-
-_ROLE_COMPRESSION: dict[FileRole, CompressionLevel] = {
-    FileRole.README: CompressionLevel.FULL,
-    FileRole.DOCUMENTATION: CompressionLevel.FULL,
-    FileRole.ENTRY_POINT: CompressionLevel.FULL,
-    FileRole.CONFIGURATION: CompressionLevel.FULL,
-    FileRole.DOMAIN: CompressionLevel.FULL,
-    FileRole.SERVICE: CompressionLevel.FULL,
-    FileRole.INFRASTRUCTURE: CompressionLevel.FULL,
-    FileRole.UTILITY: CompressionLevel.SIGNATURES,
-    FileRole.UNKNOWN: CompressionLevel.FULL,
-    FileRole.TEST: CompressionLevel.SIGNATURES,
-    FileRole.GENERATED: CompressionLevel.STRUCTURE,
-}
+from arian.infrastructure.config import ClassifierConfig
 
 
 class FileClassifier:
@@ -105,7 +14,18 @@ class FileClassifier:
 
     Analyzes file paths and names to determine their role in the
     repository architecture and assigns importance scores.
+
+    Attributes:
+        _config: Classification lookup tables.
     """
+
+    def __init__(self, a_config: ClassifierConfig = ClassifierConfig()) -> None:
+        """Initialize classifier.
+
+        Args:
+            a_config: Classification lookup tables (names, suffixes, parts).
+        """
+        self._config: ClassifierConfig = a_config
 
     def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]:
         """Classify a file path into role, importance, and compression.
@@ -174,45 +94,69 @@ class FileClassifier:
         Returns:
             Tuple of (role, importance, compression).
         """
-        result: tuple[FileRole, int, CompressionLevel]
-        if a_name in README_NAMES or a_name.startswith("readme"):
-            result = (FileRole.README, 0, CompressionLevel.FULL)
-        elif a_name in _BASENAME_CONFIG:
-            result = (FileRole.CONFIGURATION, 2, CompressionLevel.FULL)
-        elif any(part in _DOC_PARTS for part in a_parts) or a_suffix in _DOC_SUFFIXES:
-            result = (FileRole.DOCUMENTATION, 1, CompressionLevel.FULL)
-        elif a_name in _ENTRY_NAMES:
-            result = (FileRole.ENTRY_POINT, 1, CompressionLevel.FULL)
-        elif a_name in CONFIG_NAMES or a_suffix in _CONFIG_SUFFIXES:
-            result = (FileRole.CONFIGURATION, 2, CompressionLevel.FULL)
-        elif a_suffix in _WEB_SUFFIXES:
-            result = (FileRole.SERVICE, 3, CompressionLevel.FULL)
-        elif any(part in _GENERATED_PARTS for part in a_parts):
-            result = (FileRole.GENERATED, 9, CompressionLevel.STRUCTURE)
-        elif any(part in _TEST_PARTS for part in a_parts) or a_name.startswith("test_"):
-            result = (FileRole.TEST, 7, CompressionLevel.SIGNATURES)
+        role: FileRole = self._detect_role(a_name, a_parts, a_suffix)
+        result: tuple[FileRole, int, CompressionLevel] = (
+            role,
+            self._config.role_importance[role],
+            self._config.role_compression[role],
+        )
+        return result
+
+    def _detect_role(
+        self,
+        a_name: str,
+        a_parts: tuple[str, ...],
+        a_suffix: str,
+    ) -> FileRole:
+        """Detect the architectural role of a path.
+
+        Args:
+            a_name: Lowercased file name.
+            a_parts: Lowercased path parts.
+            a_suffix: Lowercased file suffix.
+
+        Returns:
+            Detected file role.
+        """
+        result: FileRole
+        if a_name in self._config.readme_names or a_name.startswith("readme"):
+            result = FileRole.README
+        elif a_name in self._config.basename_config:
+            result = FileRole.CONFIGURATION
+        elif any(part in self._config.doc_parts for part in a_parts) or a_suffix in self._config.doc_suffixes:
+            result = FileRole.DOCUMENTATION
+        elif a_name in self._config.entry_names:
+            result = FileRole.ENTRY_POINT
+        elif a_name in self._config.config_names or a_suffix in self._config.config_suffixes:
+            result = FileRole.CONFIGURATION
+        elif a_suffix in self._config.web_suffixes:
+            result = FileRole.SERVICE
+        elif any(part in self._config.generated_parts for part in a_parts):
+            result = FileRole.GENERATED
+        elif any(part in self._config.test_parts for part in a_parts) or a_name.startswith("test_"):
+            result = FileRole.TEST
         else:
             result = self._classify_layer(a_parts)
         return result
 
-    def _classify_layer(self, a_parts: tuple[str, ...]) -> tuple[FileRole, int, CompressionLevel]:
+    def _classify_layer(self, a_parts: tuple[str, ...]) -> FileRole:
         """Classify architectural layer from path parts.
 
         Args:
             a_parts: Lowercased path parts.
 
         Returns:
-            Tuple of (role, importance, compression).
+            Detected file role.
         """
-        result: tuple[FileRole, int, CompressionLevel]
+        result: FileRole
         if "domain" in a_parts:
-            result = (FileRole.DOMAIN, 2, CompressionLevel.FULL)
+            result = FileRole.DOMAIN
         elif "service" in a_parts or "services" in a_parts:
-            result = (FileRole.SERVICE, 3, CompressionLevel.FULL)
+            result = FileRole.SERVICE
         elif "infrastructure" in a_parts or "infra" in a_parts:
-            result = (FileRole.INFRASTRUCTURE, 4, CompressionLevel.FULL)
-        elif any(part in _UTIL_PARTS for part in a_parts):
-            result = (FileRole.UTILITY, 5, CompressionLevel.SIGNATURES)
+            result = FileRole.INFRASTRUCTURE
+        elif any(part in self._config.util_parts for part in a_parts):
+            result = FileRole.UTILITY
         else:
-            result = (FileRole.UNKNOWN, 6, CompressionLevel.FULL)
+            result = FileRole.UNKNOWN
         return result

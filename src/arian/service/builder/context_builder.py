@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from dataclasses import field
 import hashlib
 import logging
 from pathlib import Path
@@ -14,13 +16,14 @@ from arian.domain.exceptions import ContextBuilderError
 from arian.domain.exceptions import InputError
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
-from arian.domain.shared.constants import DEFAULT_MAX_CONCURRENT_LOADS
-from arian.domain.shared.constants import MAX_COLLECTED_FILES
 from arian.domain.shared.enums import ConcurrencyPolicy
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.security import redact_secrets
+from arian.infrastructure.config import DomainLimitsConfig
+from arian.infrastructure.config import RetryConfig
+from arian.infrastructure.config import SecurityConfig
 from arian.repository.filesystem.collector import CollectionStats
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
@@ -28,6 +31,62 @@ from arian.service.context.materializer import ContextMaterializer
 from arian.service.planner.context_planner import ContextPlanner
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ContextBuilderOptions:
+    """Optional collaborators and concurrency knobs for :class:`ContextBuilder`.
+
+    Grouping these into a single object keeps the constructor's
+    argument list short and prevents the public surface from drifting
+    when new tuning knobs are added.
+
+    Attributes:
+        progress: Optional progress reporter. ``None`` disables
+            progress notifications.
+        concurrency: Parallelism policy for content loading.
+        max_concurrent: Max concurrent reads when the policy is
+            :attr:`ConcurrencyPolicy.BOUNDED`.
+        max_collected_files: Hard cap on files the planner accepts
+            in a single collection pass.
+        retry: File-read retry policy.
+        security: Security configuration (used by ``redact_secrets``).
+    """
+
+    progress: PipelineProgressProtocol | None = None
+    concurrency: ConcurrencyPolicy = ConcurrencyPolicy.BOUNDED
+    max_concurrent: int = DomainLimitsConfig().default_max_concurrent_loads
+    max_collected_files: int = DomainLimitsConfig().max_collected_files
+    retry: RetryConfig = field(default_factory=RetryConfig)
+    security: SecurityConfig = field(default_factory=SecurityConfig)
+
+
+@dataclass(frozen=True)
+class BuildRequest:
+    """Per-call input to :meth:`ContextBuilder.build`.
+
+    Grouping all build inputs into a single object keeps the public
+    surface short and self-documenting, and makes it easy to add new
+    optional fields without breaking existing callers.
+
+    Attributes:
+        path: Repository root path.
+        task: The context task type.
+        budget: Token budget constraints.
+        query: Optional query for relevance matching.
+        root: Root for computing relative paths. Defaults to ``path``.
+        input_paths: Optional list of specific input paths to scan.
+        explicit_paths: Paths whose contents always pass the
+            ``.gitignore`` filter. Mirrors ``git add -f`` semantics.
+    """
+
+    path: Path
+    task: ContextTask
+    budget: TokenBudget
+    query: str | None = None
+    root: Path | None = None
+    input_paths: list[Path] | None = None
+    explicit_paths: frozenset[Path] = field(default_factory=frozenset[Path])
 
 
 class ContextBuilder:
@@ -54,9 +113,7 @@ class ContextBuilder:
         _index: Repository index for metadata storage.
         _planner: Context planner for file selection.
         _materializer: Context materializer for compression.
-        _progress: Optional progress reporter for pipeline stages.
-        _concurrency: How parallel file loads are executed.
-        _max_concurrent: Semaphore limit when policy is BOUNDED.
+        _options: Concurrency / security / retry options.
     """
 
     def __init__(
@@ -65,9 +122,7 @@ class ContextBuilder:
         a_index: RepositoryIndexProtocol,
         a_planner: ContextPlanner,
         a_materializer: ContextMaterializer,
-        a_progress: PipelineProgressProtocol | None = None,
-        a_concurrency: ConcurrencyPolicy = ConcurrencyPolicy.BOUNDED,
-        a_max_concurrent: int = DEFAULT_MAX_CONCURRENT_LOADS,
+        a_options: ContextBuilderOptions = ContextBuilderOptions(),
     ) -> None:
         """Initialize context builder.
 
@@ -76,17 +131,14 @@ class ContextBuilder:
             a_index: Repository index for metadata storage.
             a_planner: Context planner for file selection.
             a_materializer: Context materializer for compression.
-            a_progress: Optional progress reporter for pipeline stages.
-            a_concurrency: Parallelism policy for content loading.
-            a_max_concurrent: Max concurrent reads when policy is BOUNDED.
+            a_options: Concurrency / progress / retry options. See
+                :class:`ContextBuilderOptions`.
         """
         self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
         self._planner: ContextPlanner = a_planner
         self._materializer: ContextMaterializer = a_materializer
-        self._progress: PipelineProgressProtocol | None = a_progress
-        self._concurrency: ConcurrencyPolicy = a_concurrency
-        self._max_concurrent: int = a_max_concurrent
+        self._options: ContextBuilderOptions = a_options
         self._collection_stats: CollectionStats = CollectionStats()
 
     @property
@@ -96,37 +148,37 @@ class ContextBuilder:
 
     async def build(
         self,
-        a_path: Path,
-        a_task: ContextTask,
-        a_budget: TokenBudget,
-        a_query: str | None = None,
-        a_root: Path | None = None,
-        a_input_paths: list[Path] | None = None,
+        a_request: BuildRequest,
     ) -> ContextPlan:
-        """Build a context plan from a repository path.
+        """Build a context plan from a :class:`BuildRequest`.
 
         Pipeline: collect files -> store metadata -> plan context.
 
         Args:
-            a_path: Repository root path.
-            a_task: The context task type.
-            a_budget: Token budget constraints.
-            a_query: Optional query for relevance matching.
-            a_root: Root for computing relative paths. Defaults to a_path.
-            a_input_paths: Optional list of specific input paths to scan.
+            a_request: Input describing the scan, including the
+                repository root, the task, the budget, optional
+                per-call input paths, and the explicit-path allow-list.
 
         Returns:
             ContextPlan with chunks and metadata.
         """
+        a_path: Path = a_request.path
+        a_task: ContextTask = a_request.task
+        a_budget: TokenBudget = a_request.budget
+        a_query: str | None = a_request.query
+        a_root: Path = a_request.root if a_request.root is not None else a_path
+        a_input_paths: list[Path] | None = a_request.input_paths
+        a_explicit_paths: frozenset[Path] = a_request.explicit_paths
+
         logger.info("Building context for task=%s, path=%s", a_task.value, a_path)
 
-        root: Path = a_root if a_root is not None else a_path
+        root: Path = a_root
         files: list[RepositoryFile] = []
         seen: set[str] = set()
         sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
 
         try:
-            await self._collect_files(sources, root, files, seen)
+            await self._collect_files(sources, root, files, seen, a_explicit_paths)
         except Exception as e:
             msg = f"File collection failed for {a_path}: {e}"
             raise ContextBuilderError(msg, a_cause=e) from e
@@ -134,8 +186,8 @@ class ContextBuilder:
         logger.debug("Collected %d files", len(files))
         self._notify_complete("collect")
 
-        if len(files) > MAX_COLLECTED_FILES:
-            msg = f"Too many files collected ({len(files)}), limit is {MAX_COLLECTED_FILES}"
+        if len(files) > self._options.max_collected_files:
+            msg = f"Too many files collected ({len(files)}), limit is {self._options.max_collected_files}"
             raise InputError(msg)
 
         self._notify_start("plan", 1)
@@ -250,11 +302,11 @@ class ContextBuilder:
         """
         results: list[FileContent | None] = []
         if a_paths:
-            if self._concurrency == ConcurrencyPolicy.SEQUENTIAL:
+            if self._options.concurrency == ConcurrencyPolicy.SEQUENTIAL:
                 for abs_path, rel_path in a_paths:
                     results.append(await self._load_single(abs_path, rel_path))
-            elif self._concurrency == ConcurrencyPolicy.BOUNDED:
-                semaphore = asyncio.Semaphore(self._max_concurrent)
+            elif self._options.concurrency == ConcurrencyPolicy.BOUNDED:
+                semaphore = asyncio.Semaphore(self._options.max_concurrent)
                 results = list(
                     await asyncio.gather(
                         *(self._load_single_bounded(p, r, semaphore) for p, r in a_paths),
@@ -289,7 +341,7 @@ class ContextBuilder:
     async def _load_single(self, a_path: Path, a_rel_path: str) -> FileContent | None:
         """Load content from a single file with retry, binary check, and redaction.
 
-        Transient ``OSError`` is retried with exponential backoff (3 attempts).
+        Transient ``OSError`` is retried with exponential backoff.
         Binary files and permanent read failures are skipped (returned as None).
 
         Args:
@@ -302,22 +354,23 @@ class ContextBuilder:
         result: FileContent | None = None
         raw: bytes | None = None
         last_error: OSError | None = None
-        for attempt in range(3):
+        retry: RetryConfig = self._options.retry
+        for attempt in range(retry.attempts):
             try:
                 raw = await asyncio.to_thread(a_path.read_bytes)
                 last_error = None
                 break
             except OSError as exc:
                 last_error = exc
-                if attempt < 2:
-                    await asyncio.sleep(0.05 * (2**attempt))
+                if attempt < retry.attempts - 1:
+                    await asyncio.sleep(retry.backoff_base_seconds * (retry.backoff_exponent_base**attempt))
 
         if last_error is not None or raw is None:
             logger.warning("Cannot read file: %s", a_path)
         elif is_binary(raw):
             logger.warning("Skipping binary file: %s", a_path)
         else:
-            content: str = redact_secrets(raw.decode("utf-8", errors="ignore"))
+            content: str = redact_secrets(raw.decode("utf-8", errors="ignore"), self._options.security)
             content_hash: str = await asyncio.to_thread(
                 lambda: hashlib.sha256(content.encode()).hexdigest()[:16],
             )
@@ -334,6 +387,7 @@ class ContextBuilder:
         a_root: Path,
         a_files: list[RepositoryFile],
         a_seen: set[str],
+        a_explicit_paths: frozenset[Path] = frozenset(),
     ) -> None:
         """Collect files from all sources with progress reporting.
 
@@ -342,10 +396,16 @@ class ContextBuilder:
             a_root: Root path for relative path computation.
             a_files: Output list to append collected files to.
             a_seen: Set of already-seen paths to avoid duplicates.
+            a_explicit_paths: Paths whose contents always pass the
+                ``.gitignore`` filter.
         """
         self._notify_start("collect", len(a_sources))
         for i, source in enumerate(a_sources):
-            collected = await self._collector.collect(source, a_root=a_root)
+            collected = await self._collector.collect(
+                source,
+                a_root=a_root,
+                a_explicit_paths=a_explicit_paths,
+            )
             self._collection_stats = self._collector.stats
             for f in collected:
                 if f.path not in a_seen:
@@ -360,8 +420,8 @@ class ContextBuilder:
             a_stage: Stage name.
             a_total: Total work units in the stage.
         """
-        if self._progress:
-            self._progress.on_stage_start(a_stage, a_total)
+        if self._options.progress:
+            self._options.progress.on_stage_start(a_stage, a_total)
 
     def _notify_progress(self, a_stage: str, a_current: int, a_total: int) -> None:
         """Notify progress hook of stage progress, if present.
@@ -371,8 +431,8 @@ class ContextBuilder:
             a_current: Current progress index.
             a_total: Total work units in the stage.
         """
-        if self._progress:
-            self._progress.on_stage_progress(a_stage, a_current, a_total)
+        if self._options.progress:
+            self._options.progress.on_stage_progress(a_stage, a_current, a_total)
 
     def _notify_complete(self, a_stage: str) -> None:
         """Notify progress hook of stage completion, if present.
@@ -380,5 +440,5 @@ class ContextBuilder:
         Args:
             a_stage: Stage name.
         """
-        if self._progress:
-            self._progress.on_stage_complete(a_stage)
+        if self._options.progress:
+            self._options.progress.on_stage_complete(a_stage)

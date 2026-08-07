@@ -1,1 +1,0 @@
-"""Ignore policy for Arian."""

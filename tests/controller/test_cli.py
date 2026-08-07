@@ -21,12 +21,15 @@ def _strip_ansi(a_text: str) -> str:
     return _ANSI_RE.sub("", a_text)
 
 
-def _run_cli(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    *args: str, cwd: str | None = None, env_extra: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run the arian CLI as a subprocess and return the result.
 
     Args:
         *args: Arguments passed after ``python -m arian``.
         cwd: Optional working directory for the subprocess.
+        env_extra: Optional environment variable overrides.
 
     Returns:
         CompletedProcess with captured stdout and stderr (ANSI stripped).
@@ -35,6 +38,8 @@ def _run_cli(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
     env["FORCE_COLOR"] = "0"
+    if env_extra:
+        env.update(env_extra)
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "arian", *args],
         capture_output=True,
@@ -137,6 +142,36 @@ class TestCliContextBudgetNone:
 
         # Should not fail due to budget parsing
         assert "Invalid budget" not in result.stderr
+
+
+@pytest.mark.integration
+class TestCliLogLevelEnv:
+    """Tests for the ``ARIAN_LOG_LEVEL`` environment variable."""
+
+    def test_cli_log_level_warning_suppresses_info(self, tmp_path: str) -> None:
+        """Verify ``ARIAN_LOG_LEVEL=WARNING`` silences INFO logging."""
+        (tmp_path / "dummy.txt").write_text("hello\n")
+        result = _run_cli("dummy.txt", cwd=tmp_path, env_extra={"ARIAN_LOG_LEVEL": "WARNING"})
+
+        assert result.returncode == 0
+        combined = result.stdout + result.stderr
+        assert "INFO" not in combined
+
+    def test_cli_log_level_debug_enables_debug(self, tmp_path: str) -> None:
+        """Verify ``ARIAN_LOG_LEVEL=DEBUG`` emits DEBUG logging."""
+        (tmp_path / "dummy.txt").write_text("hello\n")
+        result = _run_cli("dummy.txt", cwd=tmp_path, env_extra={"ARIAN_LOG_LEVEL": "DEBUG"})
+
+        assert result.returncode == 0
+        assert "DEBUG" in result.stdout + result.stderr
+
+    def test_cli_verbose_overrides_env_log_level(self, tmp_path: str) -> None:
+        """Verify ``-v`` overrides a more verbose environment level."""
+        (tmp_path / "dummy.txt").write_text("hello\n")
+        result = _run_cli("dummy.txt", "-v", cwd=tmp_path, env_extra={"ARIAN_LOG_LEVEL": "WARNING"})
+
+        assert result.returncode == 0
+        assert "DEBUG" in result.stdout + result.stderr
 
 
 @pytest.mark.integration

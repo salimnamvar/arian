@@ -18,7 +18,7 @@ from arian.bootstrap.logging import configure_logging
 from arian.bootstrap.validator import StartupValidator
 from arian.infrastructure.config import ArianConfig
 
-_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -32,13 +32,13 @@ def lifespan(a_config: ArianConfig) -> Generator[None]:
         None — application is alive during yield.
     """
     listener: logging.handlers.QueueListener | None = configure_logging(a_config.logging)
-    _logger.debug("Logging configured at level %s", a_config.logging.level.upper())
+    logger.debug("Logging configured at level %s", a_config.logging.level.upper())
     StartupValidator().validate(a_config)
-    _logger.info("Arian starting")
+    logger.info("Arian starting")
     try:
         yield
     finally:
-        _logger.info("Arian stopped")
+        logger.info("Arian stopped")
         if listener is not None:
             listener.stop()
 
@@ -54,12 +54,12 @@ async def async_lifespan(a_config: ArianConfig) -> AsyncGenerator[None]:
         None — application is alive during yield.
     """
     listener: logging.handlers.QueueListener | None = configure_logging(a_config.logging)
-    _logger.debug("Logging configured at level %s", a_config.logging.level.upper())
+    logger.debug("Logging configured at level %s", a_config.logging.level.upper())
     StartupValidator().validate(a_config)
-    _logger.info("Arian starting")
+    logger.info("Arian starting")
     try:
         yield
     finally:
-        _logger.info("Arian stopped")
+        logger.info("Arian stopped")
         if listener is not None:
             listener.stop()

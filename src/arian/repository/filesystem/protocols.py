@@ -12,7 +12,13 @@ from arian.repository.filesystem.collector import CollectionStats
 class FileCollectorProtocol(Protocol):
     """Protocol for collecting files from a directory."""
 
-    async def collect(self, a_path: Path, *, a_root: Path | None = None) -> list[RepositoryFile]: ...
+    async def collect(
+        self,
+        a_path: Path,
+        *,
+        a_root: Path | None = None,
+        a_explicit_paths: frozenset[Path] = frozenset(),
+    ) -> list[RepositoryFile]: ...
 
     @property
     def stats(self) -> CollectionStats: ...

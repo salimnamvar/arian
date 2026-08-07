@@ -5,6 +5,39 @@ All notable changes to Arian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-08-07
+
+### Added
+
+- **Explicit-path gitignore override**: positional CLI paths always bypass
+  `.gitignore` rules, like `git add -f`. Ignored files can now be included on purpose.
+- **`--no-gitignore`** flag and `ARIAN_NO_GITIGNORE` env var: disable all `.gitignore`
+  processing for one invocation.
+- **`--nested-gitignore`** flag and `ARIAN_NESTED_GITIGNORE` env var: also honor
+  `.gitignore` files in ancestor directories of the scan root.
+- **Gitignore pattern diagnostics**: skipped files are attributed to the offending
+  pattern in the manifest (`skipped_gitignore_by_pattern`).
+
+### Changed
+
+- **Config-driven architecture**: every tunable (logging, collector, language, security,
+  retry, renderer, controller, planner, analyzer, classifier, materializer, bootstrap,
+  repository) is now centralized in Pydantic config classes with environment-variable
+  loading. This replaces scattered module-level constants.
+- **`ContextTask` and language/security logic** moved into the domain layer and derived
+  from config, breaking a circular import between `domain.context.models`,
+  `domain.shared`, and `infrastructure.config`.
+- **`ContextBuilder.build()`** now takes a `BuildRequest` value object instead of
+  positional arguments.
+- **`ARIAN_LOG_LEVEL` is honored by the CLI**; `-v`/`--verbose` overrides it.
+
+### Fixed
+
+- `.txt` files (and other extension-less mappings) no longer skip language detection:
+  `detect_language` uses a truthy lookup so filename/modeline detection still runs.
+- `RendererConfig.template_dir` default now resolves to the bundled `template`
+  directory inside the package.
+
 ## [0.8.0] - 2026-08-05
 
 ### Changed

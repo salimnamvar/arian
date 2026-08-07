@@ -11,6 +11,7 @@ from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import Provenance
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
+from arian.infrastructure.config import MaterializerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +30,22 @@ class ContextMaterializer:
 
     Attributes:
         _analyzer: Language analyzer for content compression.
+        _config: Materializer configuration (fragment merge threshold).
     """
 
-    def __init__(self, a_analyzer: LanguageAnalyzerProtocol) -> None:
+    def __init__(
+        self,
+        a_analyzer: LanguageAnalyzerProtocol,
+        a_config: MaterializerConfig = MaterializerConfig(),
+    ) -> None:
         """Initialize materializer.
 
         Args:
             a_analyzer: Language analyzer for content compression.
+            a_config: Materializer configuration (fragment merge threshold).
         """
         self._analyzer: LanguageAnalyzerProtocol = a_analyzer
+        self._config: MaterializerConfig = a_config
 
     def materialize(
         self,
@@ -132,7 +140,7 @@ class ContextMaterializer:
                     fragment_locations.setdefault(entry.path, []).append(i)
 
         for path, chunk_indices in fragment_locations.items():
-            if len(chunk_indices) < 2:
+            if len(chunk_indices) < self._config.min_fragment_chunk_occurrences:
                 continue
             for pos, chunk_idx in enumerate(chunk_indices):
                 if pos < len(chunk_indices) - 1:

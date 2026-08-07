@@ -15,7 +15,9 @@ class ContextRequest:
         budget: Maximum token count, or None for unlimited.
         output_path: Output file path string (supports ~ expansion).
         scope: Scope mode — "merged", "separate", or "group".
-        paths: Tuple of relative path strings to include.
+        paths: Tuple of relative path strings to include. These paths
+            are treated as *explicit* — their contents bypass any
+            ``.gitignore`` filter that would otherwise apply.
         group: Tuple of path-tuples, one per group.
         query: Optional query string for relevance matching.
     """
