@@ -8,7 +8,7 @@ from pathlib import Path
 from arian.domain.exceptions import ConfigurationError
 from arian.infrastructure.config import ArianConfig
 
-_VALID_LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+logger = logging.getLogger(__name__)
 
 
 class StartupValidator:
@@ -28,9 +28,8 @@ class StartupValidator:
         if not root.exists():
             msg = f"Root path does not exist: {root}"
             raise ConfigurationError(msg)
-        if a_config.logging.level not in _VALID_LOG_LEVELS:
+        if a_config.logging.level not in a_config.logging.valid_levels:
             msg = f"Invalid log level: {a_config.logging.level}"
             raise ConfigurationError(msg)
 
-        logger = logging.getLogger(__name__)
         logger.debug("Startup validation passed for root=%s", root)

@@ -116,7 +116,7 @@ def context(  # a-prefix-ignore: Typer CLI public names
             paths=tuple(paths) if paths else (),
         )
 
-        validate_request(request)
+        validate_request(request, a_config=config.controller)
 
         logger.info("Generating context for task=%s", request.task)
         application = create_application(config)

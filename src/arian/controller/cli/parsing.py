@@ -13,10 +13,9 @@ import typer
 
 from arian.application.context import ContextRequest
 from arian.domain.context.models import ContextTask
+from arian.infrastructure.config import ControllerConfig
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-_VALID_SCOPES: frozenset[str] = frozenset({"merged", "separate"})
 
 
 def parse_budget(a_value: str | None) -> int | None:
@@ -66,11 +65,15 @@ def parse_groups(a_group: list[str] | None) -> tuple[tuple[str, ...], ...]:
     return result
 
 
-def validate_request(a_request: ContextRequest) -> None:
+def validate_request(
+    a_request: ContextRequest,
+    a_config: ControllerConfig = ControllerConfig(),
+) -> None:
     """Validate a ContextRequest before passing to Application.
 
     Args:
         a_request: Request DTO to validate.
+        a_config: Controller configuration (valid scopes).
 
     Raises:
         typer.Exit: If validation fails.
@@ -82,7 +85,7 @@ def validate_request(a_request: ContextRequest) -> None:
         logger.error(msg)  # noqa: TRY400
         raise typer.Exit(code=1) from None
 
-    if a_request.scope not in _VALID_SCOPES:
+    if a_request.scope not in a_config.valid_scopes:
         msg = f"Invalid scope: {a_request.scope}. Valid scopes: merged, separate"
         logger.error(msg)
         raise typer.Exit(code=1) from None
