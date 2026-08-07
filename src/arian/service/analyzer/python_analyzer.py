@@ -4,17 +4,11 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-import re
 
 from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import SymbolKind
-
-_DEF_PATTERN = re.compile(
-    r"^(\s*)(async\s+)?(def|class|async\s+def)\s+\w+.*?:\s*(?:#.*)?$",
-)
-_IMPORT_PATTERN = re.compile(r"^\s*(from\s+\S+\s+import|import\s+)")
-_DOCSTRING_START = re.compile(r'^\s*[rRuUbBfF]*("""|\'\'\')')
+from arian.infrastructure.config import AnalyzerConfig
 
 
 class PythonAnalyzer:
@@ -22,7 +16,18 @@ class PythonAnalyzer:
 
     Extracts symbols, imports, and public API from Python source code.
     Provides content compression at various levels.
+
+    Attributes:
+        _config: Analyzer configuration (regex patterns, thresholds).
     """
+
+    def __init__(self, a_config: AnalyzerConfig = AnalyzerConfig()) -> None:
+        """Initialize analyzer.
+
+        Args:
+            a_config: Analyzer configuration (regex patterns, thresholds).
+        """
+        self._config: AnalyzerConfig = a_config
 
     def extract_symbols(self, a_content: str, a_path: Path) -> list[Symbol]:
         """Extract class, function, and method symbols from Python source.
@@ -165,15 +170,15 @@ class PythonAnalyzer:
 
         while i < n:
             line: str = lines[i]
-            match = _DEF_PATTERN.match(line)
+            match = self._config.def_pattern.match(line)
             if match:
                 result_lines.append(line.rstrip())
                 indent: str = match.group(1)
                 body_indent_len: int = len(indent) + 4
                 i += 1
-                if i < n and _DOCSTRING_START.match(lines[i]):
+                if i < n and self._config.docstring_start.match(lines[i]):
                     quote: str = '"""' if '"""' in lines[i] else "'''"
-                    if lines[i].count(quote) >= 2:
+                    if lines[i].count(quote) >= self._config.min_singleline_docstring_quotes:
                         result_lines.append(lines[i])
                         i += 1
                     else:
@@ -216,7 +221,11 @@ class PythonAnalyzer:
         result_lines: list[str] = []
         for line in lines:
             stripped: str = line.strip()
-            if _DEF_PATTERN.match(stripped) or _IMPORT_PATTERN.match(stripped) or stripped.startswith("class "):
+            if (
+                self._config.def_pattern.match(stripped)
+                or self._config.import_pattern.match(stripped)
+                or stripped.startswith("class ")
+            ):
                 result_lines.append(line)
         result: str = "\n".join(result_lines)
         return result
