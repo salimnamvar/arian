@@ -11,11 +11,10 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
+from arian.infrastructure.config import RendererConfig
 from arian.infrastructure.output.protocols import RendererProtocol
 
 logger = logging.getLogger(__name__)
-
-_TEMPLATE_DIR: Path = Path(__file__).parent.parent.parent.parent / "template"
 
 
 class MarkdownRenderer(RendererProtocol):
@@ -29,10 +28,14 @@ class MarkdownRenderer(RendererProtocol):
         _template: Loaded Jinja2 template.
     """
 
-    def __init__(self) -> None:
-        """Initialize renderer with template environment."""
+    def __init__(self, a_config: RendererConfig = RendererConfig()) -> None:
+        """Initialize renderer with template environment.
+
+        Args:
+            a_config: Renderer configuration (template location).
+        """
         self._environment: Environment = Environment(
-            loader=FileSystemLoader(str(_TEMPLATE_DIR)),
+            loader=FileSystemLoader(str(a_config.template_dir)),
             trim_blocks=True,
             lstrip_blocks=True,
             autoescape=select_autoescape(),

@@ -23,9 +23,11 @@ from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
 from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
+from arian.infrastructure.config import SecurityConfig
 from arian.infrastructure.output.protocols import RendererProtocol
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.repository.filesystem.collector import CollectionStats
+from arian.service.builder.context_builder import BuildRequest
 from arian.service.builder.context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ class Application:
         a_builder: ContextBuilder,
         a_renderer: RendererProtocol,
         a_output: OutputWriterProtocol,
+        a_security_config: SecurityConfig = SecurityConfig(),
         a_validator: ContextRequestValidator | None = None,
         a_root: Path | None = None,
         a_resolve_output: Callable[[str], Path] | None = None,
@@ -64,6 +67,8 @@ class Application:
             a_builder: Context builder for pipeline orchestration.
             a_renderer: Renderer for output generation (protocol-based).
             a_output: Output writer port for persisting rendered content.
+            a_security_config: Security configuration (used by
+                ``redact_secrets`` on every rendered chunk).
             a_validator: Request validator. Created with a_root if None.
             a_root: Repository root. Defaults to current working directory
                 only when bootstrap does not inject one.
@@ -73,6 +78,7 @@ class Application:
         self._builder = a_builder
         self._renderer: RendererProtocol = a_renderer
         self._output = a_output
+        self._security_config: SecurityConfig = a_security_config
         self._root: Path = a_root if a_root is not None else Path.cwd()
         self._validator = a_validator or ContextRequestValidator(a_root=self._root)
         self._resolve_output: Callable[[str], Path] = a_resolve_output or resolve_output_path
@@ -162,19 +168,21 @@ class Application:
             frozenset(a_root / p for p in a_request.paths) if a_request.paths else frozenset()
         )
         plan: ContextPlan = await self._builder.build(
-            a_path=a_root,
-            a_task=a_task,
-            a_budget=a_budget,
-            a_query=a_request.query,
-            a_root=a_root,
-            a_input_paths=a_input_paths if a_request.paths else None,
-            a_explicit_paths=explicit_paths,
+            BuildRequest(
+                path=a_root,
+                task=a_task,
+                budget=a_budget,
+                query=a_request.query,
+                root=a_root,
+                input_paths=a_input_paths if a_request.paths else None,
+                explicit_paths=explicit_paths,
+            )
         )
         stats: CollectionStats = self._builder.collection_stats
         plan = self._with_metadata(plan, a_root, a_request, "merged", a_stats=stats)
         content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
         materialized = self._builder.materialize(plan, content)
-        rendered: str = redact_secrets(self._renderer.render(materialized, plan))
+        rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
         self._output.write(str(output_path), rendered)
         logger.info(
             "Context generated: %d files, %d tokens, %d chunks, %d skipped",
@@ -221,12 +229,14 @@ class Application:
         input_paths: list[Path] = [a_root / p for p in a_request.paths] if a_request.paths else [a_root]
         for input_path in input_paths:
             plan: ContextPlan = await self._builder.build(
-                a_path=input_path,
-                a_task=a_task,
-                a_budget=a_budget,
-                a_query=a_request.query,
-                a_root=a_root,
-                a_explicit_paths=frozenset({input_path}),
+                BuildRequest(
+                    path=input_path,
+                    task=a_task,
+                    budget=a_budget,
+                    query=a_request.query,
+                    root=a_root,
+                    explicit_paths=frozenset({input_path}),
+                )
             )
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
             stats_sep: CollectionStats = self._builder.collection_stats
@@ -234,7 +244,7 @@ class Application:
             content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             all_skipped.extend(skipped)
             materialized = self._builder.materialize(plan, content)
-            rendered: str = redact_secrets(self._renderer.render(materialized, plan))
+            rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
             if input_path == a_root:
                 sep_output = output_base.parent / "root_context.md"
             else:
@@ -283,13 +293,15 @@ class Application:
         for group_spec in a_request.group:
             group_paths: list[Path] = [a_root / p for p in group_spec]
             plan: ContextPlan = await self._builder.build(
-                a_path=a_root,
-                a_task=a_task,
-                a_budget=a_budget,
-                a_query=a_request.query,
-                a_root=a_root,
-                a_input_paths=group_paths,
-                a_explicit_paths=frozenset(group_paths),
+                BuildRequest(
+                    path=a_root,
+                    task=a_task,
+                    budget=a_budget,
+                    query=a_request.query,
+                    root=a_root,
+                    input_paths=group_paths,
+                    explicit_paths=frozenset(group_paths),
+                )
             )
             group_names: list[str] = [p.name for p in group_paths]
             group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
@@ -300,7 +312,7 @@ class Application:
             content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
             all_skipped.extend(skipped)
             materialized = self._builder.materialize(plan, content)
-            rendered: str = redact_secrets(self._renderer.render(materialized, plan))
+            rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
             self._output.write(str(group_output), rendered)
             logger.info("Output: %s", group_output)
             total_files += plan.total_files
