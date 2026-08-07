@@ -217,14 +217,11 @@ class MarkdownRenderer(RendererProtocol):
             a_lines: Manifest lines to append to.
             a_meta: Metadata dict from ContextPlan.
         """
-        if "skipped_gitignore_by_pattern" not in a_meta:
-            return
-        raw_patterns = a_meta["skipped_gitignore_by_pattern"]
-        if not isinstance(raw_patterns, dict):
-            return
-        a_lines.append("skipped_gitignore_by_pattern:")
-        if not raw_patterns:
-            a_lines.append("  {}")
-            return
-        for key in raw_patterns:
-            a_lines.append(f"  {key}: {raw_patterns[key]}")
+        raw_patterns = a_meta.get("skipped_gitignore_by_pattern")
+        if isinstance(raw_patterns, dict):
+            a_lines.append("skipped_gitignore_by_pattern:")
+            if not raw_patterns:
+                a_lines.append("  {}")
+            else:
+                for key in raw_patterns:
+                    a_lines.append(f"  {key}: {raw_patterns[key]}")

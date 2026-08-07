@@ -86,7 +86,7 @@ class BuildRequest:
     query: str | None = None
     root: Path | None = None
     input_paths: list[Path] | None = None
-    explicit_paths: frozenset[Path] = field(default_factory=frozenset)
+    explicit_paths: frozenset[Path] = field(default_factory=frozenset[Path])
 
 
 class ContextBuilder:

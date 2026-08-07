@@ -160,14 +160,16 @@ class PathFilter:
             True if any explicit path is a prefix of ``a_path`` (or
             equal to it).
         """
+        result: bool = False
         for root in self._explicit_paths:
             try:
                 a_path.relative_to(root)
             except ValueError:
                 continue
             else:
-                return True
-        return False
+                result = True
+                break
+        return result
 
     def _gitignore_rejects(self, a_path: Path) -> str | None:
         """Return the pattern string that rejects ``a_path``, or None.
@@ -189,16 +191,17 @@ class PathFilter:
             The pattern string that caused the rejection, or ``None``
             if no rule matched.
         """
+        result: str | None = None
         resolved: Path = a_path if a_path.is_absolute() else (Path.cwd() / a_path)
         for spec_root, spec in self._gitignore_specs:
             try:
                 relative: str = str(resolved.relative_to(spec_root))
             except ValueError:
                 continue
-            if not spec.match_file(relative):
-                continue
-            return self._effective_ignore_pattern(spec, relative)
-        return None
+            if spec.match_file(relative):
+                result = self._effective_ignore_pattern(spec, relative)
+                break
+        return result
 
     def should_include(self, a_path: Path) -> bool:
         """Check if path should be included.
@@ -214,15 +217,15 @@ class PathFilter:
             offending rule (``"<exclude>"`` for directory-name excludes,
             or the matching gitignore pattern string).
         """
+        result: bool = True
         self.last_matched_pattern = None
         resolved: Path = a_path if a_path.is_absolute() else (Path.cwd() / a_path)
         if any(part in self._exclude for part in resolved.parts):
             self.last_matched_pattern = "<exclude>"
-            return False
-        if self._is_under_explicit(resolved):
-            return True
-        matched: str | None = self._gitignore_rejects(a_path)
-        if matched is not None:
-            self.last_matched_pattern = matched
-            return False
-        return True
+            result = False
+        elif not self._is_under_explicit(resolved):
+            matched: str | None = self._gitignore_rejects(a_path)
+            if matched is not None:
+                self.last_matched_pattern = matched
+                result = False
+        return result

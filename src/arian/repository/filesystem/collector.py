@@ -109,14 +109,14 @@ class FileCollector:
         """Return collection statistics after collect() completes."""
         return self._stats
 
-    def _bump(self, **changes: object) -> CollectionStats:
+    def _bump(self, **a_changes: object) -> CollectionStats:
         """Return a new ``CollectionStats`` with the given fields changed.
 
         ``skipped_gitignore_by_pattern`` is the only mutable field on
         ``CollectionStats``; callers pass a new dict to replace it
         wholesale.
         """
-        return replace(self._stats, **changes)
+        return replace(self._stats, **a_changes)
 
     def _record_gitignore_skip(self) -> CollectionStats:
         """Increment ``skipped_gitignore`` and attribute to a pattern.
