@@ -104,14 +104,16 @@ class TestDataGitignoreScenario:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """RC-3 fix: ``a_use_gitignore=False`` turns the gate off entirely."""
+        """RC-3 fix: ``GitignoreOptions(enabled=False)`` turns the gate off entirely."""
+        from arian.infrastructure.gitignore_filter import GitignoreOptions
+
         _make_repo(tmp_path)
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
         collector = FileCollector(
             a_extensions=None,
             a_exclude=frozenset(),
-            a_use_gitignore=False,
+            a_gitignore_options=GitignoreOptions(enabled=False),
         )
         files = await collector.collect(tmp_path)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from arian.infrastructure.gitignore_filter import GitignoreOptions
 from arian.infrastructure.gitignore_filter import PathFilter
 
 
@@ -52,7 +53,7 @@ def test_path_filter_no_gitignore(tmp_path: Path, monkeypatch) -> None:
     """Test that filter works when no .gitignore exists."""
     monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
-    pf = PathFilter(a_exclude=frozenset([".git"]), a_gitignore=True)
+    pf = PathFilter(a_exclude=frozenset([".git"]), a_gitignore_options=GitignoreOptions(enabled=True))
     test_file: Path = tmp_path / "test.py"
     test_file.touch()
 
@@ -66,7 +67,7 @@ def test_path_filter_gitignore_disabled(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
-    pf = PathFilter(a_exclude=frozenset([".git"]), a_gitignore=False)
+    pf = PathFilter(a_exclude=frozenset([".git"]), a_gitignore_options=GitignoreOptions(enabled=False))
     log_file: Path = tmp_path / "test.log"
     log_file.touch()
 
@@ -89,10 +90,8 @@ def test_path_filter_explicit_path_bypasses_gitignore(tmp_path: Path, monkeypatc
     data_file: Path = data_dir / "ct_x.yaml"
     data_file.touch()
 
-    pf = PathFilter(
-        a_exclude=frozenset([".git"]),
-        a_explicit_paths=frozenset({data_dir}),
-    )
+    pf = PathFilter(a_exclude=frozenset([".git"]))
+    pf.set_explicit_paths(frozenset({data_dir}))
 
     assert pf.should_include(data_file) is True
     # last_matched_pattern should be None because the file passed the explicit
@@ -110,10 +109,8 @@ def test_path_filter_explicit_path_only_applies_to_subtree(tmp_path: Path, monke
     data_dir: Path = tmp_path / "data"
     data_dir.mkdir()
 
-    pf = PathFilter(
-        a_exclude=frozenset([".git"]),
-        a_explicit_paths=frozenset({src_dir}),
-    )
+    pf = PathFilter(a_exclude=frozenset([".git"]))
+    pf.set_explicit_paths(frozenset({src_dir}))
 
     # src is explicit, data is not
     assert pf.should_include(src_dir / "ok.py") is True
@@ -207,7 +204,10 @@ def test_path_filter_nested_gitignore_loads_ancestor_rules(tmp_path: Path, monke
     monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
     pf_default = PathFilter(a_exclude=frozenset([".git"]))
-    pf_nested = PathFilter(a_exclude=frozenset([".git"]), a_nested_gitignore=True)
+    pf_nested = PathFilter(
+        a_exclude=frozenset([".git"]),
+        a_gitignore_options=GitignoreOptions(nested=True),
+    )
 
     # default: only the cwd .gitignore is honored
     assert pf_default.should_include(tmp_path / "root_only.log") is False

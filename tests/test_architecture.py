@@ -28,6 +28,18 @@ FORBIDDEN: dict[str, set[str]] = {
     "controller": {"service", "repository"},
 }
 
+# ``arian.infrastructure.config`` is a cross-cutting, data-only module
+# (Pydantic models, no behaviour). Per the CSR rule "all constants live
+# in the configuration section", every layer is allowed to depend on it,
+# and it may depend on ``arian.domain`` enums. It is exempt from the
+# boundary and cycle checks below.
+CONFIG_MODULE = "arian.infrastructure.config"
+
+
+def _is_config_import(module: str) -> bool:
+    """Return True if *module* is the shared configuration module."""
+    return module == CONFIG_MODULE or module.startswith(f"{CONFIG_MODULE}.")
+
 
 def _get_layer(file_path: Path) -> str | None:
     for layer, layer_path in LAYER_MAP.items():
@@ -68,6 +80,8 @@ def test_layer_boundaries(layer: str, forbidden: set[str]) -> None:
         if py_file.name == "__pycache__":
             continue
         for import_module in _get_imports(py_file):
+            if _is_config_import(import_module):
+                continue
             imported_layer = _import_to_layer(import_module)
             if imported_layer in forbidden:
                 rel = py_file.relative_to(SRC)
@@ -84,6 +98,8 @@ def test_domain_layer_is_pure() -> None:
         if py_file.name == "__pycache__":
             continue
         for import_module in _get_imports(py_file):
+            if _is_config_import(import_module):
+                continue
             if import_module.startswith("arian.") and not import_module.startswith("arian.domain."):
                 rel = py_file.relative_to(SRC)
                 violations.append(f"  {rel}: imports {import_module}")
@@ -99,6 +115,8 @@ def test_no_circular_layer_imports() -> None:
             if py_file.name == "__pycache__":
                 continue
             for import_module in _get_imports(py_file):
+                if _is_config_import(import_module):
+                    continue
                 imported_layer = _import_to_layer(import_module)
                 if imported_layer and imported_layer != layer:
                     dep_graph[layer].add(imported_layer)

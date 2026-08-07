@@ -11,6 +11,7 @@ from arian.domain.shared.enums import TokenBudget
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
+from arian.service.builder.context_builder import BuildRequest
 from arian.service.builder.context_builder import ContextBuilder
 from arian.service.classifier.file_classifier import FileClassifier
 from arian.service.context.materializer import ContextMaterializer
@@ -52,10 +53,7 @@ class TestContextBuilderIntegration:
 
         budget = TokenBudget(max_tokens=5000)
         plan = await builder.build(
-            a_path=tmp_path,
-            a_task=ContextTask.BUG_FIX,
-            a_budget=budget,
-            a_query="authentication timeout",
+            BuildRequest(path=tmp_path, task=ContextTask.BUG_FIX, budget=budget, query="authentication timeout")
         )
 
         assert plan.total_files >= 3
@@ -83,11 +81,7 @@ class TestContextBuilderIntegration:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(
-            a_path=tmp_path,
-            a_task=ContextTask.GENERAL,
-            a_budget=budget,
-        )
+        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
 
         content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
         assert len(content_map) >= 1

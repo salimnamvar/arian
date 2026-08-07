@@ -12,6 +12,7 @@ from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
+from arian.service.builder.context_builder import BuildRequest
 from arian.service.builder.context_builder import ContextBuilder
 from arian.service.classifier.file_classifier import FileClassifier
 from arian.service.context.materializer import ContextMaterializer
@@ -62,7 +63,9 @@ class TestBugFixWorkflow:
         renderer = MarkdownRenderer()
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(tmp_path, ContextTask.BUG_FIX, budget, "authentication timeout")
+        plan = await builder.build(
+            BuildRequest(path=tmp_path, task=ContextTask.BUG_FIX, budget=budget, query="authentication timeout")
+        )
         content_map, _skipped = await builder.load_content(plan, tmp_path)
         materialized = materializer.materialize(plan, content_map)
         output = renderer.render(materialized, plan)
@@ -97,7 +100,7 @@ class TestBugFixWorkflow:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(tmp_path, ContextTask.ONBOARDING, budget)
+        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.ONBOARDING, budget=budget))
 
         first_file: str = plan.chunks[0].files[0].path if plan.chunks and plan.chunks[0].files else ""
         assert "README" in first_file

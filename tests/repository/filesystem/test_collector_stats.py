@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from arian.infrastructure.gitignore_filter import GitignoreOptions
 from arian.repository.filesystem.collector import CollectionStats
 from arian.repository.filesystem.collector import FileCollector
 
@@ -162,7 +163,7 @@ async def test_collector_use_gitignore_false_disables_filter(tmp_path: Path, mon
     collector = FileCollector(
         a_extensions=None,
         a_exclude=frozenset(),
-        a_use_gitignore=False,
+        a_gitignore_options=GitignoreOptions(enabled=False),
     )
     files = await collector.collect(tmp_path)
 
@@ -304,7 +305,7 @@ async def test_collector_nested_gitignore(tmp_path: Path, monkeypatch) -> None:
     collector_nested = FileCollector(
         a_extensions=None,
         a_exclude=frozenset(),
-        a_nested_gitignore=True,
+        a_gitignore_options=GitignoreOptions(nested=True),
     )
     await collector_nested.collect(tmp_path)
     # Both .gitignore files apply.
