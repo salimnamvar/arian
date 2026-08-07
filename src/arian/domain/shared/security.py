@@ -2,27 +2,21 @@
 
 Provides SafePath value object and validation helpers that enforce
 security constraints at the domain boundary.
+
+This module exposes pure functions that take their configuration
+explicitly via parameters. Path-length limits, secret-redaction
+patterns, and other tunables live in
+:class:`arian.infrastructure.config.SecurityConfig` — no
+module-level values are permitted here per the safe-coding policy.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-import re
 
 from arian.domain.exceptions import PathTraversalError
 from arian.domain.exceptions import SymlinkLoopError
-
-_MAX_PATH_LENGTH: int = 4096
-
-_SECRET_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"""(api[_-]?key|apikey)\s*[:=]\s*['"]([^'"]+)['"]""", re.IGNORECASE),
-    re.compile(r"""(token|secret|password|passwd|pwd)\s*[:=]\s*['"]([^'"]+)['"]""", re.IGNORECASE),
-    re.compile(r"""(bearer)\s+([A-Za-z0-9\-._~+/]+=*)""", re.IGNORECASE),
-    re.compile(r"""ghp_[A-Za-z0-9]{36,}"""),
-    re.compile(r"""sk-[A-Za-z0-9]{20,}"""),
-]
-
-_REDACTED: str = "****"
+from arian.infrastructure.config import SecurityConfig
 
 
 class SafePath:
@@ -54,18 +48,23 @@ class SafePath:
         return self.resolved.relative_to(self.root)
 
 
-def validate_input_path(a_path: Path, a_root: Path) -> SafePath:
+def validate_input_path(
+    a_path: Path,
+    a_root: Path,
+    a_config: SecurityConfig,
+) -> SafePath:
     """Validate and resolve a path within a root directory.
 
     Checks:
         - No ``..`` path components (path traversal).
         - No symlink loops (resolve and verify).
         - Path is within the given root.
-        - Path length does not exceed 4096 characters.
+        - Path length does not exceed ``a_config.max_path_length``.
 
     Args:
         a_path: Raw input path to validate.
         a_root: Root directory the path must be within.
+        a_config: Security configuration.
 
     Returns:
         SafePath with resolved, validated path.
@@ -76,8 +75,8 @@ def validate_input_path(a_path: Path, a_root: Path) -> SafePath:
         SecurityError: If path escapes the root.
     """
     raw: str = str(a_path)
-    if len(raw) > _MAX_PATH_LENGTH:
-        msg = f"Path exceeds maximum length ({_MAX_PATH_LENGTH}): {len(raw)}"
+    if len(raw) > a_config.max_path_length:
+        msg = f"Path exceeds maximum length ({a_config.max_path_length}): {len(raw)}"
         raise PathTraversalError(msg)
 
     parts: tuple[str, ...] = a_path.parts
@@ -114,23 +113,22 @@ def is_binary(a_content: bytes) -> bool:
     return b"\x00" in chunk
 
 
-def redact_secrets(a_text: str) -> str:
+def redact_secrets(a_text: str, a_config: SecurityConfig) -> str:
     """Mask API keys, tokens, and passwords in text output.
 
-    Handles common patterns:
-        - ``key = "value"`` assignments.
-        - Bearer tokens.
-        - Known key prefixes (ghp_, sk-).
+    Applies every regex in ``a_config.secret_patterns`` to the input
+    and replaces the matched substrings with ``a_config.redacted``.
 
     Args:
         a_text: Text that may contain secrets.
+        a_config: Security configuration.
 
     Returns:
         Text with secrets redacted.
     """
     result: str = a_text
-    for pattern in _SECRET_PATTERNS:
-        result = pattern.sub(_REDACTED, result)
+    for pattern in a_config.secret_patterns:
+        result = pattern.sub(a_config.redacted, result)
     return result
 
 

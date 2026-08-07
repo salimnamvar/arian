@@ -62,6 +62,28 @@ class ConcurrencyPolicy(Enum):
     BOUNDED = "bounded"
 
 
+class ContextTask(Enum):
+    """Task type driving context generation.
+
+    Attributes:
+        BUG_FIX: Fixing a bug or issue.
+        FEATURE: Implementing a new feature.
+        REVIEW: Code review.
+        ONBOARDING: New team member onboarding.
+        REFACTOR: Code refactoring.
+        DOCUMENT: Documentation generation.
+        GENERAL: General purpose context.
+    """
+
+    BUG_FIX = "bug_fix"
+    FEATURE = "feature"
+    REVIEW = "review"
+    ONBOARDING = "onboarding"
+    REFACTOR = "refactor"
+    DOCUMENT = "document"
+    GENERAL = "general"
+
+
 @dataclass(frozen=True)
 class TokenBudget:
     """Token budget constraints for context planning.

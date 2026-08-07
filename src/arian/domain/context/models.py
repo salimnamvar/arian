@@ -3,32 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 
 from arian.domain.shared.enums import CompressionLevel
+from arian.domain.shared.enums import ContextTask
 from arian.domain.shared.enums import FileRole
-
-
-class ContextTask(Enum):
-    """Task type driving context generation.
-
-    Attributes:
-        BUG_FIX: Fixing a bug or issue.
-        FEATURE: Implementing a new feature.
-        REVIEW: Code review.
-        ONBOARDING: New team member onboarding.
-        REFACTOR: Code refactoring.
-        DOCUMENT: Documentation generation.
-        GENERAL: General purpose context.
-    """
-
-    BUG_FIX = "bug_fix"
-    FEATURE = "feature"
-    REVIEW = "review"
-    ONBOARDING = "onboarding"
-    REFACTOR = "refactor"
-    DOCUMENT = "document"
-    GENERAL = "general"
 
 
 @dataclass(frozen=True)
