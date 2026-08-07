@@ -28,6 +28,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def _build_collector_config(
+    a_from_env: ArianConfig,
     a_no_gitignore: bool,
     a_nested_gitignore: bool,
 ) -> FileCollectorConfig:
@@ -38,14 +39,14 @@ def _build_collector_config(
     ``--nested-gitignore`` flags override them.
 
     Args:
+        a_from_env: Config loaded from environment variables.
         a_no_gitignore: Value of the ``--no-gitignore`` flag.
         a_nested_gitignore: Value of the ``--nested-gitignore`` flag.
 
     Returns:
         A new ``FileCollectorConfig`` reflecting the effective settings.
     """
-    from_env: ArianConfig = ArianConfig.load_from_env()
-    cfg: FileCollectorConfig = from_env.collector
+    cfg: FileCollectorConfig = a_from_env.collector
     if a_no_gitignore:
         cfg = cfg.model_copy(update={"use_gitignore": False})
     if a_nested_gitignore:
@@ -98,11 +99,14 @@ def context(  # a-prefix-ignore: Typer CLI public names
     ),
 ) -> None:
     """Generate task-aware context from a repository."""
-    logging_level: str = "DEBUG" if verbose else "INFO"
-    collector_cfg: FileCollectorConfig = _build_collector_config(no_gitignore, nested_gitignore)
-    config: ArianConfig = ArianConfig(
-        logging=LoggingConfig(level=logging_level),
-        collector=collector_cfg,
+    from_env: ArianConfig = ArianConfig.load_from_env()
+    logging_level: str = "DEBUG" if verbose else from_env.logging.level
+    collector_cfg: FileCollectorConfig = _build_collector_config(from_env, no_gitignore, nested_gitignore)
+    config: ArianConfig = from_env.model_copy(
+        update={
+            "logging": LoggingConfig(level=logging_level, log_dir=from_env.logging.log_dir),
+            "collector": collector_cfg,
+        }
     )
 
     with lifespan(config):
