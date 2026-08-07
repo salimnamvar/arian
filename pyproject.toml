@@ -126,10 +126,7 @@ ignore = [
   "ISC001",  # implicit string concat — conflicts with formatter
   "TD003",   # missing issue link — handled by custom check
   "EXE001",  # shebang — handled by clean.sh
-  "PLR0913", # too many arguments — sometimes necessary
-  "PLR0912", # too many branches — sometimes necessary
-  "PLR0915", # too many statements — sometimes necessary
-  "SLF001",  # private member access — needed in tests
+  "B008",    # function call in argument defaults — immutable config defaults
   "TC001",   # type-checking import — breaks pydantic with from __future__ import annotations
   "TC003",   # type-checking stdlib import — same reason
 ]
@@ -152,8 +149,6 @@ ignore = [
     "D107",    # missing __init__ docstring — tests
     "D415",    # docstring first line punctuation — tests
     "EM101",   # exception must not use string literal — test assertions
-    "FBT001",  # boolean positional — test helpers
-    "FBT002",  # boolean default — test helpers
     "I001",    # import block un-sorted — test imports
     "PLC0415", # import not at top level — test isolation
     "PLR2004", # magic values in comparisons — common in tests
@@ -169,23 +164,10 @@ ignore = [
     "T201",    # print statement — allowed in tests
     "TC002",   # type-checking import — runtime pytest usage
 ]
-"**/__init__.py" = ["F401", "TID252"]
 "src/arian/controller/cli/commands.py" = [
     "B008",    # function call in argument defaults — typer idiom
-    "FBT001",  # boolean positional — CLI flags
-    "FBT002",  # boolean default — CLI flags
-]
-"src/arian/infrastructure/gitignore_filter.py" = [
-    "FBT001",  # boolean positional — internal flag
-    "FBT002",  # boolean default — internal flag
-]
-"src/arian/repository/filesystem/collector.py" = [
-    "FBT001",  # boolean positional — internal flag
-    "FBT002",  # boolean default — internal flag
-]
-"src/arian/infrastructure/output/markdown/renderer.py" = [
-    "FBT001",  # boolean positional — renderer option flags
-    "FBT002",  # boolean default — renderer option flags
+    "FBT001",  # boolean positional — typer flags
+    "FBT002",  # boolean default — typer flags
 ]
 
 [tool.ruff.lint.isort]
