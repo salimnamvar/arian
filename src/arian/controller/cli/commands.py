@@ -18,6 +18,7 @@ from arian.bootstrap.lifespan import lifespan
 from arian.controller.cli.parsing import parse_budget
 from arian.controller.cli.parsing import parse_groups
 from arian.controller.cli.parsing import validate_request
+from arian.domain.exceptions import ProjectBaseError
 from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.config import FileCollectorConfig
 from arian.infrastructure.config import LoggingConfig
@@ -126,7 +127,11 @@ def context(  # a-prefix-ignore: Typer CLI public names
         application = create_application(config)
         # Note: asyncio.run() is used here because the CLI is a sync entry point.
         # For ASGI (future MCP server), use async_lifespan instead.
-        result = asyncio.run(application.build_context(request))
+        try:
+            result = asyncio.run(application.build_context(request))
+        except ProjectBaseError as exc:
+            logger.exception("Context generation failed: %s", exc.message)
+            raise typer.Exit(code=exc.exit_code) from exc
 
         logger.info(
             "Context generated: %d files, %d tokens in %.2fs",
