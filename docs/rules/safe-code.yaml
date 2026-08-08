@@ -1,121 +1,58 @@
-# Safe Coding
-# Generalized lessons: single-exit functions, b_continue flow, local error
-# handling and logging, explicit return contracts, solid function structure.
+# Safe coding overview
+# This file is a thin entry point. Detailed rules live in dedicated files.
 
 meta:
   id: safe-code
-  title: Safe coding — single exit, b_continue flow, explicit error contracts
-  version: "1.0"
-  related:
-    - validation-ownership
-    - typing-contracts
+  title: Safe coding principles
+  version: "2.0"
   summary: >
-    Functions follow a "solid" shape: setup state, validate inputs, step
-    through expected outcomes via a b_continue guard, catch only unexpected
-    errors, and return exactly once with an explicit success/failure contract.
-    Exceptions never drive control flow; expected failures are values.
+    Functions follow a disciplined shape: validate inputs, step through
+    expected outcomes via a b_continue guard, catch only unexpected errors,
+    and return exactly once with an explicit structured result. This file
+    points to the dedicated rule files for each concern.
 
-rules:
-  - id: safe-001
-    principle: Single exit point per function
-    statement: >
-      Every function returns from exactly one place. Control flow converges
-      on a single `return` (or a single raise site for the failure contract).
-    do:
-      - "msg = 'success'; ...; return msg"
-      - Consolidate branches into one return statement
-    dont:
-      - Multiple `return` statements scattered across branches
-      - `return` inside exception handlers that bypasses the normal contract
+related_files:
+  - file: exit-and-raise.yaml
+    concern: Single-exit point and zero-raise policy
+  - file: b-continue.yaml
+    concern: b_continue execution guard pattern
+  - file: input-validation.yaml
+    concern: Input validation at function entry
+  - file: error-handling.yaml
+    concern: Localized error handling and exception management
+  - file: logging-rules.yaml
+    concern: Logging discipline and structured logging
+  - file: function-design.yaml
+    concern: Function design principles (SRP, purity, length)
+  - file: state-management.yaml
+    concern: State management and determinism
+  - file: resource-ownership.yaml
+    concern: Resource ownership and lifecycle
+  - file: contracts.yaml
+    concern: Function contracts and invariants
+  - file: security-rules.yaml
+    concern: Security coding rules
+  - file: concurrency-rules.yaml
+    concern: Concurrency and shared state
 
-  - id: safe-002
-    principle: Exceptions are not flow control
-    statement: >
-      try/catch only wraps work that can fail unexpectedly. Expected branches
-      (validation failures, missing records) are handled as values, never by
-      raising and catching to steer the function.
-    do:
-      - Use exceptions for unexpected conditions only (I/O faults, invariants)
-      - Expected outcomes set msg and b_continue
-    dont:
-      - `raise` then immediately `except` to choose the next branch
-      - try/catch around ordinary comparisons to "fall through"
-
-  - id: safe-003
-    principle: Early returns are replaced by b_continue
-    statement: >
-      When a step fails and remaining steps must be skipped, set a guard
-      variable (e.g. b_continue = False) instead of returning early. Each
-      following step is guarded by `if b_continue:`.
-    do:
-      - "b_continue = True"
-      - "if b_continue: next step ...; else: msg = failure"
-    dont:
-      - Early `return` in the middle of a function body
-      - Deeply nested try/except to emulate skip-ahead
-
-  - id: safe-004
-    principle: Input verification in every mode
-    statement: >
-      Arguments are validated for value/type before use in development and
-      deployment alike. Verification is a function responsibility, not an
-      optional debug aid.
-    do:
-      - Check required args, types, and ranges at the top of the body
-      - Map a bad argument to a failure msg, not a crash
-    dont:
-      - Trust caller-provided values without a guard
-      - Gate validation behind debug/deployment flags
-
-  - id: safe-005
-    principle: Log locally, return the error
-    statement: >
-      Each function logs the failure it observes and returns (or raises) the
-      error to its caller. The contract means the upper layer receives a
-      usable signal without re-investigating the cause.
-    do:
-      - "log.error(msg); return failure msg"
-      - Capture unexpected errors in catch and re-state them in the return
-    dont:
-      - Swallow an exception without logging and without an error return
-      - Throw exceptions outward without a local log line
-
-  - id: safe-006
-    principle: Every function has one return contract
-    statement: >
-      The single return states success or failure. A successful path returns
-      the value plus success; a failure path returns a sentinel plus the
-      failure message. Callers check the contract, not the exception.
-    do:
-      - Return (result, msg) tuples where result is a sentinel on failure
-      - On failure: c = -inf / None; msg = "failure"; log
-    dont:
-      - Return None silently on the happy path
-      - Mix return-and-raise contracts unpredictably across similar functions
-
-  - id: safe-007
-    principle: Solid function shape
-    statement: >
-      One body template: (1) setup internal variables/structures, (2) input
-      validation, (3) expected outcomes as guarded steps, (4) unexpected
-      outcomes via try/catch, (5) single return.
-    do:
-      - "msg = 'success' first, then guard blocks, then one return"
-    dont:
-      - Interleave try/except blocks between every step
-      - Define the failure contract only at the bottom after a crash
+canonical_shape: >
+  Every function follows this shape:
+  1. Initialize result variable and b_continue = True
+  2. Validate all inputs (input-validation.yaml)
+  3. Execute business logic guarded by b_continue (b-continue.yaml)
+  4. Catch unexpected exceptions locally (error-handling.yaml)
+  5. Log failures at detection layer (logging-rules.yaml)
+  6. Return exactly once with Result[T] (exit-and-raise.yaml)
 
 anti_patterns:
   - name: exception-driven control flow
     description: >
       Raising and catching to choose between normal branches hides the real
-      paths, makes the single-exit shape impossible, and bloats logs.
+      paths, makes single-exit impossible, and bloats logs.
     prefer: b_continue guards over try/catch for expected decisions
-    related: validation-ownership
 
   - name: swallow-and-continue
     description: >
       Catching an error, logging it, and continuing without returning a
-      failure signal breaks the caller contract and corrupts upper-layer
-      decisions.
-    prefer: log locally then return the failure msg to the caller
+      failure signal breaks the caller contract.
+    prefer: log locally then return the failure result
