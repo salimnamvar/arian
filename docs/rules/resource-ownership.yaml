@@ -1,0 +1,63 @@
+# Resource ownership rules
+# Generalized lessons: context managers, explicit ownership transfer, deterministic cleanup.
+
+meta:
+  id: resource-ownership
+  title: Resource ownership and lifecycle management
+  version: "1.0"
+  related:
+    - error-handling
+    - function-design
+  summary: >
+    All resources are managed via context managers or try/finally blocks.
+    Ownership transfers are explicit. Every resource is released
+    deterministically, even in failure paths. Resources are never left
+    for garbage collection.
+
+rules:
+  - id: ro-001
+    principle: Context managers for all resources
+    statement: >
+      All resources (file handles, database connections, network sockets,
+      subprocess handles, temporary files, locks) are managed via context
+      managers (with statements) or try/finally blocks.
+    rationale: >
+      Context managers guarantee deterministic cleanup. They are the
+      language's mechanism for RAII. Using them eliminates an entire class
+      of resource leak bugs.
+
+  - id: ro-002
+    principle: Explicit ownership transfer
+    statement: >
+      When a function acquires a resource and passes it to another function,
+      the ownership transfer is explicit. The receiving function is
+      documented as the new owner. The original function SHALL NOT use the
+      resource after transfer.
+    rationale: >
+      Implicit ownership creates double-free and use-after-free scenarios.
+      Explicit ownership makes resource lifecycle predictable.
+
+  - id: ro-003
+    principle: Deterministic resource cleanup
+    statement: >
+      Every resource is released deterministically, even in failure paths.
+      The finally block or context manager guarantees cleanup. Resources
+      are never left for garbage collection.
+    rationale: >
+      Garbage collection is non-deterministic. In CPython, reference
+      counting provides near-deterministic cleanup, but this is an
+      implementation detail, not a language guarantee. Relying on GC for
+      resource cleanup is a defect.
+
+anti_patterns:
+  - name: leaked-file-handles
+    description: >
+      Opening files without a context manager and relying on garbage
+      collection to close them creates resource leaks under load.
+    prefer: use `with open(...) as f:` for all file operations
+
+  - name: implicit-ownership
+    description: >
+      Passing a resource to a callee without documenting the transfer
+      creates ambiguity about who is responsible for cleanup.
+    prefer: document ownership transfer in the function contract
