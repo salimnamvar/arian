@@ -56,12 +56,12 @@ class Result[T]:
             result = a_fn(self.value)  # type: ignore[arg-type]
         return result
 
-    def unwrap(self) -> T:
+    def unwrap(self) -> T | None:
         """Return the success value, or None on failure."""
         result: T | None = None
         if self.is_success:
             result = self.value
-        return result  # type: ignore[return-value]
+        return result
 
     def success_value(self) -> T:
         """Return the success value, asserting the result is successful.

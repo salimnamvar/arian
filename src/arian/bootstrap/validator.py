@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from arian.domain.exceptions import ConfigurationError
+from arian.domain.shared.result import Result
 from arian.infrastructure.config import ArianConfig
 
 logger = logging.getLogger(__name__)
@@ -14,25 +14,28 @@ logger = logging.getLogger(__name__)
 class StartupValidator:
     """Validates application configuration and resources at startup."""
 
-    def validate(self, a_config: ArianConfig, a_root: Path | None = None) -> None:
+    def validate(self, a_config: ArianConfig, a_root: Path | None = None) -> Result[None]:
         """Validate config and required resources.
 
         Args:
             a_config: Application configuration.
             a_root: Repository root path. Uses cwd if None.
 
-        Raises:
-            ConfigurationError: If config is invalid.
+        Returns:
+            Result[None] with is_success and message.
         """
         root: Path = a_root or Path.cwd()
-        msg: str = ""
+        result: Result[None] = Result.success(None)
+
         if not root.exists():
             msg = f"Root path does not exist: {root}"
+            logger.debug("Rejected configuration: %s", msg)
+            result = Result.failure(msg)
         elif a_config.logging.level not in a_config.logging.valid_levels:
             msg = f"Invalid log level: {a_config.logging.level}"
-
-        if msg:
             logger.debug("Rejected configuration: %s", msg)
-            raise ConfigurationError(msg)
+            result = Result.failure(msg)
+        else:
+            logger.debug("Startup validation passed for root=%s", root)
 
-        logger.debug("Startup validation passed for root=%s", root)
+        return result

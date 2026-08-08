@@ -33,7 +33,9 @@ def lifespan(a_config: ArianConfig) -> Generator[None]:
     """
     listener: logging.handlers.QueueListener | None = configure_logging(a_config.logging)
     logger.debug("Logging configured at level %s", a_config.logging.level.upper())
-    StartupValidator().validate(a_config)
+    validation = StartupValidator().validate(a_config)
+    if not validation.is_success:
+        raise RuntimeError(validation.message)
     logger.info("Arian starting")
     try:
         yield
@@ -55,7 +57,9 @@ async def async_lifespan(a_config: ArianConfig) -> AsyncGenerator[None]:
     """
     listener: logging.handlers.QueueListener | None = configure_logging(a_config.logging)
     logger.debug("Logging configured at level %s", a_config.logging.level.upper())
-    StartupValidator().validate(a_config)
+    validation = StartupValidator().validate(a_config)
+    if not validation.is_success:
+        raise RuntimeError(validation.message)
     logger.info("Arian starting")
     try:
         yield
