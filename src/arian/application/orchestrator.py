@@ -131,12 +131,15 @@ class Application:
                 warnings=tuple(warnings),
             )
         except ProjectBaseError:
+            logger.exception("Context build aborted")
             raise
         except ValueError as e:
             sanitized = sanitize_error_message(str(e), str(root))
+            logger.exception("Invalid context request for %s: %s", root, sanitized)
             raise InputError(sanitized) from e
         except OSError as e:
             sanitized = sanitize_error_message(str(e), str(root))
+            logger.exception("OS error while building context for %s: %s", root, sanitized)
             raise ProcessingError(sanitized) from e
 
     async def _build_merged(

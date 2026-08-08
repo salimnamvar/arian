@@ -25,6 +25,7 @@ from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.security import redact_secrets
+from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.config import DomainLimitsConfig
 from arian.infrastructure.config import RetryConfig
 from arian.infrastructure.config import SecurityConfig
@@ -153,7 +154,9 @@ class ContextBuilder:
         try:
             await self._collect_files(sources, root, files, seen, a_explicit_paths)
         except Exception as e:
-            msg = f"File collection failed for {a_path}: {e}"
+            sanitized: str = sanitize_error_message(str(e), str(root))
+            logger.exception("File collection failed for %s: %s", a_path, sanitized)
+            msg: str = f"File collection failed for {a_path}: {sanitized}"
             raise ContextBuilderError(msg, a_cause=e) from e
 
         logger.debug("Collected %d files", len(files))
@@ -161,6 +164,7 @@ class ContextBuilder:
 
         if len(files) > self._options.max_collected_files:
             msg = f"Too many files collected ({len(files)}), limit is {self._options.max_collected_files}"
+            logger.error("%s", msg)
             raise InputError(msg)
 
         self._notify_start("plan", 1)
@@ -171,7 +175,9 @@ class ContextBuilder:
             plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
             plan.validate()
         except Exception as e:
-            msg = f"Context planning failed: {e}"
+            sanitized = sanitize_error_message(str(e), str(root))
+            logger.exception("Context planning failed: %s", sanitized)
+            msg = f"Context planning failed: {sanitized}"
             raise ContextBuilderError(msg, a_cause=e) from e
 
         all_paths: tuple[str, ...] = tuple(f.path for f in files)
