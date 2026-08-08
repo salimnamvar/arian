@@ -150,6 +150,25 @@ class PathFilter:
                 effective = pattern.pattern if pattern.include else None
         return effective
 
+    @staticmethod
+    def _is_within(a_path: Path, a_root: Path) -> bool:
+        """Return True if ``a_path`` equals ``a_root`` or lives beneath it.
+
+        Lexical containment check that never raises: a path is within a
+        root when the root is the path itself or one of its parents.
+        This avoids the exception-as-control-flow pattern of
+        ``try: relative_to``.
+
+        Args:
+            a_path: Absolute path to test.
+            a_root: Root directory to test against.
+
+        Returns:
+            True if ``a_path`` is ``a_root`` or a descendant of it.
+        """
+        result: bool = a_root == a_path or a_root in a_path.parents
+        return result
+
     def _is_under_explicit(self, a_path: Path) -> bool:
         """Return True if ``a_path`` is, or lives beneath, an explicit path.
 
@@ -160,15 +179,7 @@ class PathFilter:
             True if any explicit path is a prefix of ``a_path`` (or
             equal to it).
         """
-        result: bool = False
-        for root in self._explicit_paths:
-            try:
-                a_path.relative_to(root)
-            except ValueError:
-                continue
-            else:
-                result = True
-                break
+        result: bool = any(self._is_within(a_path, root) for root in self._explicit_paths)
         return result
 
     def _gitignore_rejects(self, a_path: Path) -> str | None:
@@ -194,10 +205,9 @@ class PathFilter:
         result: str | None = None
         resolved: Path = a_path if a_path.is_absolute() else (Path.cwd() / a_path)
         for spec_root, spec in self._gitignore_specs:
-            try:
-                relative: str = str(resolved.relative_to(spec_root))
-            except ValueError:
+            if not self._is_within(resolved, spec_root):
                 continue
+            relative: str = str(resolved.relative_to(spec_root))
             if spec.match_file(relative):
                 result = self._effective_ignore_pattern(spec, relative)
                 break
