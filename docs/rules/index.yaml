@@ -4,7 +4,7 @@
 meta:
   id: rules-index
   title: Engineering rules catalog
-  version: "1.0"
+  version: "2.0"
   location: docs/rules/
   purpose: >
     Capture architecture and coding lessons in a machine-readable,
@@ -54,8 +54,63 @@ subjects:
 
   - id: safe-code
     file: safe-code.yaml
-    title: Safe coding — single exit, b_continue, error contracts
+    title: Safe coding principles (overview)
     tags: [errors, flow-control, logging, robustness]
+
+  - id: exit-and-raise
+    file: exit-and-raise.yaml
+    title: Single-exit point and zero-raise policy
+    tags: [errors, flow-control, return]
+
+  - id: b-continue
+    file: b-continue.yaml
+    title: b_continue execution guard
+    tags: [flow-control, guard, state]
+
+  - id: input-validation
+    file: input-validation.yaml
+    title: Input validation at function entry
+    tags: [validation, types, nullability]
+
+  - id: error-handling
+    file: error-handling.yaml
+    title: Localized error handling and exceptions
+    tags: [errors, exceptions, try-catch]
+
+  - id: logging-rules
+    file: logging-rules.yaml
+    title: Logging discipline and structured logging
+    tags: [logging, correlation, sensitive-data]
+
+  - id: function-design
+    file: function-design.yaml
+    title: Function design principles
+    tags: [srp, purity, length, imports]
+
+  - id: state-management
+    file: state-management.yaml
+    title: State management and determinism
+    tags: [determinism, mutable-state, globals]
+
+  - id: resource-ownership
+    file: resource-ownership.yaml
+    title: Resource ownership and lifecycle
+    tags: [resources, context-managers, cleanup]
+
+  - id: contracts
+    file: contracts.yaml
+    title: Function contracts and invariants
+    tags: [preconditions, postconditions, assertions]
+
+  - id: security-rules
+    file: security-rules.yaml
+    title: Security coding rules
+    tags: [secrets, sql-injection, sanitization]
+
+  - id: concurrency-rules
+    file: concurrency-rules.yaml
+    title: Concurrency and shared state
+    tags: [threads, synchronization, data-races]
 
 schema:
   common_fields:
