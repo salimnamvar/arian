@@ -8,6 +8,8 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
+from arian.domain.exceptions import ConnectionError
+from arian.domain.exceptions import IndexError
 from arian.domain.repository.models import Dependency
 from arian.domain.repository.models import Module
 from arian.domain.repository.models import Repository
@@ -26,6 +28,11 @@ class SQLiteRepositoryIndex:
 
     Stores repository metadata in a SQLite database for persistence
     across runs.
+
+    Safe-coding contract: every SQLite failure is logged locally and
+    translated into a typed domain exception — ``ConnectionError`` for
+    connection failures, ``IndexError`` for read/write failures. Raw
+    ``sqlite3.Error`` never escapes this adapter.
 
     Attributes:
         _db_path: Path to the SQLite database file.
@@ -49,12 +56,64 @@ class SQLiteRepositoryIndex:
 
         Returns:
             Active SQLite connection.
+
+        Raises:
+            ConnectionError: If the database cannot be opened or the
+                schema cannot be applied.
         """
         if self._connection is None:
-            self._db_path.parent.mkdir(parents=True, exist_ok=True)
-            self._connection = sqlite3.connect(str(self._db_path))
-            self._connection.executescript(self._config.schema_sql)
+            try:
+                self._db_path.parent.mkdir(parents=True, exist_ok=True)
+                self._connection = sqlite3.connect(str(self._db_path))
+                self._connection.executescript(self._config.schema_sql)
+            except sqlite3.Error as e:
+                msg = f"Cannot open SQLite database at {self._db_path}"
+                logger.exception(msg)
+                raise ConnectionError(msg, a_cause=e) from e
         return self._connection
+
+    def _execute_write(self, a_sql: str, a_params: tuple[object, ...]) -> None:
+        """Run a write statement and commit, translating failures.
+
+        Args:
+            a_sql: SQL statement to execute.
+            a_params: Bound parameters for the statement.
+
+        Raises:
+            IndexError: If the write or commit fails.
+        """
+        try:
+            conn: sqlite3.Connection = self._get_connection()
+            conn.execute(a_sql, a_params)
+            conn.commit()
+        except sqlite3.Error as e:
+            msg = f"SQLite write failed: {a_sql}"
+            logger.exception(msg)
+            raise IndexError(msg, a_cause=e) from e
+
+    def _fetch_rows(self, a_sql: str, a_params: tuple[object, ...]) -> list[tuple[Any, ...]]:
+        """Run a query and return all rows, translating failures.
+
+        Args:
+            a_sql: SQL statement to execute.
+            a_params: Bound parameters for the statement.
+
+        Returns:
+            Rows returned by the query.
+
+        Raises:
+            IndexError: If the query fails.
+        """
+        result: list[tuple[Any, ...]]
+        try:
+            conn: sqlite3.Connection = self._get_connection()
+            cursor: sqlite3.Cursor = conn.execute(a_sql, a_params)
+            result = cursor.fetchall()
+        except sqlite3.Error as e:
+            msg = f"SQLite read failed: {a_sql}"
+            logger.exception(msg)
+            raise IndexError(msg, a_cause=e) from e
+        return result
 
     @staticmethod
     def _row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:
@@ -126,12 +185,10 @@ class SQLiteRepositoryIndex:
         Args:
             a_file: File metadata to store.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        conn.execute(
+        self._execute_write(
             "INSERT OR REPLACE INTO files (path, language, role, tokens, hash, size_bytes) VALUES (?, ?, ?, ?, ?, ?)",
             (a_file.path, a_file.language, a_file.role.value, a_file.tokens, a_file.hash, a_file.size_bytes),
         )
-        conn.commit()
 
     async def get_file(self, a_path: str) -> RepositoryFile | None:
         """Retrieve a file by path.
@@ -142,15 +199,11 @@ class SQLiteRepositoryIndex:
         Returns:
             RepositoryFile if found, None otherwise.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        cursor: sqlite3.Cursor = conn.execute(
+        rows: list[tuple[Any, ...]] = self._fetch_rows(
             "SELECT path, language, role, tokens, hash, size_bytes FROM files WHERE path = ?",
             (a_path,),
         )
-        row: tuple[Any, ...] | None = cursor.fetchone()
-        result: RepositoryFile | None = None
-        if row is not None:
-            result = self._row_to_file(row)
+        result: RepositoryFile | None = self._row_to_file(rows[0]) if rows else None
         return result
 
     async def list_files(self) -> list[RepositoryFile]:
@@ -159,11 +212,11 @@ class SQLiteRepositoryIndex:
         Returns:
             List of all stored file metadata.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        cursor: sqlite3.Cursor = conn.execute(
+        rows: list[tuple[Any, ...]] = self._fetch_rows(
             "SELECT path, language, role, tokens, hash, size_bytes FROM files",
+            (),
         )
-        result: list[RepositoryFile] = [self._row_to_file(row) for row in cursor.fetchall()]
+        result: list[RepositoryFile] = [self._row_to_file(row) for row in rows]
         return result
 
     async def save_symbol(self, a_symbol: Symbol) -> None:
@@ -172,8 +225,7 @@ class SQLiteRepositoryIndex:
         Args:
             a_symbol: Symbol to store.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        conn.execute(
+        self._execute_write(
             "INSERT INTO symbols (name, kind, file_path, signature, docstring, line_start, line_end) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
@@ -186,7 +238,6 @@ class SQLiteRepositoryIndex:
                 a_symbol.line_end,
             ),
         )
-        conn.commit()
 
     async def find_symbols(self, a_name: str) -> list[Symbol]:
         """Find symbols by name.
@@ -197,12 +248,11 @@ class SQLiteRepositoryIndex:
         Returns:
             List of matching symbols.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        cursor: sqlite3.Cursor = conn.execute(
+        rows: list[tuple[Any, ...]] = self._fetch_rows(
             "SELECT name, kind, file_path, signature, docstring, line_start, line_end FROM symbols WHERE name = ?",
             (a_name,),
         )
-        result: list[Symbol] = [self._row_to_symbol(row) for row in cursor.fetchall()]
+        result: list[Symbol] = [self._row_to_symbol(row) for row in rows]
         return result
 
     async def save_dependency(self, a_dep: Dependency) -> None:
@@ -211,12 +261,10 @@ class SQLiteRepositoryIndex:
         Args:
             a_dep: Dependency to store.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        conn.execute(
+        self._execute_write(
             "INSERT INTO dependencies (source_path, target_path, kind) VALUES (?, ?, ?)",
             (a_dep.source_path, a_dep.target_path, a_dep.kind.value),
         )
-        conn.commit()
 
     async def get_dependencies(self, a_path: str) -> list[Dependency]:
         """Get dependencies for a file.
@@ -227,12 +275,11 @@ class SQLiteRepositoryIndex:
         Returns:
             List of dependencies involving this file.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        cursor: sqlite3.Cursor = conn.execute(
+        rows: list[tuple[Any, ...]] = self._fetch_rows(
             "SELECT source_path, target_path, kind FROM dependencies WHERE source_path = ? OR target_path = ?",
             (a_path, a_path),
         )
-        result: list[Dependency] = [self._row_to_dependency(row) for row in cursor.fetchall()]
+        result: list[Dependency] = [self._row_to_dependency(row) for row in rows]
         return result
 
     async def save_module(self, a_module: Module) -> None:
@@ -241,9 +288,7 @@ class SQLiteRepositoryIndex:
         Args:
             a_module: Module to store.
         """
-        conn: sqlite3.Connection = self._get_connection()
-        conn.execute(
+        self._execute_write(
             "INSERT OR REPLACE INTO modules (name, path, files) VALUES (?, ?, ?)",
             (a_module.name, a_module.path, json.dumps(list(a_module.files))),
         )
-        conn.commit()
