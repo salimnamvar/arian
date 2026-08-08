@@ -181,13 +181,20 @@ class ContextBuilder:
 
             try:
                 plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
-                plan.validate()
             except Exception as e:
                 sanitized = sanitize_error_message(str(e), str(root))
                 logger.exception("Context planning failed: %s", sanitized)
                 msg = f"Context planning failed: {sanitized}"
                 result = BuildPlanResult.failure(msg)
                 b_continue = False
+
+            if b_continue:
+                validation_result = plan.validate()
+                if not validation_result.is_success:
+                    msg = f"Plan validation failed: {validation_result.message}"
+                    logger.error("%s", msg)
+                    result = BuildPlanResult.failure(msg)
+                    b_continue = False
 
         if b_continue:
             all_paths: tuple[str, ...] = tuple(f.path for f in files)

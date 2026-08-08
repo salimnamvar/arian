@@ -12,6 +12,27 @@ from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import TokenBudget
 
 
+class ValidatePlanResult:
+    """Result of ContextPlan validation.
+
+    Attributes:
+        is_success: Whether validation passed.
+        message: Error message if validation failed.
+    """
+
+    def __init__(self, *, a_is_success: bool, a_message: str = "") -> None:
+        self.is_success: bool = a_is_success
+        self.message: str = a_message
+
+    @staticmethod
+    def success() -> ValidatePlanResult:
+        return ValidatePlanResult(a_is_success=True)
+
+    @staticmethod
+    def failure(a_message: str) -> ValidatePlanResult:
+        return ValidatePlanResult(a_is_success=False, a_message=a_message)
+
+
 @dataclass(frozen=True)
 class BuildRequest:
     """Per-call input to the context build pipeline.
@@ -62,37 +83,46 @@ class ContextPlan:
     metadata: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] | None = None
     repository_files: tuple[str, ...] = ()
 
-    def validate(self) -> None:
+    def validate(self) -> ValidatePlanResult:
         """Validate ContextPlan invariants.
 
-        Raises:
-            ValueError: If plan violates invariants.
+        Returns:
+            ValidatePlanResult with is_success and message.
         """
         seen_paths: set[str] = set()
         computed_tokens: int = 0
         msg: str = ""
+        result: ValidatePlanResult = ValidatePlanResult.success()
+        b_continue: bool = True
+
         for chunk in self.chunks:
             chunk_tokens: int = 0
             for planned_file in chunk.files:
                 if planned_file.compression == CompressionLevel.AUTO:
                     msg = f"AUTO compression not resolved: {planned_file.path}"
+                    b_continue = False
                     break
                 chunk_tokens += planned_file.tokens
                 if planned_file.path in seen_paths:
                     msg = f"Duplicate file in plan: {planned_file.path}"
+                    b_continue = False
                     break
                 seen_paths.add(planned_file.path)
-            if msg:
+            if not b_continue:
                 break
             if chunk_tokens != chunk.token_count:
                 msg = f"Chunk token count mismatch: {chunk_tokens} != {chunk.token_count}"
+                b_continue = False
                 break
             computed_tokens += chunk_tokens
-        if not msg and computed_tokens != self.total_tokens:
+
+        if b_continue and not msg and computed_tokens != self.total_tokens:
             msg = f"Total token count mismatch: {computed_tokens} != {self.total_tokens}"
 
         if msg:
-            raise ValueError(msg)
+            result = ValidatePlanResult.failure(msg)
+
+        return result
 
 
 @dataclass(frozen=True)
