@@ -205,10 +205,6 @@ class MaterializedEntry:
     provenance: Provenance | None = None
 
 
-# Backward compatibility alias
-MaterializedFile = MaterializedEntry
-
-
 @dataclass(frozen=True)
 class MaterializedChunk:
     """A chunk with materialized content ready for rendering.
@@ -278,55 +274,3 @@ class Provenance:
     source_lines: tuple[int, int]
     compression_applied: CompressionLevel
     importance_reason: str | None = None
-
-
-@dataclass(frozen=True)
-class ChunkEntry:
-    """A single entry within a chunk — either a full file or a fragment.
-
-    Attributes:
-        file_path: Relative file path.
-        role: File role.
-        importance: Importance score.
-        compression: Compression level applied.
-        representation: Human-readable representation name.
-        content: Materialized content string.
-        estimated_tokens: Estimated token count.
-        is_fragment: True if this is a file fragment (not a full file).
-        fragment_index: Fragment position within the file (None for full files).
-        fragment_total: Total fragments for this file (None for full files).
-        continues_in_chunk: Chunk index where the next fragment appears (None if last).
-        language: Detected language identifier.
-        provenance: Optional provenance metadata.
-    """
-
-    file_path: str
-    role: FileRole
-    importance: int
-    compression: CompressionLevel
-    representation: str
-    content: str
-    estimated_tokens: int
-    is_fragment: bool = False
-    fragment_index: int | None = None
-    fragment_total: int | None = None
-    continues_in_chunk: int | None = None
-    language: str | None = None
-    provenance: Provenance | None = None
-
-
-@dataclass(frozen=True)
-class Chunk:
-    """A single chunk of context entries.
-
-    Attributes:
-        entries: Tuple of chunk entries in this chunk.
-        token_count: Token count for this chunk.
-        chunk_index: Zero-based chunk index.
-        header: Optional section header.
-    """
-
-    entries: tuple[ChunkEntry, ...]
-    token_count: int
-    chunk_index: int
-    header: str = ""

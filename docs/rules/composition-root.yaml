@@ -21,20 +21,20 @@ rules:
       application and concrete service/repository/infrastructure types
       to assemble the graph.
     do:
-      - `create_application(a_config) -> Application`
+      - `create_application(config) -> Application`
     dont:
-      - Controllers constructing collectors, planners, or writers directly
+      - Controllers constructing services or repositories directly
 
   - id: wire-002
     principle: All edge ports required
     statement: >
-      Application constructor requires renderer, output writer, path
-      resolver, builder, and security config. Defaults that import
-      infrastructure defeat the root.
+      Application constructor requires all edge capabilities: renderer,
+      output writer, path resolver, builder, and security config. Defaults
+      that import infrastructure defeat the root.
     do:
-      - Bootstrap passes `resolve_output_path` explicitly
+      - Bootstrap passes all resolvers explicitly
     dont:
-      - `a_resolve_output or resolve_output_path` with infrastructure import in application
+      - Default arguments that import infrastructure inside the constructor body
 
   - id: wire-003
     principle: Config drives construction
@@ -51,7 +51,7 @@ rules:
       Manual injection must use the same protocol-typed constructor
       parameters as production.
     do:
-      - Pass `a_resolve_output=wired._resolve_output` when replacing only the writer
+      - Pass only the port being replaced when injecting a stub
     dont:
       - Partial constructors that omit required ports
 

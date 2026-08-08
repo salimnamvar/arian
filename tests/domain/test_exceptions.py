@@ -10,7 +10,7 @@ from arian.domain.exceptions import CancellationError
 from arian.domain.exceptions import ClassificationError
 from arian.domain.exceptions import CollectionError
 from arian.domain.exceptions import ConfigurationError
-from arian.domain.exceptions import ConnectionError
+from arian.domain.exceptions import DatabaseConnectionError
 from arian.domain.exceptions import ContextBuilderError
 from arian.domain.exceptions import ExternalServiceError
 from arian.domain.exceptions import GitError
@@ -252,31 +252,31 @@ class TestCollectionError:
         assert isinstance(exc, RepositoryError)
 
 
-class TestIndexError:
+class TestRepositoryIndexError:
     def test_attributes(self) -> None:
-        from arian.domain.exceptions import IndexError
+        from arian.domain.exceptions import RepositoryIndexError
 
-        exc = IndexError("index failed")
+        exc = RepositoryIndexError("index failed")
         assert exc.reason == "INDEX_ERROR"
         assert exc.exit_code == 2
         assert exc.recoverable is True
 
     def test_inheritance(self) -> None:
-        from arian.domain.exceptions import IndexError
+        from arian.domain.exceptions import RepositoryIndexError
 
-        exc = IndexError("index failed")
+        exc = RepositoryIndexError("index failed")
         assert isinstance(exc, RepositoryError)
 
 
-class TestConnectionError:
+class TestDatabaseConnectionError:
     def test_attributes(self) -> None:
-        exc = ConnectionError("conn failed")
+        exc = DatabaseConnectionError("conn failed")
         assert exc.reason == "CONNECTION_ERROR"
         assert exc.exit_code == 3
         assert exc.recoverable is True
 
     def test_inheritance(self) -> None:
-        exc = ConnectionError("conn failed")
+        exc = DatabaseConnectionError("conn failed")
         assert isinstance(exc, RepositoryError)
 
 
@@ -340,51 +340,51 @@ class TestResourceError:
         assert isinstance(exc, ProjectBaseError)
 
 
-class TestFileNotFoundError:
+class TestResourceNotFoundError:
     def test_attributes(self) -> None:
-        from arian.domain.exceptions import FileNotFoundError
+        from arian.domain.exceptions import ResourceNotFoundError
 
-        exc = FileNotFoundError("file missing")
+        exc = ResourceNotFoundError("file missing")
         assert exc.reason == "FILE_NOT_FOUND"
         assert exc.exit_code == 3
         assert exc.recoverable is False
 
     def test_inheritance(self) -> None:
-        from arian.domain.exceptions import FileNotFoundError
+        from arian.domain.exceptions import ResourceNotFoundError
 
-        exc = FileNotFoundError("file missing")
+        exc = ResourceNotFoundError("file missing")
         assert isinstance(exc, ResourceError)
 
 
-class TestMemoryError:
+class TestOutOfMemoryError:
     def test_attributes(self) -> None:
-        from arian.domain.exceptions import MemoryError
+        from arian.domain.exceptions import OutOfMemoryError
 
-        exc = MemoryError("out of memory")
+        exc = OutOfMemoryError("out of memory")
         assert exc.reason == "MEMORY_ERROR"
         assert exc.exit_code == 3
         assert exc.recoverable is False
 
     def test_inheritance(self) -> None:
-        from arian.domain.exceptions import MemoryError
+        from arian.domain.exceptions import OutOfMemoryError
 
-        exc = MemoryError("out of memory")
+        exc = OutOfMemoryError("out of memory")
         assert isinstance(exc, ResourceError)
 
 
-class TestTimeoutError:
+class TestOperationTimeoutError:
     def test_attributes(self) -> None:
-        from arian.domain.exceptions import TimeoutError
+        from arian.domain.exceptions import OperationTimeoutError
 
-        exc = TimeoutError("timed out")
+        exc = OperationTimeoutError("timed out")
         assert exc.reason == "TIMEOUT_ERROR"
         assert exc.exit_code == 3
         assert exc.recoverable is True
 
     def test_inheritance(self) -> None:
-        from arian.domain.exceptions import TimeoutError
+        from arian.domain.exceptions import OperationTimeoutError
 
-        exc = TimeoutError("timed out")
+        exc = OperationTimeoutError("timed out")
         assert isinstance(exc, ResourceError)
 
 

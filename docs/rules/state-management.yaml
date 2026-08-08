@@ -43,6 +43,7 @@ rules:
         justification).
       - Database drivers, logging frameworks, and metric emitters whose
         non-determinism is an accepted infrastructure contract.
+      - Elapsed time measurement for diagnostics (not used in decisions).
 
   - id: st-003
     principle: State mutation documentation

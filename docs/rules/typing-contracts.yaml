@@ -22,15 +22,15 @@ rules:
       parameters must be contravariant-compatible. Prefer exact domain
       types shared by both sides over `object` or `Any`.
     fail_example: |
-      class ContextBuilderProtocol(Protocol):
-          async def build(self, a_request: object) -> ContextPlan: ...
+      class BuilderProtocol(Protocol):
+          async def build(self, a_request: object) -> Plan: ...
 
-      class ContextBuilder:
-          async def build(self, a_request: BuildRequest) -> ContextPlan: ...
-      # ContextBuilder is NOT assignable to ContextBuilderProtocol
+      class Builder:
+          async def build(self, a_request: BuildRequest) -> Plan: ...
+      # Builder is NOT assignable to BuilderProtocol
     pass_example: |
       # BuildRequest lives in domain; both Protocol and impl use it.
-      async def build(self, a_request: BuildRequest) -> ContextPlan: ...
+      async def build(self, a_request: BuildRequest) -> Plan: ...
 
   - id: type-002
     principle: Shared DTOs live with the contract
@@ -39,14 +39,13 @@ rules:
       multiple layers, that type is a domain (or ports) model, not a
       service-private class.
     do:
-      - Move BuildRequest / stats / plan types to domain when application depends on them
+      - Move shared request/response/plan types to domain when application depends on them
 
   - id: type-003
     principle: Avoid TYPE_CHECKING only when it hides cycles
     statement: >
-      Use `TYPE_CHECKING` imports for circular module graphs inside domain
-      (e.g. output ports referencing plan models). Do not use it to paper
-      over illegal cross-layer imports.
+      Use `TYPE_CHECKING` imports for circular module graphs inside domain.
+      Do not use it to paper over illegal cross-layer imports.
     note: >
       Runtime Protocol method bodies are ellipsis; deferred annotations
       plus TYPE_CHECKING keep domain packages importable.
@@ -57,7 +56,7 @@ rules:
       Instance attributes holding collaborators are annotated with the
       Protocol type, even when bootstrap injects a concrete class.
     do:
-      - `self._builder: ContextBuilderProtocol = a_builder`
+      - `self._builder: BuilderProtocol = a_builder`
     dont:
       - Annotate as concrete class then cast for tests
 
@@ -65,7 +64,7 @@ rules:
     principle: Composition root must type-check without casts
     statement: >
       If wiring fails pyright/mypy, fix the protocol or DTO location;
-      do not `# type: ignore` at create_application.
+      do not `# type: ignore` at the composition root.
 
   - id: type-006
     principle: Architecture tests complement type checks

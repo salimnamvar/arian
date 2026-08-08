@@ -80,6 +80,7 @@ rules:
     rationale: >
       Explicit return types are contracts. They tell the caller what to
       expect and enable static analysis to catch type mismatches.
+    related_rule: exit-and-raise.exit-004
 
   - id: fd-006
     principle: Function length limit

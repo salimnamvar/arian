@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from arian.domain.context.models import Chunk
-from arian.domain.context.models import ChunkEntry
 from arian.domain.context.models import ContextChunk
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextResult
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import FileFragment
+from arian.domain.context.models import MaterializedChunk
+from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import PlannedFile
 from arian.domain.context.models import Provenance
 from arian.domain.shared.enums import CompressionLevel
@@ -207,23 +207,22 @@ def test_provenance_optional_reason() -> None:
     assert provenance.importance_reason is None
 
 
-def test_chunk_entry_creation() -> None:
-    """Test ChunkEntry creation for a full file."""
-    entry = ChunkEntry(
-        file_path="src/auth.py",
+def test_materialized_entry_creation() -> None:
+    """Test MaterializedEntry creation for a full file."""
+    entry = MaterializedEntry(
+        path="src/auth.py",
         role=FileRole.SERVICE,
         importance=2,
         compression=CompressionLevel.FULL,
-        representation="full",
         content="def auth(): ...",
-        estimated_tokens=100,
+        tokens=100,
     )
-    assert entry.file_path == "src/auth.py"
+    assert entry.path == "src/auth.py"
     assert entry.role == FileRole.SERVICE
     assert entry.importance == 2
     assert entry.compression == CompressionLevel.FULL
     assert entry.content == "def auth(): ..."
-    assert entry.estimated_tokens == 100
+    assert entry.tokens == 100
     assert entry.is_fragment is False
     assert entry.fragment_index is None
     assert entry.fragment_total is None
@@ -232,21 +231,20 @@ def test_chunk_entry_creation() -> None:
     assert entry.provenance is None
 
 
-def test_chunk_entry_as_fragment() -> None:
-    """Test ChunkEntry as a file fragment."""
+def test_materialized_entry_as_fragment() -> None:
+    """Test MaterializedEntry as a file fragment."""
     provenance = Provenance(
         source_file="src/parser.py",
         source_lines=(200, 400),
         compression_applied=CompressionLevel.SIGNATURES,
     )
-    entry = ChunkEntry(
-        file_path="src/parser.py",
+    entry = MaterializedEntry(
+        path="src/parser.py",
         role=FileRole.DOMAIN,
         importance=1,
         compression=CompressionLevel.SIGNATURES,
-        representation="signatures",
         content="class Parser: ...",
-        estimated_tokens=200,
+        tokens=200,
         is_fragment=True,
         fragment_index=1,
         fragment_total=3,
@@ -263,18 +261,17 @@ def test_chunk_entry_as_fragment() -> None:
     assert entry.provenance.source_file == "src/parser.py"
 
 
-def test_chunk_creation() -> None:
-    """Test Chunk creation."""
-    entry = ChunkEntry(
-        file_path="a.py",
+def test_materialized_chunk_creation() -> None:
+    """Test MaterializedChunk creation."""
+    entry = MaterializedEntry(
+        path="a.py",
         role=FileRole.UNKNOWN,
         importance=5,
         compression=CompressionLevel.FULL,
-        representation="full",
         content="x = 1",
-        estimated_tokens=50,
+        tokens=50,
     )
-    chunk = Chunk(
+    chunk = MaterializedChunk(
         entries=(entry,),
         token_count=50,
         chunk_index=0,
@@ -286,6 +283,6 @@ def test_chunk_creation() -> None:
     assert chunk.header == "Section 1"
 
 
-def test_chunk_is_distinct_from_context_chunk() -> None:
-    """Test Chunk and ContextChunk are different types."""
-    assert Chunk is not ContextChunk
+def test_materialized_chunk_is_distinct_from_context_chunk() -> None:
+    """Test MaterializedChunk and ContextChunk are different types."""
+    assert MaterializedChunk is not ContextChunk

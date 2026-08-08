@@ -16,8 +16,8 @@ from arian.domain.exceptions import CancellationError
 from arian.domain.exceptions import ClassificationError
 from arian.domain.exceptions import CollectionError
 from arian.domain.exceptions import ConfigurationError
-from arian.domain.exceptions import ConnectionError
 from arian.domain.exceptions import ContextBuilderError
+from arian.domain.exceptions import DatabaseConnectionError
 from arian.domain.exceptions import ExternalServiceError
 from arian.domain.exceptions import GitError
 from arian.domain.exceptions import InputError
@@ -76,7 +76,6 @@ __all__ = [
     "CompressionLevel",
     "ConcurrencyPolicy",
     "ConfigurationError",
-    "ConnectionError",
     "ContextBuilderError",
     "ContextBuilderProtocol",
     "ContextChunk",
@@ -85,6 +84,7 @@ __all__ = [
     "ContextPlannerProtocol",
     "ContextResult",
     "ContextTask",
+    "DatabaseConnectionError",
     "Dependency",
     "DependencyKind",
     "EnvironmentSecretProvider",

@@ -23,7 +23,7 @@ ownership:
       - Transport parseability (string to int, known enum tokens for UX)
       - Framework-level option constraints when they cannot be expressed later
     does_not_validate:
-      - Path existence (unless purely for early CLI UX, then must call application validator)
+      - Path existence (unless purely for early UX, then must call application validator)
       - Budget maxima against domain limits
       - Scope membership against config tables (delegate)
       - Security/path traversal
@@ -68,13 +68,14 @@ rules:
   - id: val-001
     principle: Single validator for request DTOs
     statement: >
-      One ContextRequestValidator (or equivalent) is the source of truth
-      for request fields. CLI/API call it; they do not fork the rules.
+      One validator (in application) is the source of truth for request
+      fields. Controllers call it; they do not fork the rules.
 
   - id: val-002
     principle: Symmetric field sets share helpers
     statement: >
-      If two fields are lists of paths, both run through `_validate_paths`.
+      If two fields are lists of paths, both run through a single
+      path validation helper.
 
   - id: val-003
     principle: Fast-fail UX may stay at the edge
@@ -88,33 +89,25 @@ rules:
     statement: >
       Application returns Result.failure for all error conditions. It never
       raises. The controller reads Result.is_success() and raises the
-      transport-appropriate exception (SystemExit, HTTPException). This is
-      the only place where raise occurs for domain errors.
+      transport-appropriate exception. This is the only place where raise
+      occurs for domain errors.
     do:
       - Application: return Result.failure(message)
       - Controller: if not result.is_success(): raise SystemExit(result.message)
     dont:
-      - Application raising InputError, SecurityError, or any exception
+      - Application raising any exception
       - Controller reimplementing business validation instead of translating
       - Leaking absolute internal paths or secrets in error text
+    related_rules:
+      - exit-and-raise.exit-002
+      - exit-and-raise.exit-003
+      - error-handling.err-001
 
   - id: val-005
     principle: No silent skip of group or nested fields
     statement: >
-      Nested structures (group path tuples) must be covered by the same
-      existence and security rules as top-level paths.
-
-  - id: val-006
-    principle: Functions catch external exceptions, return Result
-    statement: >
-      Functions in all layers catch external exceptions (IOError,
-      NetworkError, TimeoutError, third-party library errors) and convert
-      them to Result.failure. They never raise or propagate. The exception
-      is logged locally at the detection layer with full context.
-    do:
-      - try: open(path) except IOError as e: return Result.failure(str(e))
-    dont:
-      - raise IOError(...)
+      Nested structures must be covered by the same existence and security
+      rules as top-level paths.
 
 anti_patterns:
   - name: application-raises
@@ -122,9 +115,11 @@ anti_patterns:
       Application layer raising exceptions breaks decoupling. The
       application is transport-agnostic; it returns Result, not raises.
     prefer: return Result.failure; let the controller translate
+    related_rule: exit-and-raise.exit-002
 
   - name: duplicate-validation
     description: >
       Controller reimplementing the same validation rules that application
       already checks creates drift and maintenance burden.
     prefer: single validator in application; controller translates only
+    related_rule: dry.dry-002

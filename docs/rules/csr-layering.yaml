@@ -110,9 +110,8 @@ rules:
   - id: csr-002
     principle: Ports live in domain
     statement: >
-      Protocols that application or service depend on (renderer, writer,
-      builder, planner, materializer, classifier, analyzer) belong in
-      domain. Infrastructure and service only implement them.
+      Protocols that application or service depend on belong in domain.
+      Infrastructure and service only implement them.
     do:
       - Define Protocol in domain with domain types only
       - Implement Protocol in infrastructure or service
@@ -125,19 +124,16 @@ rules:
     statement: >
       Stats, request shapes, and result types shared by application and
       repository/service are domain models, not repository-local classes.
-    examples:
-      - Collection statistics used in application metadata → domain
-      - Build pipeline input DTO used by application and builder → domain
 
   - id: csr-004
     principle: Composition root injects adapters
     statement: >
-      Application must not default-import concrete infrastructure helpers
-      (path resolvers, writers, renderers). Bootstrap always injects them.
+      Application must not default-import concrete infrastructure helpers.
+      Bootstrap always injects them.
     do:
       - Required constructor ports for I/O and resolution
     dont:
-      - `or resolve_from_infrastructure` fallbacks inside application
+      - Infrastructure fallback defaults inside application constructors
 
   - id: csr-005
     principle: Controller is transport-only
@@ -154,7 +150,7 @@ rules:
       A shared data-only configuration module may be imported by any layer
       only if it has no behavior and no reverse dependency on outer layers.
     dont:
-      - Treat behavioral infrastructure modules as “config”
+      - Treat behavioral infrastructure modules as "config"
 
 config_exemption:
   module_pattern: "*.infrastructure.config"

@@ -62,20 +62,21 @@ class FileOutputWriter:
                 b_continue = False
 
         if b_continue:
-            try:
-                retry_sync_with_backoff(
-                    self._write_atomic,
-                    path,
-                    a_content,
-                    a_max_retries=3,
-                    a_base_delay=0.05,
-                    a_exceptions=(OSError,),
-                )
+            retry_result = retry_sync_with_backoff(
+                self._write_atomic,
+                path,
+                a_content,
+                a_max_retries=3,
+                a_base_delay=0.05,
+                a_exceptions=(OSError,),
+            )
+            if retry_result.is_success:
                 result = Result[None].success()
-            except OSError:
+            else:
                 msg = f"Failed to write output file: {a_path}"
-                logger.exception("%s", msg)
+                logger.error("%s", retry_result.message)
                 result = Result[None].failure(msg)
+                b_continue = False
 
         return result
 
@@ -84,8 +85,7 @@ class FileOutputWriter:
         """Perform a single atomic write attempt.
 
         Logs the per-attempt failure at debug level before re-raising so
-        the transient attempts are visible; the final failure after all
-        retries is logged at error level by ``retry_sync_with_backoff``.
+        the transient attempts are visible.
 
         Args:
             a_path: Destination path.

@@ -40,7 +40,7 @@ subjects:
   - id: naming
     file: naming.yaml
     title: Naming consistency
-    tags: [style, a-prefix, protocols]
+    tags: [style, protocols]
 
   - id: validation-ownership
     file: validation-ownership.yaml
@@ -64,7 +64,7 @@ subjects:
 
   - id: b-continue
     file: b-continue.yaml
-    title: b_continue execution guard
+    title: Execution guard pattern
     tags: [flow-control, guard, state]
 
   - id: input-validation
@@ -125,19 +125,11 @@ how_to_use:
   - Open the subject file when reviewing PRs or scaffolding modules
   - Prefer adding a new subject file over bloating an existing one when the concern is orthogonal
   - Keep statements imperative and layer-agnostic; put project-specific names only in examples
+  - When a rule references another, use related_rule instead of restating
 
 session_origins:
   note: >
-    Initial content distilled from a CSR/DRY/naming refactor that moved
+    Initial content distilled from architecture refactoring that moved
     ports and value objects into domain, removed infrastructure re-export
     shims, unified application pipelines and validation, and fixed
     protocol typing so the composition root type-checks without casts.
-  mapped_lessons:
-    - "Application must not import repository/infrastructure adapters"
-    - "Protocols and shared DTOs belong in domain"
-    - "Delete old modules after moves; never leave re-export aliases"
-    - "Extract shared pipeline steps (DRY)"
-    - "Validation owned by application; controller translates only"
-    - "Protocol parameter types must match implementations (strict typing)"
-    - "Bootstrap injects all edge ports including path resolution"
-    - "Consistent a_ argument names and protocol-typed attributes"

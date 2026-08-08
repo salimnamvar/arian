@@ -9,6 +9,7 @@ meta:
     - b-continue
     - exit-and-raise
     - error-handling
+    - contracts
   summary: >
     Every function validates all parameters before executing any business
     logic. Validation checks type, range, nullability, and domain-specific
@@ -28,7 +29,7 @@ rules:
       because the failure context is the function's entry.
     do:
       - Check all parameters at the top of the function body
-      - Set b_continue = False on validation failure
+      - Set the execution guard to False on validation failure
     dont:
       - Trust caller-provided values without a guard
       - Defer validation to deep internal points
@@ -91,6 +92,7 @@ rules:
       Using assert for validation means validation disappears in
       production when Python runs with -O. Runtime validation must use
       explicit checks.
+    related_rule: contracts.ct-004
 
 anti_patterns:
   - name: deferred validation

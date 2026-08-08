@@ -7,7 +7,7 @@ meta:
   version: "2.0"
   summary: >
     Functions follow a disciplined shape: validate inputs, step through
-    expected outcomes via a b_continue guard, catch only unexpected errors,
+    expected outcomes via an execution guard, catch only unexpected errors,
     and return exactly once with an explicit structured result. This file
     points to the dedicated rule files for each concern.
 
@@ -15,7 +15,7 @@ related_files:
   - file: exit-and-raise.yaml
     concern: Single-exit point and zero-raise policy
   - file: b-continue.yaml
-    concern: b_continue execution guard pattern
+    concern: Execution guard pattern
   - file: input-validation.yaml
     concern: Input validation at function entry
   - file: error-handling.yaml
@@ -37,22 +37,9 @@ related_files:
 
 canonical_shape: >
   Every function follows this shape:
-  1. Initialize result variable and b_continue = True
+  1. Initialize result variable and execution guard = True
   2. Validate all inputs (input-validation.yaml)
-  3. Execute business logic guarded by b_continue (b-continue.yaml)
+  3. Execute business logic guarded by the flag (b-continue.yaml)
   4. Catch unexpected exceptions locally (error-handling.yaml)
   5. Log failures at detection layer (logging-rules.yaml)
   6. Return exactly once with Result[T] (exit-and-raise.yaml)
-
-anti_patterns:
-  - name: exception-driven control flow
-    description: >
-      Raising and catching to choose between normal branches hides the real
-      paths, makes single-exit impossible, and bloats logs.
-    prefer: b_continue guards over try/catch for expected decisions
-
-  - name: swallow-and-continue
-    description: >
-      Catching an error, logging it, and continuing without returning a
-      failure signal breaks the caller contract.
-    prefer: log locally then return the failure result

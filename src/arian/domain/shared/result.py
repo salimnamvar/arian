@@ -63,6 +63,16 @@ class Result[T]:
             result = self.value
         return result  # type: ignore[return-value]
 
+    def success_value(self) -> T:
+        """Return the success value, asserting the result is successful.
+
+        Raises:
+            AssertionError: If the result is a failure or value is None.
+        """
+        assert self.is_success, f"Expected success but got failure: {self.message}"  # noqa: S101 — internal invariant
+        assert self.value is not None, "Success result has None value"  # noqa: S101 — internal invariant
+        return self.value
+
     def unwrap_or(self, a_default: T) -> T:
         """Return the success value, or a_default on failure."""
         result: T = a_default

@@ -37,6 +37,16 @@ rules:
       can interleave between operations on a mutable object, producing
       corrupted state even with the GIL held.
 
+  - id: conc-003
+    principle: Immutable data is free to share
+    statement: >
+      Frozen dataclasses, tuples, and other immutable objects MAY be shared
+      across threads without synchronization. Any object whose mutability
+      is unclear MUST be treated as mutable.
+    rationale: >
+      Immutable objects cannot be modified after creation, making them
+      inherently thread-safe.
+
 anti_patterns:
   - name: unprotected-shared-state
     description: >

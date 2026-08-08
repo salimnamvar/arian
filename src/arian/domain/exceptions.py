@@ -156,7 +156,7 @@ class CollectionError(RepositoryError):
     recoverable = True
 
 
-class IndexError(RepositoryError):
+class RepositoryIndexError(RepositoryError):
     """Index read/write failures."""
 
     reason = "INDEX_ERROR"
@@ -164,7 +164,7 @@ class IndexError(RepositoryError):
     recoverable = True
 
 
-class ConnectionError(RepositoryError):
+class DatabaseConnectionError(RepositoryError):
     """Database connection failures."""
 
     reason = "CONNECTION_ERROR"
@@ -212,7 +212,7 @@ class ResourceError(ProjectBaseError):
     recoverable = False
 
 
-class FileNotFoundError(ResourceError):
+class ResourceNotFoundError(ResourceError):
     """Required resource missing."""
 
     reason = "FILE_NOT_FOUND"
@@ -220,7 +220,7 @@ class FileNotFoundError(ResourceError):
     recoverable = False
 
 
-class MemoryError(ResourceError):
+class OutOfMemoryError(ResourceError):
     """Out of memory."""
 
     reason = "MEMORY_ERROR"
@@ -228,7 +228,7 @@ class MemoryError(ResourceError):
     recoverable = False
 
 
-class TimeoutError(ResourceError):
+class OperationTimeoutError(ResourceError):
     """Operation timed out."""
 
     reason = "TIMEOUT_ERROR"

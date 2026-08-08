@@ -21,7 +21,7 @@ rules:
       Every cross-layer collaborator is a named Protocol in domain (or a
       dedicated ports package with zero outer dependencies).
     do:
-      - Name ports by capability (e.g. RendererProtocol, FileCollectorProtocol)
+      - Name ports by capability (e.g. RendererProtocol, CollectorProtocol)
       - Document Args/Returns on protocol methods for implementers
     dont:
       - Pass concrete service classes into application constructors when a protocol exists
@@ -38,14 +38,13 @@ rules:
     dont:
       - `async def build(self, a_request: object)` when the impl takes BuildRequest
       - Fix type errors by casting at the composition root instead of fixing the contract
+    related_rule: typing-contracts.type-001
 
   - id: port-003
     principle: One protocol per capability
     statement: >
       Do not redefine a narrower copy of an existing domain protocol in a
       service or infrastructure module for local convenience.
-    examples:
-      - LanguageAnalyzerProtocol defined once in domain; materializer imports it
     dont:
       - Local Protocol with a subset of methods that shadows the domain name
 
@@ -65,8 +64,8 @@ rules:
       Planners, materializers, classifiers, collectors, and indexes are
       typed as protocols on builders and orchestrators.
     do:
-      - `a_planner: ContextPlannerProtocol`
-      - `a_classifier: FileClassifierProtocol`
+      - `planner: PlannerProtocol`
+      - `classifier: ClassifierProtocol`
     dont:
       - Hard-code concrete class types on cross-module constructors when tests need fakes
 

@@ -8,8 +8,8 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
-from arian.domain.exceptions import ConnectionError
-from arian.domain.exceptions import IndexError
+from arian.domain.exceptions import DatabaseConnectionError
+from arian.domain.exceptions import RepositoryIndexError
 from arian.domain.repository.models import Dependency
 from arian.domain.repository.models import Module
 from arian.domain.repository.models import Repository
@@ -30,8 +30,8 @@ class SQLiteRepositoryIndex:
     across runs.
 
     Safe-coding contract: every SQLite failure is logged locally and
-    translated into a typed domain exception — ``ConnectionError`` for
-    connection failures, ``IndexError`` for read/write failures. Raw
+    translated into a typed domain exception — ``DatabaseConnectionError`` for
+    connection failures, ``RepositoryIndexError`` for read/write failures. Raw
     ``sqlite3.Error`` never escapes this adapter.
 
     Attributes:
@@ -58,7 +58,7 @@ class SQLiteRepositoryIndex:
             Active SQLite connection.
 
         Raises:
-            ConnectionError: If the database cannot be opened or the
+            DatabaseConnectionError: If the database cannot be opened or the
                 schema cannot be applied.
         """
         if self._connection is None:
@@ -69,7 +69,7 @@ class SQLiteRepositoryIndex:
             except sqlite3.Error as e:
                 msg = f"Cannot open SQLite database at {self._db_path}"
                 logger.exception(msg)
-                raise ConnectionError(msg, a_cause=e) from e
+                raise DatabaseConnectionError(msg, a_cause=e) from e
         return self._connection
 
     def _execute_write(self, a_sql: str, a_params: tuple[object, ...]) -> None:
@@ -80,7 +80,7 @@ class SQLiteRepositoryIndex:
             a_params: Bound parameters for the statement.
 
         Raises:
-            IndexError: If the write or commit fails.
+            RepositoryIndexError: If the write or commit fails.
         """
         try:
             conn: sqlite3.Connection = self._get_connection()
@@ -89,7 +89,7 @@ class SQLiteRepositoryIndex:
         except sqlite3.Error as e:
             msg = f"SQLite write failed: {a_sql}"
             logger.exception(msg)
-            raise IndexError(msg, a_cause=e) from e
+            raise RepositoryIndexError(msg, a_cause=e) from e
 
     def _fetch_rows(self, a_sql: str, a_params: tuple[object, ...]) -> list[tuple[Any, ...]]:
         """Run a query and return all rows, translating failures.
@@ -102,7 +102,7 @@ class SQLiteRepositoryIndex:
             Rows returned by the query.
 
         Raises:
-            IndexError: If the query fails.
+            RepositoryIndexError: If the query fails.
         """
         result: list[tuple[Any, ...]]
         try:
@@ -112,7 +112,7 @@ class SQLiteRepositoryIndex:
         except sqlite3.Error as e:
             msg = f"SQLite read failed: {a_sql}"
             logger.exception(msg)
-            raise IndexError(msg, a_cause=e) from e
+            raise RepositoryIndexError(msg, a_cause=e) from e
         return result
 
     @staticmethod

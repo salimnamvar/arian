@@ -48,6 +48,7 @@ rules:
       counting provides near-deterministic cleanup, but this is an
       implementation detail, not a language guarantee. Relying on GC for
       resource cleanup is a defect.
+    related_rule: error-handling.err-007
 
 anti_patterns:
   - name: leaked-file-handles

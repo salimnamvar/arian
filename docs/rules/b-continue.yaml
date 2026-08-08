@@ -1,9 +1,9 @@
-# b_continue guard pattern
-# Generalized lessons: local boolean flag to gate execution past error points.
+# Execution guard pattern
+# Generalized lessons: a function-local boolean flag gates execution past error points.
 
 meta:
   id: b-continue
-  title: b_continue execution guard
+  title: Execution guard pattern
   version: "1.0"
   related:
     - exit-and-raise
@@ -13,13 +13,14 @@ meta:
     A function-local boolean flag that transitions only from True to False.
     It governs whether execution proceeds past any error detection point:
     validation failures, caught exceptions, or business rule violations.
-    Once set to False it is never reset to True.
+    Once set to False it is never reset to True. This pattern enforces
+    the single-exit contract by replacing early returns with guarded phases.
 
 rules:
   - id: bc-001
     principle: Function-local only
     statement: >
-      b_continue is function-local. It SHALL NOT be passed as a parameter,
+      The guard flag is function-local. It SHALL NOT be passed as a parameter,
       stored in an instance attribute, or accessed from outside the function.
     rationale: >
       External mutation creates invisible control flow dependencies. The
@@ -28,10 +29,10 @@ rules:
   - id: bc-002
     principle: Initialize to True
     statement: >
-      b_continue is initialized to True at the start of the function body,
+      The guard flag is initialized to True at the start of the function body,
       before any validation or business logic.
     do:
-      - "b_continue = True"
+      - "guard = True"
     dont:
       - Initialize to False
       - Omit initialization
@@ -39,7 +40,7 @@ rules:
   - id: bc-003
     principle: Unidirectional transition
     statement: >
-      b_continue transitions only from True to False. It SHALL NEVER
+      The guard flag transitions only from True to False. It SHALL NEVER
       transition from False back to True.
     rationale: >
       A bidirectional flag creates hidden state machines inside the
@@ -49,38 +50,39 @@ rules:
   - id: bc-004
     principle: One assignment per error condition
     statement: >
-      The assignment `b_continue = False` appears at most once per
+      The assignment `guard = False` appears at most once per
       distinct error condition. Multiple distinct error conditions may
       each contain their own assignment. After initialization, the
-      literal `b_continue = True` SHALL NOT appear again.
+      literal `guard = True` SHALL NOT appear again.
     do:
-      - Each validation block sets b_continue = False on its specific failure
+      - Each validation block sets guard = False on its specific failure
     dont:
-      - Reassign b_continue = True after it was set to False
+      - Reassign guard = True after it was set to False
       - Reset the flag between phases
 
   - id: bc-005
     principle: Guard all subsequent phases
     statement: >
-      After being set to False, b_continue gates all subsequent phases.
-      Every following step is guarded by `if b_continue:`. The flag is
+      After being set to False, the guard gates all subsequent phases.
+      Every following step is guarded by `if guard:`. The flag is
       not reset between phases.
     do:
-      - if b_continue: phase_2(...)
-      - if b_continue: phase_3(...)
+      - if guard: phase_2(...)
+      - if guard: phase_3(...)
     dont:
-      - Interleave try/except blocks between every step without b_continue
+      - Interleave try/except blocks between every step without the guard
       - Skip the guard and run phases unconditionally after a failure
 
 anti_patterns:
-  - name: b_continue reset
+  - name: guard reset
     description: >
-      Setting b_continue back to True after it was set to False creates a
+      Setting the guard back to True after it was set to False creates a
       hidden state machine and violates the unidirectional contract.
-    prefer: never reassign b_continue = True
+    prefer: never reassign the guard to True
 
   - name: early return bypass
     description: >
-      Using early return instead of b_continue violates the single-exit
+      Using early return instead of the guard violates the single-exit
       rule and breaks the canonical function shape.
-    prefer: set b_continue = False and let execution fall through to the single return
+    prefer: set guard = False and let execution fall through to the single return
+    related_rule: exit-and-raise.exit-001

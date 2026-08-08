@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from arian.infrastructure.retry import retry_sync_with_backoff
 from arian.infrastructure.retry import retry_with_backoff
 
@@ -19,7 +17,9 @@ class TestRetrySyncWithBackoff:
         def ok() -> str:
             return "done"
 
-        assert retry_sync_with_backoff(ok) == "done"
+        result = retry_sync_with_backoff(ok)
+        assert result.is_success
+        assert result.value == "done"
 
     def test_retries_on_transient_error(self) -> None:
         """Verify sync function retries on matching exception."""
@@ -39,8 +39,51 @@ class TestRetrySyncWithBackoff:
             a_base_delay=0.01,
             a_exceptions=(OSError,),
         )
-        assert result == "recovered"
+        assert result.is_success
+        assert result.value == "recovered"
         assert call_count == 3
+
+    def test_returns_failure_after_max_retries(self) -> None:
+        """Verify failure Result when all retries fail."""
+
+        def always_fail() -> None:
+            msg = "permanent"
+            raise OSError(msg)
+
+        result = retry_sync_with_backoff(
+            always_fail,
+            a_max_retries=2,
+            a_base_delay=0.01,
+            a_exceptions=(OSError,),
+        )
+        assert result.is_failure
+        assert "permanent" in result.message
+
+    def test_does_not_retry_unmatched_exception(self) -> None:
+        """Verify non-matching exceptions are not retried."""
+
+        def type_error() -> None:
+            msg = "wrong type"
+            raise TypeError(msg)
+
+        result = retry_sync_with_backoff(
+            type_error,
+            a_max_retries=3,
+            a_base_delay=0.01,
+            a_exceptions=(OSError,),
+        )
+        assert result.is_failure
+        assert "wrong type" in result.message
+
+    def test_passes_args_to_function(self) -> None:
+        """Verify arguments are forwarded to the retried function."""
+
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        result = retry_sync_with_backoff(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
+        assert result.is_success
+        assert result.value == 7
 
 
 class TestRetryWithBackoff:
@@ -53,7 +96,8 @@ class TestRetryWithBackoff:
             return "done"
 
         result = await retry_with_backoff(ok)
-        assert result == "done"
+        assert result.is_success
+        assert result.value == "done"
 
     async def test_retries_on_transient_error(self) -> None:
         """Verify function retries on matching exception."""
@@ -73,23 +117,25 @@ class TestRetryWithBackoff:
             a_base_delay=0.01,
             a_exceptions=(OSError,),
         )
-        assert result == "recovered"
+        assert result.is_success
+        assert result.value == "recovered"
         assert call_count == 3
 
-    async def test_raises_after_max_retries(self) -> None:
-        """Verify last exception is raised when all retries fail."""
+    async def test_returns_failure_after_max_retries(self) -> None:
+        """Verify failure Result when all retries fail."""
 
         async def always_fail() -> None:
             msg = "permanent"
             raise OSError(msg)
 
-        with pytest.raises(OSError, match="permanent"):
-            await retry_with_backoff(
-                always_fail,
-                a_max_retries=2,
-                a_base_delay=0.01,
-                a_exceptions=(OSError,),
-            )
+        result = await retry_with_backoff(
+            always_fail,
+            a_max_retries=2,
+            a_base_delay=0.01,
+            a_exceptions=(OSError,),
+        )
+        assert result.is_failure
+        assert "permanent" in result.message
 
     async def test_does_not_retry_unmatched_exception(self) -> None:
         """Verify non-matching exceptions are not retried."""
@@ -98,13 +144,14 @@ class TestRetryWithBackoff:
             msg = "wrong type"
             raise TypeError(msg)
 
-        with pytest.raises(TypeError, match="wrong type"):
-            await retry_with_backoff(
-                type_error,
-                a_max_retries=3,
-                a_base_delay=0.01,
-                a_exceptions=(OSError,),
-            )
+        result = await retry_with_backoff(
+            type_error,
+            a_max_retries=3,
+            a_base_delay=0.01,
+            a_exceptions=(OSError,),
+        )
+        assert result.is_failure
+        assert "wrong type" in result.message
 
     async def test_passes_args_to_function(self) -> None:
         """Verify arguments are forwarded to the retried function."""
@@ -113,7 +160,8 @@ class TestRetryWithBackoff:
             return a + b
 
         result = await retry_with_backoff(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
-        assert result == 7
+        assert result.is_success
+        assert result.value == 7
 
     async def test_exponential_delay_timing(self) -> None:
         """Verify delays increase exponentially."""
@@ -124,12 +172,12 @@ class TestRetryWithBackoff:
             msg = "fail"
             raise OSError(msg)
 
-        with pytest.raises(OSError):
-            await retry_with_backoff(
-                track_time,
-                a_max_retries=3,
-                a_base_delay=0.05,
-                a_exceptions=(OSError,),
-            )
+        result = await retry_with_backoff(
+            track_time,
+            a_max_retries=3,
+            a_base_delay=0.05,
+            a_exceptions=(OSError,),
+        )
 
+        assert result.is_failure
         assert len(call_times) == 3

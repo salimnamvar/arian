@@ -12,7 +12,7 @@ meta:
   summary: >
     When a type or function moves to its correct layer, delete the old
     module entirely. Do not leave re-export files, `__all__` forwarders,
-    or “backward-compatible” import paths.
+    or "backward-compatible" import paths.
 
 rules:
   - id: alias-001
@@ -26,17 +26,14 @@ rules:
       - Delete the old file in the same commit
     dont:
       - Keep `old_module.py` that only does `from new_module import X; __all__ = ["X"]`
-      - Document “import from either place”
+      - Document "import from either place"
 
   - id: alias-002
     principle: Package __init__ is not a cross-layer bridge
     statement: >
-      A layer’s `__init__.py` may re-export symbols defined inside that
+      A layer's `__init__.py` may re-export symbols defined inside that
       layer. It must not re-export domain ports from infrastructure (or
-      vice versa) to “help” callers.
-    examples:
-      - infrastructure.output may export MarkdownRenderer only
-      - RendererProtocol is imported from domain by application and by the renderer impl
+      vice versa) to "help" callers.
 
   - id: alias-003
     principle: No dual homes for moved value objects
@@ -44,16 +41,16 @@ rules:
       After a stats/DTO/protocol moves to domain, repository/service
       modules import domain; they do not re-export the name for old paths.
     do:
-      - Tests import CollectionStats from domain
+      - Tests import from domain
     dont:
-      - `collector.py` with `__all__ = ["CollectionStats", "FileCollector"]` after the move
+      - A module re-exporting a type that has moved to another layer
 
   - id: alias-004
     principle: Move + delete is one change set
     statement: >
       A relocation that leaves a shim is incomplete. Reviewers treat leftover
       shims as defects, not transitional helpers, unless an explicit
-      deprecation window is agreed (this project defaults to no window).
+      deprecation window is agreed (default: no window).
     default_deprecation_window: none
 
   - id: alias-005

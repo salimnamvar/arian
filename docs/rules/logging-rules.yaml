@@ -10,7 +10,7 @@ meta:
     - security-rules
   summary: >
     Failures are logged at the first layer that detects them. All log
-    entries use structured JSON format. Sensitive data never appears in
+    entries use structured format. Sensitive data never appears in
     logs. Every logical operation carries a correlation ID for
     end-to-end tracing.
 
@@ -33,10 +33,9 @@ rules:
   - id: log-002
     principle: Structured logging format
     statement: >
-      All log entries use structured logging (JSON format). Each entry
-      includes: timestamp (ISO 8601), level (DEBUG/INFO/WARNING/ERROR/
-      CRITICAL), correlation_id, function name, message, and additional
-      context as key-value pairs.
+      All log entries use structured logging (JSON format or key=value).
+      Each entry includes: timestamp (ISO 8601), level, correlation_id,
+      function name, message, and additional context as key-value pairs.
     rationale: >
       Structured logs are machine-parseable. They enable automated
       alerting, aggregation, and analysis. Unstructured strings are
@@ -51,6 +50,7 @@ rules:
       Logs are stored, transmitted, and accessed by multiple systems.
       Sensitive data in logs creates a data leak vector that bypasses all
       access controls on the source system.
+    related_rule: security-rules.sec-001
 
   - id: log-004
     principle: Correlation ID propagation

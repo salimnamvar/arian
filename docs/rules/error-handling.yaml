@@ -10,6 +10,7 @@ meta:
     - b-continue
     - logging-rules
     - validation-ownership
+    - resource-ownership
   summary: >
     Functions handle their own errors. External exceptions (disk, network,
     third-party) are caught, converted to structured results, and returned.
@@ -40,6 +41,7 @@ rules:
       - Function raising ValueError or any exception
       - Letting exceptions propagate from functions to callers
       - Controller reimplementing business logic instead of translating
+    related_rule: exit-and-raise.exit-003
 
   - id: err-002
     principle: Specific exception handling
@@ -82,12 +84,13 @@ rules:
       All external exceptions are caught, converted to a structured result,
       and returned. No exception escapes the function boundary. The only
       exceptions that escape are those raised at the application boundary
-      for transport (see exit-003).
+      for transport (see exit-and-raise.exit-003).
     do:
       - try: ... except SpecificError as e: result = Result.failure(str(e))
     dont:
       - raise inside a function that should handle its own errors
       - Re-raise caught exceptions
+    related_rule: exit-and-raise.exit-002
 
   - id: err-005
     principle: Exception context preservation
@@ -112,23 +115,12 @@ rules:
       APIs return unexpected status codes. Assuming third-party stability
       is a defect.
 
-  - id: err-007
-    principle: Resource cleanup on error
-    statement: >
-      When a function acquires a resource, it releases that resource in all
-      code paths, including error paths. The finally block or a context
-      manager guarantees deterministic cleanup.
-    rationale: >
-      Resources leaked on error paths accumulate silently. A single leaked
-      file handle is trivial; a thousand across retry loops is a system
-      failure.
-
 anti_patterns:
   - name: exception-driven control flow
     description: >
       Raising and catching to choose between normal branches hides the real
       paths, makes single-exit impossible, and bloats logs.
-    prefer: b_continue guards for expected decisions
+    prefer: execution guard for expected decisions
 
   - name: swallow-and-continue
     description: >

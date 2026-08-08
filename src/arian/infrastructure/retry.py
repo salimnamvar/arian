@@ -9,6 +9,8 @@ import logging
 import time
 from typing import TypeVar
 
+from arian.domain.shared.result import Result
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -20,12 +22,12 @@ async def retry_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     a_max_retries: int = 3,
     a_base_delay: float = 0.1,
     a_exceptions: tuple[type[Exception], ...] = (OSError,),
-) -> T:
+) -> Result[T]:
     """Retry an async function with exponential backoff.
 
     Follows the safe-coding shape: a ``b_continue`` guard drives the loop,
-    the result is captured in a single variable, and the function ends in
-    one success return and one failure raise site.
+    the result is captured in a single variable, and the function returns
+    exactly once with a Result[T].
 
     Args:
         a_func: Async function to retry.
@@ -35,19 +37,17 @@ async def retry_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
         a_exceptions: Exception types to retry on.
 
     Returns:
-        Function result.
-
-    Raises:
-        Last exception if all retries fail.
+        Result[T] with the function result or failure message.
     """
-    result: T | None = None
+    result: Result[T] = Result.failure("uninitialized")
     b_continue: bool = True
     last_exception: Exception | None = None
 
     for attempt in range(a_max_retries):
         if b_continue:
             try:
-                result = await a_func(*args)
+                value: T = await a_func(*args)
+                result = Result.success(value)
                 b_continue = False
             except a_exceptions as e:
                 last_exception = e
@@ -61,12 +61,18 @@ async def retry_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
                         e,
                     )
                     await asyncio.sleep(delay)
+            except Exception as e:
+                last_exception = e
+                logger.exception("Unexpected error during retry")
+                result = Result.failure(f"Unexpected error: {e}")
+                b_continue = False
 
     if b_continue:
-        logger.error("Retry failed after %d attempts: %s", a_max_retries, last_exception)
-        raise last_exception  # type: ignore[misc] — set when all attempts failed
+        msg = f"Retry failed after {a_max_retries} attempts: {last_exception}"
+        logger.error("%s", msg)
+        result = Result.failure(msg)
 
-    return result  # type: ignore[return-value] — narrows; success set result
+    return result
 
 
 def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
@@ -76,14 +82,14 @@ def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     a_base_delay: float = 0.1,
     a_exceptions: tuple[type[Exception], ...] = (OSError,),
     **kwargs: object,
-) -> T:
+) -> Result[T]:
     """Retry a synchronous function with exponential backoff.
 
     Compatible with Python 3.10+ (uses typing.TypeVar, not PEP 695 syntax).
 
     Follows the safe-coding shape: a ``b_continue`` guard drives the loop,
-    the result is captured in a single variable, and the function ends in
-    one success return and one failure raise site.
+    the result is captured in a single variable, and the function returns
+    exactly once with a Result[T].
 
     Args:
         a_func: Sync function to retry.
@@ -94,19 +100,17 @@ def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
         **kwargs: Keyword arguments for the function.
 
     Returns:
-        Function result.
-
-    Raises:
-        Last exception if all retries fail.
+        Result[T] with the function result or failure message.
     """
-    result: T | None = None
+    result: Result[T] = Result.failure("uninitialized")
     b_continue: bool = True
     last_exception: Exception | None = None
 
     for attempt in range(a_max_retries):
         if b_continue:
             try:
-                result = a_func(*args, **kwargs)
+                value: T = a_func(*args, **kwargs)
+                result = Result.success(value)
                 b_continue = False
             except a_exceptions as e:
                 last_exception = e
@@ -120,9 +124,15 @@ def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
                         e,
                     )
                     time.sleep(delay)
+            except Exception as e:
+                last_exception = e
+                logger.exception("Unexpected error during retry")
+                result = Result.failure(f"Unexpected error: {e}")
+                b_continue = False
 
     if b_continue:
-        logger.error("Retry failed after %d attempts: %s", a_max_retries, last_exception)
-        raise last_exception  # type: ignore[misc] — set when all attempts failed
+        msg = f"Retry failed after {a_max_retries} attempts: {last_exception}"
+        logger.error("%s", msg)
+        result = Result.failure(msg)
 
-    return result  # type: ignore[return-value] — narrows; success set result
+    return result

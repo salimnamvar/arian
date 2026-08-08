@@ -10,32 +10,32 @@ meta:
     - csr-layering
   summary: >
     Names encode role and layer. The same concept uses the same identifier
-    everywhere. Function arguments follow project prefix rules; public
-    framework entrypoints may be exempt only when marked.
+    everywhere. The conventions below are generalized; projects may adopt
+    their own prefix rules as long as they are consistent.
 
 conventions:
   argument_prefix:
-    rule: All function/method parameters start with `a_` except exemptions
+    rule: >
+      Projects MAY adopt a consistent prefix for function/method parameters
+      (e.g. ``a_``) to visually distinguish them from locals. If adopted,
+      the prefix applies to all parameters except exemptions.
     exemptions:
       - self
       - cls
       - "*args / **kwargs bare names"
-      - dunder methods (`__init__` signature required by Python protocols)
-      - Framework public APIs (CLI option names) marked `a-prefix-ignore`
+      - dunder methods (signatures required by Python protocols)
+      - Framework public APIs (CLI option names) marked as exempt
     rationale: >
       Visual distinction between parameters and locals; grep-friendly
       call sites; uniform style across the codebase.
 
   private_attributes:
-    rule: Injected collaborators and mutable state use single-underscore prefix
+    rule: Injected collaborators and mutable state use a consistent prefix
     pattern: "_<role>"
     examples:
       - _builder
       - _renderer
-      - _output
       - _planner
-      - _classifier
-      - _resolve_output
     note: Type the attribute as the Protocol, not the concrete class
 
   protocols:
@@ -43,9 +43,7 @@ conventions:
     examples:
       - RendererProtocol
       - OutputWriterProtocol
-      - ContextBuilderProtocol
-      - FileClassifierProtocol
-      - LanguageAnalyzerProtocol
+      - BuilderProtocol
     dont:
       - Duplicate local Protocol with a different name for the same capability
       - Suffix implementations with Protocol
@@ -78,25 +76,24 @@ rules:
     principle: Same concept, same name
     statement: >
       When a parameter appears in protocol, implementation, and caller,
-      use the same argument name (including `a_` prefix).
+      use the same argument name (including any project prefix).
     examples:
       - a_plan, a_content, a_root, a_request, a_path
 
   - id: name-002
     principle: Generalized mode parameters
     statement: >
-      Shared helpers take generalized names (`a_scope`, `a_output_path`,
-      `a_paths`, `a_stats`) rather than mode-specific aliases
-      (`stats_sep`, `stats_grp`) at the helper boundary.
+      Shared helpers take generalized names (scope, output_path, paths,
+      stats) rather than mode-specific aliases at the helper boundary.
     do:
-      - Callers map local names into the shared helper’s parameter list
+      - Callers map local names into the shared helper's parameter list
     dont:
       - Three helper variants with near-identical signatures
 
   - id: name-003
     principle: Mapper names encode direction
     statement: >
-      Private mappers use `_row_to_<entity>` / `_entity_to_row` style so
+      Private mappers use ``_row_to_<entity>`` / ``_entity_to_row`` style so
       intent is obvious without reading the body.
 
   - id: name-004
@@ -106,8 +103,9 @@ rules:
       Application DTOs may use Request/Result; domain uses Plan/File/Symbol.
 
   - id: name-005
-    principle: Single-return style (project lint)
+    principle: Single-return style
     statement: >
-      Functions assign to a result variable and return once where the
-      project enforces single-return; names stay stable across branches
-      (`result`, not early return of differently named values).
+      Functions assign to a result variable and return once (see
+      exit-and-raise.exit-001). Names stay stable across branches
+      (``result``, not early return of differently named values).
+    related_rule: exit-and-raise.exit-001

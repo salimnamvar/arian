@@ -17,9 +17,11 @@ from arian.application.validator import ContextRequestValidator
 from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
+from arian.domain.context.models import MaterializedChunk
 from arian.domain.exceptions import ProjectBaseError
 from arian.domain.protocols import ContextBuilderProtocol
 from arian.domain.repository.models import CollectionStats
+from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
 from arian.domain.shared.output import RendererProtocol
@@ -114,30 +116,34 @@ class Application:
                 budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
                 input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
 
+                build_result: Result[tuple[ContextResult, tuple[str, ...]]]
                 if a_request.group:
-                    build_result, skipped_files = await self._build_grouped(root, task_enum, budget, a_request)
+                    build_result = await self._build_grouped(root, task_enum, budget, a_request)
                 elif a_request.scope == "separate":
-                    build_result, skipped_files = await self._build_separate(root, task_enum, budget, a_request)
+                    build_result = await self._build_separate(root, task_enum, budget, a_request)
                 else:
-                    build_result, skipped_files = await self._build_merged(
-                        root, task_enum, budget, input_paths, a_request
-                    )
+                    build_result = await self._build_merged(root, task_enum, budget, input_paths, a_request)
 
-                warnings: list[str] = []
-                if skipped_files:
-                    warnings.append(f"Skipped {len(skipped_files)} file(s) during content load")
+                if not build_result.is_success:
+                    result = Result[ContextResult].failure(build_result.message)
+                    b_continue = False
+                else:
+                    build_data, skipped_files = build_result.success_value()
+                    warnings: list[str] = []
+                    if skipped_files:
+                        warnings.append(f"Skipped {len(skipped_files)} file(s) during content load")
 
-                elapsed: float = time.monotonic() - t_start
-                result = Result[ContextResult].success(
-                    ContextResult(
-                        output_path=build_result.output_path,
-                        total_files=build_result.total_files,
-                        total_tokens=build_result.total_tokens,
-                        elapsed_seconds=elapsed,
-                        skipped_files=skipped_files,
-                        warnings=tuple(warnings),
+                    elapsed: float = time.monotonic() - t_start
+                    result = Result[ContextResult].success(
+                        ContextResult(
+                            output_path=build_data.output_path,
+                            total_files=build_data.total_files,
+                            total_tokens=build_data.total_tokens,
+                            elapsed_seconds=elapsed,
+                            skipped_files=skipped_files,
+                            warnings=tuple(warnings),
+                        )
                     )
-                )
         except ProjectBaseError as exc:
             logger.exception("Context build aborted")
             result = Result[ContextResult].failure(exc.message)
@@ -159,7 +165,7 @@ class Application:
         a_budget: TokenBudget,
         a_input_paths: list[Path],
         a_request: ContextRequest,
-    ) -> tuple[ContextResult, tuple[str, ...]]:
+    ) -> Result[tuple[ContextResult, tuple[str, ...]]]:
         """Build a single merged context file.
 
         Args:
@@ -170,8 +176,10 @@ class Application:
             a_request: Original request DTO.
 
         Returns:
-            Tuple of ContextResult with stats and skipped file paths.
+            Result of tuple of ContextResult with stats and skipped file paths.
         """
+        result: Result[tuple[ContextResult, tuple[str, ...]]] = Result.failure("uninitialized")
+        b_continue: bool = True
         output_path: Path = self._resolve_output(a_request.output_path)
         explicit_paths: frozenset[Path] = (
             frozenset(a_root / p for p in a_request.paths) if a_request.paths else frozenset()
@@ -188,15 +196,24 @@ class Application:
             )
         )
         if not build_plan_result.is_success or build_plan_result.value is None:
-            raise RuntimeError(build_plan_result.message)
-        plan: ContextPlan = build_plan_result.value
-        return await self._materialize_render_write(
-            a_plan=plan,
-            a_root=a_root,
-            a_request=a_request,
-            a_scope="merged",
-            a_output_path=output_path,
-        )
+            result = Result.failure(build_plan_result.message)
+            b_continue = False
+
+        plan: ContextPlan = ContextPlan(chunks=(), total_tokens=0, total_files=0, task=a_task)
+        if b_continue:
+            plan = build_plan_result.success_value()
+
+        if b_continue:
+            materialize_result = await self._materialize_render_write(
+                a_plan=plan,
+                a_root=a_root,
+                a_request=a_request,
+                a_scope="merged",
+                a_output_path=output_path,
+            )
+            result = materialize_result
+
+        return result
 
     async def _build_separate(
         self,
@@ -204,7 +221,7 @@ class Application:
         a_task: ContextTask,
         a_budget: TokenBudget,
         a_request: ContextRequest,
-    ) -> tuple[ContextResult, tuple[str, ...]]:
+    ) -> Result[tuple[ContextResult, tuple[str, ...]]]:
         """Build separate context files for each input path.
 
         Args:
@@ -214,8 +231,10 @@ class Application:
             a_request: Original request DTO.
 
         Returns:
-            Tuple of ContextResult with stats and accumulated skipped paths.
+            Result of tuple of ContextResult with stats and accumulated skipped paths.
         """
+        result: Result[tuple[ContextResult, tuple[str, ...]]] = Result.failure("uninitialized")
+        b_continue: bool = True
         output_base: Path = self._resolve_output(a_request.output_path)
         total_files: int = 0
         total_tokens: int = 0
@@ -224,47 +243,60 @@ class Application:
 
         input_paths: list[Path] = [a_root / p for p in a_request.paths] if a_request.paths else [a_root]
         for input_path in input_paths:
-            build_plan_result = await self._builder.build(
-                BuildRequest(
-                    path=input_path,
-                    task=a_task,
-                    budget=a_budget,
-                    query=a_request.query,
-                    root=a_root,
-                    explicit_paths=frozenset({input_path}),
+            if b_continue:
+                build_plan_result = await self._builder.build(
+                    BuildRequest(
+                        path=input_path,
+                        task=a_task,
+                        budget=a_budget,
+                        query=a_request.query,
+                        root=a_root,
+                        explicit_paths=frozenset({input_path}),
+                    )
+                )
+                if not build_plan_result.is_success or build_plan_result.value is None:
+                    result = Result.failure(build_plan_result.message)
+                    b_continue = False
+                else:
+                    plan: ContextPlan = build_plan_result.success_value()
+                    input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
+                    if input_path == a_root:
+                        sep_output = output_base.parent / "root_context.md"
+                    else:
+                        rel_name: Path = input_path.relative_to(a_root)
+                        sep_output = output_base.parent / f"{rel_name}_context.md"
+                    materialize_result = await self._materialize_render_write(
+                        a_plan=plan,
+                        a_root=a_root,
+                        a_request=a_request,
+                        a_scope="separate",
+                        a_output_path=sep_output,
+                        a_paths=[input_name],
+                    )
+                    if not materialize_result.is_success:
+                        result = materialize_result
+                        b_continue = False
+                    else:
+                        res, skipped = materialize_result.success_value()
+                        all_skipped.extend(skipped)
+                        total_files += res.total_files
+                        total_tokens += res.total_tokens
+                        last_output = sep_output
+
+        if b_continue:
+            result = Result.success(
+                (
+                    ContextResult(
+                        output_path=last_output,
+                        total_files=total_files,
+                        total_tokens=total_tokens,
+                        elapsed_seconds=0,
+                    ),
+                    tuple(all_skipped),
                 )
             )
-            if not build_plan_result.is_success or build_plan_result.value is None:
-                raise RuntimeError(build_plan_result.message)
-            plan: ContextPlan = build_plan_result.value
-            input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
-            if input_path == a_root:
-                sep_output = output_base.parent / "root_context.md"
-            else:
-                rel_name: Path = input_path.relative_to(a_root)
-                sep_output = output_base.parent / f"{rel_name}_context.md"
-            result, skipped = await self._materialize_render_write(
-                a_plan=plan,
-                a_root=a_root,
-                a_request=a_request,
-                a_scope="separate",
-                a_output_path=sep_output,
-                a_paths=[input_name],
-            )
-            all_skipped.extend(skipped)
-            total_files += result.total_files
-            total_tokens += result.total_tokens
-            last_output = sep_output
 
-        return (
-            ContextResult(
-                output_path=last_output,
-                total_files=total_files,
-                total_tokens=total_tokens,
-                elapsed_seconds=0,
-            ),
-            tuple(all_skipped),
-        )
+        return result
 
     async def _build_grouped(
         self,
@@ -272,7 +304,7 @@ class Application:
         a_task: ContextTask,
         a_budget: TokenBudget,
         a_request: ContextRequest,
-    ) -> tuple[ContextResult, tuple[str, ...]]:
+    ) -> Result[tuple[ContextResult, tuple[str, ...]]]:
         """Build context for each group of paths.
 
         Args:
@@ -282,8 +314,10 @@ class Application:
             a_request: Original request DTO.
 
         Returns:
-            Tuple of ContextResult with stats and accumulated skipped paths.
+            Result of tuple of ContextResult with stats and accumulated skipped paths.
         """
+        result: Result[tuple[ContextResult, tuple[str, ...]]] = Result.failure("uninitialized")
+        b_continue: bool = True
         output_base: Path = self._resolve_output(a_request.output_path)
         total_files: int = 0
         total_tokens: int = 0
@@ -291,47 +325,60 @@ class Application:
         all_skipped: list[str] = []
 
         for group_spec in a_request.group:
-            group_paths: list[Path] = [a_root / p for p in group_spec]
-            build_plan_result = await self._builder.build(
-                BuildRequest(
-                    path=a_root,
-                    task=a_task,
-                    budget=a_budget,
-                    query=a_request.query,
-                    root=a_root,
-                    input_paths=group_paths,
-                    explicit_paths=frozenset(group_paths),
+            if b_continue:
+                group_paths: list[Path] = [a_root / p for p in group_spec]
+                build_plan_result = await self._builder.build(
+                    BuildRequest(
+                        path=a_root,
+                        task=a_task,
+                        budget=a_budget,
+                        query=a_request.query,
+                        root=a_root,
+                        input_paths=group_paths,
+                        explicit_paths=frozenset(group_paths),
+                    )
+                )
+                if not build_plan_result.is_success or build_plan_result.value is None:
+                    result = Result.failure(build_plan_result.message)
+                    b_continue = False
+                else:
+                    plan: ContextPlan = build_plan_result.success_value()
+                    group_names: list[str] = [p.name for p in group_paths]
+                    group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
+                    group_output = output_base.parent / f"{group_label}_context.md"
+                    input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
+                    materialize_result = await self._materialize_render_write(
+                        a_plan=plan,
+                        a_root=a_root,
+                        a_request=a_request,
+                        a_scope="group",
+                        a_output_path=group_output,
+                        a_paths=input_names,
+                    )
+                    if not materialize_result.is_success:
+                        result = materialize_result
+                        b_continue = False
+                    else:
+                        res, skipped = materialize_result.success_value()
+                        all_skipped.extend(skipped)
+                        total_files += res.total_files
+                        total_tokens += res.total_tokens
+                        last_output = group_output
+
+        if b_continue:
+            result = Result.success(
+                (
+                    ContextResult(
+                        output_path=last_output,
+                        total_files=total_files,
+                        total_tokens=total_tokens,
+                        elapsed_seconds=0,
+                    ),
+                    tuple(all_skipped),
                 )
             )
-            if not build_plan_result.is_success or build_plan_result.value is None:
-                raise RuntimeError(build_plan_result.message)
-            plan: ContextPlan = build_plan_result.value
-            group_names: list[str] = [p.name for p in group_paths]
-            group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
-            group_output = output_base.parent / f"{group_label}_context.md"
-            input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
-            result, skipped = await self._materialize_render_write(
-                a_plan=plan,
-                a_root=a_root,
-                a_request=a_request,
-                a_scope="group",
-                a_output_path=group_output,
-                a_paths=input_names,
-            )
-            all_skipped.extend(skipped)
-            total_files += result.total_files
-            total_tokens += result.total_tokens
-            last_output = group_output
 
-        return (
-            ContextResult(
-                output_path=last_output,
-                total_files=total_files,
-                total_tokens=total_tokens,
-                elapsed_seconds=0,
-            ),
-            tuple(all_skipped),
-        )
+        return result
 
     async def _materialize_render_write(
         self,
@@ -341,7 +388,7 @@ class Application:
         a_scope: str,
         a_output_path: Path,
         a_paths: list[str] | None = None,
-    ) -> tuple[ContextResult, tuple[str, ...]]:
+    ) -> Result[tuple[ContextResult, tuple[str, ...]]]:
         """Shared pipeline: metadata → load → materialize → redact → write.
 
         Args:
@@ -353,8 +400,10 @@ class Application:
             a_paths: Optional explicit path names for metadata.
 
         Returns:
-            Tuple of ContextResult stats and skipped file paths.
+            Result of tuple of ContextResult stats and skipped file paths.
         """
+        result: Result[tuple[ContextResult, tuple[str, ...]]] = Result.failure("uninitialized")
+        b_continue: bool = True
         stats: CollectionStats = self._builder.collection_stats
         plan: ContextPlan = self._with_metadata(
             a_plan,
@@ -366,43 +415,65 @@ class Application:
         )
         content_load_result = await self._builder.load_content(a_plan=plan, a_root=a_root)
         if not content_load_result.is_success or content_load_result.value is None:
-            raise RuntimeError(content_load_result.message)
-        content = content_load_result.value.content
-        skipped_files = content_load_result.value.skipped
+            result = Result.failure(content_load_result.message)
+            b_continue = False
 
-        materialize_result = self._builder.materialize(plan, content)
-        if not materialize_result.is_success or materialize_result.value is None:
-            raise RuntimeError(materialize_result.message)
-        materialized = materialize_result.value
+        content: dict[str, FileContent] = {}
+        skipped_files: tuple[str, ...] = ()
+        if b_continue:
+            load_data = content_load_result.success_value()
+            content = load_data.content
+            skipped_files = load_data.skipped
 
-        render_result = self._renderer.render(materialized, plan)
-        if not render_result.is_success or render_result.value is None:
-            raise RuntimeError(render_result.message)
+        materialized: tuple[MaterializedChunk, ...] = ()
+        if b_continue:
+            materialize_result = self._builder.materialize(plan, content)
+            if not materialize_result.is_success or materialize_result.value is None:
+                result = Result.failure(materialize_result.message)
+                b_continue = False
+            else:
+                materialized = materialize_result.success_value()
 
-        rendered: str = redact_secrets(
-            render_result.value,
-            self._security_config,
-        )
-        write_result = self._output.write(str(a_output_path), rendered)
-        if not write_result.is_success:
-            raise RuntimeError(write_result.message)
-        logger.info(
-            "Context generated: %d files, %d tokens, %d chunks, %d skipped",
-            plan.total_files,
-            plan.total_tokens,
-            len(plan.chunks),
-            len(skipped_files),
-        )
-        logger.info("Output: %s", a_output_path)
-        return (
-            ContextResult(
-                output_path=a_output_path,
-                total_files=plan.total_files,
-                total_tokens=plan.total_tokens,
-                elapsed_seconds=0,
-            ),
-            skipped_files,
-        )
+        rendered: str = ""
+        if b_continue:
+            render_result = self._renderer.render(materialized, plan)
+            if not render_result.is_success or render_result.value is None:
+                result = Result.failure(render_result.message)
+                b_continue = False
+            else:
+                rendered = redact_secrets(
+                    render_result.success_value(),
+                    self._security_config,
+                )
+
+        if b_continue:
+            write_result = self._output.write(str(a_output_path), rendered)
+            if not write_result.is_success:
+                result = Result.failure(write_result.message)
+                b_continue = False
+
+        if b_continue:
+            logger.info(
+                "Context generated: %d files, %d tokens, %d chunks, %d skipped",
+                plan.total_files,
+                plan.total_tokens,
+                len(plan.chunks),
+                len(skipped_files),
+            )
+            logger.info("Output: %s", a_output_path)
+            result = Result.success(
+                (
+                    ContextResult(
+                        output_path=a_output_path,
+                        total_files=plan.total_files,
+                        total_tokens=plan.total_tokens,
+                        elapsed_seconds=0,
+                    ),
+                    skipped_files,
+                )
+            )
+
+        return result
 
     @staticmethod
     def _with_metadata(
