@@ -176,15 +176,14 @@ class ContextBuilder:
 
         if b_continue:
             self._notify_start("plan", 1)
-            for repo_file in files:
-                await self._index.save_file(repo_file)
-
             try:
+                for repo_file in files:
+                    await self._index.save_file(repo_file)
                 plan: ContextPlan = self._planner.plan(files, a_task, a_budget, a_query)
             except Exception as e:
                 sanitized = sanitize_error_message(str(e), str(root))
-                logger.exception("Context planning failed: %s", sanitized)
-                msg = f"Context planning failed: {sanitized}"
+                logger.exception("Planning failed: %s", sanitized)
+                msg = f"Planning failed: {sanitized}"
                 result = BuildPlanResult.failure(msg)
                 b_continue = False
 
