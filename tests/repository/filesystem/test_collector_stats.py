@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from arian.domain.repository.models import CollectionStats
 from arian.infrastructure.gitignore_filter import GitignoreOptions
-from arian.repository.filesystem.collector import CollectionStats
 from arian.repository.filesystem.collector import FileCollector
 
 

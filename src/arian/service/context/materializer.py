@@ -3,23 +3,17 @@
 from __future__ import annotations
 
 import logging
-from typing import Protocol
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.context.models import MaterializedEntry
 from arian.domain.context.models import Provenance
+from arian.domain.protocols import LanguageAnalyzerProtocol
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
 from arian.infrastructure.config import MaterializerConfig
 
 logger = logging.getLogger(__name__)
-
-
-class LanguageAnalyzerProtocol(Protocol):
-    """Protocol for language-specific content compression."""
-
-    def compress(self, a_content: str, a_level: CompressionLevel) -> str: ...
 
 
 class ContextMaterializer:

@@ -1,5 +1,6 @@
 """Context domain models for Arian."""
 
+from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextChunk
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextResult
@@ -7,6 +8,7 @@ from arian.domain.context.models import ContextTask
 from arian.domain.context.models import PlannedFile
 
 __all__ = [
+    "BuildRequest",
     "ContextChunk",
     "ContextPlan",
     "ContextResult",

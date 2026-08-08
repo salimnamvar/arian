@@ -174,6 +174,7 @@ class TestApplicationBuildContext:
                 a_builder=wired._builder,
                 a_renderer=wired._renderer,
                 a_output=stub,
+                a_resolve_output=wired._resolve_output,
                 a_root=tmp_path,
             )
             request = ContextRequest(

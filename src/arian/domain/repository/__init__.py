@@ -1,5 +1,6 @@
 """Repository domain models for Arian."""
 
+from arian.domain.repository.models import CollectionStats
 from arian.domain.repository.models import Dependency
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import Module
@@ -8,6 +9,7 @@ from arian.domain.repository.models import RepositoryFile
 from arian.domain.repository.models import Symbol
 
 __all__ = [
+    "CollectionStats",
     "Dependency",
     "FileContent",
     "Module",

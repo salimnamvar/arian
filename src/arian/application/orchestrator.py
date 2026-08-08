@@ -1,7 +1,7 @@
 """Application class — use case orchestrator for context generation.
 
 Follows CSR pattern: the controller delegates here; this layer orchestrates
-services and repositories to fulfill the use case.
+services and repositories via protocols to fulfill the use case.
 """
 
 from __future__ import annotations
@@ -14,21 +14,20 @@ import time
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.application.validator import ContextRequestValidator
+from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.exceptions import InputError
 from arian.domain.exceptions import ProcessingError
 from arian.domain.exceptions import ProjectBaseError
+from arian.domain.protocols import ContextBuilderProtocol
+from arian.domain.repository.models import CollectionStats
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
+from arian.domain.shared.output import RendererProtocol
 from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.config import SecurityConfig
-from arian.infrastructure.output.protocols import RendererProtocol
-from arian.infrastructure.output_path_resolver import resolve_output_path
-from arian.repository.filesystem.collector import CollectionStats
-from arian.service.builder.context_builder import BuildRequest
-from arian.service.builder.context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -38,50 +37,50 @@ class Application:
 
     Responsibilities:
         1. Validate request and resolve output paths via injected ports.
-        2. Delegate to ContextBuilder for plan, content, and materialization.
+        2. Delegate to ContextBuilderProtocol for plan, content, materialization.
         3. Delegate to RendererProtocol for final output.
         4. Redact secrets, write via OutputWriter, return ContextResult.
 
     Attributes:
-        _builder: Context builder for the full pipeline.
-        _renderer: Renderer for final output (protocol-based).
-        _output: Output writer (filesystem-agnostic protocol).
+        _builder: Context builder pipeline port.
+        _renderer: Renderer port (protocol-based).
+        _output: Output writer port (protocol-based).
         _validator: Request validator.
         _root: Repository root path (injected; no Path.cwd() in use-case code).
         _resolve_output: Output path resolver port.
+        _security_config: Security configuration for secret redaction.
     """
 
     def __init__(
         self,
-        a_builder: ContextBuilder,
+        a_builder: ContextBuilderProtocol,
         a_renderer: RendererProtocol,
         a_output: OutputWriterProtocol,
+        a_resolve_output: Callable[[str], Path],
         a_security_config: SecurityConfig = SecurityConfig(),
         a_validator: ContextRequestValidator | None = None,
         a_root: Path | None = None,
-        a_resolve_output: Callable[[str], Path] | None = None,
     ) -> None:
         """Initialize the application.
 
         Args:
-            a_builder: Context builder for pipeline orchestration.
+            a_builder: Context builder pipeline port.
             a_renderer: Renderer for output generation (protocol-based).
             a_output: Output writer port for persisting rendered content.
+            a_resolve_output: Output path resolver port (injected by bootstrap).
             a_security_config: Security configuration (used by
                 ``redact_secrets`` on every rendered chunk).
             a_validator: Request validator. Created with a_root if None.
             a_root: Repository root. Defaults to current working directory
                 only when bootstrap does not inject one.
-            a_resolve_output: Optional path resolver. Defaults to infrastructure
-                ``resolve_output_path``.
         """
-        self._builder = a_builder
+        self._builder: ContextBuilderProtocol = a_builder
         self._renderer: RendererProtocol = a_renderer
-        self._output = a_output
+        self._output: OutputWriterProtocol = a_output
+        self._resolve_output: Callable[[str], Path] = a_resolve_output
         self._security_config: SecurityConfig = a_security_config
         self._root: Path = a_root if a_root is not None else Path.cwd()
         self._validator = a_validator or ContextRequestValidator(a_root=self._root)
-        self._resolve_output: Callable[[str], Path] = a_resolve_output or resolve_output_path
 
     async def build_context(self, a_request: ContextRequest) -> ContextResult:
         """Execute the full context generation pipeline.
@@ -178,28 +177,12 @@ class Application:
                 explicit_paths=explicit_paths,
             )
         )
-        stats: CollectionStats = self._builder.collection_stats
-        plan = self._with_metadata(plan, a_root, a_request, "merged", a_stats=stats)
-        content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
-        materialized = self._builder.materialize(plan, content)
-        rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
-        self._output.write(str(output_path), rendered)
-        logger.info(
-            "Context generated: %d files, %d tokens, %d chunks, %d skipped",
-            plan.total_files,
-            plan.total_tokens,
-            len(plan.chunks),
-            len(skipped_files),
-        )
-        logger.info("Output: %s", output_path)
-        return (
-            ContextResult(
-                output_path=output_path,
-                total_files=plan.total_files,
-                total_tokens=plan.total_tokens,
-                elapsed_seconds=0,
-            ),
-            skipped_files,
+        return await self._materialize_render_write(
+            a_plan=plan,
+            a_root=a_root,
+            a_request=a_request,
+            a_scope="merged",
+            a_output_path=output_path,
         )
 
     async def _build_separate(
@@ -239,21 +222,22 @@ class Application:
                 )
             )
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
-            stats_sep: CollectionStats = self._builder.collection_stats
-            plan = self._with_metadata(plan, a_root, a_request, "separate", [input_name], a_stats=stats_sep)
-            content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
-            all_skipped.extend(skipped)
-            materialized = self._builder.materialize(plan, content)
-            rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
             if input_path == a_root:
                 sep_output = output_base.parent / "root_context.md"
             else:
                 rel_name: Path = input_path.relative_to(a_root)
                 sep_output = output_base.parent / f"{rel_name}_context.md"
-            self._output.write(str(sep_output), rendered)
-            logger.info("Output: %s", sep_output)
-            total_files += plan.total_files
-            total_tokens += plan.total_tokens
+            result, skipped = await self._materialize_render_write(
+                a_plan=plan,
+                a_root=a_root,
+                a_request=a_request,
+                a_scope="separate",
+                a_output_path=sep_output,
+                a_paths=[input_name],
+            )
+            all_skipped.extend(skipped)
+            total_files += result.total_files
+            total_tokens += result.total_tokens
             last_output = sep_output
 
         return (
@@ -307,16 +291,17 @@ class Application:
             group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
             group_output = output_base.parent / f"{group_label}_context.md"
             input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
-            stats_grp: CollectionStats = self._builder.collection_stats
-            plan = self._with_metadata(plan, a_root, a_request, "group", input_names, a_stats=stats_grp)
-            content, skipped = await self._builder.load_content(a_plan=plan, a_root=a_root)
+            result, skipped = await self._materialize_render_write(
+                a_plan=plan,
+                a_root=a_root,
+                a_request=a_request,
+                a_scope="group",
+                a_output_path=group_output,
+                a_paths=input_names,
+            )
             all_skipped.extend(skipped)
-            materialized = self._builder.materialize(plan, content)
-            rendered: str = redact_secrets(self._renderer.render(materialized, plan), self._security_config)
-            self._output.write(str(group_output), rendered)
-            logger.info("Output: %s", group_output)
-            total_files += plan.total_files
-            total_tokens += plan.total_tokens
+            total_files += result.total_files
+            total_tokens += result.total_tokens
             last_output = group_output
 
         return (
@@ -327,6 +312,62 @@ class Application:
                 elapsed_seconds=0,
             ),
             tuple(all_skipped),
+        )
+
+    async def _materialize_render_write(
+        self,
+        a_plan: ContextPlan,
+        a_root: Path,
+        a_request: ContextRequest,
+        a_scope: str,
+        a_output_path: Path,
+        a_paths: list[str] | None = None,
+    ) -> tuple[ContextResult, tuple[str, ...]]:
+        """Shared pipeline: metadata → load → materialize → redact → write.
+
+        Args:
+            a_plan: Planned context from the builder.
+            a_root: Repository root path.
+            a_request: Original request DTO.
+            a_scope: Scope mode string (merged / separate / group).
+            a_output_path: Destination path for this render.
+            a_paths: Optional explicit path names for metadata.
+
+        Returns:
+            Tuple of ContextResult stats and skipped file paths.
+        """
+        stats: CollectionStats = self._builder.collection_stats
+        plan: ContextPlan = self._with_metadata(
+            a_plan,
+            a_root,
+            a_request,
+            a_scope,
+            a_paths=a_paths,
+            a_stats=stats,
+        )
+        content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
+        materialized = self._builder.materialize(plan, content)
+        rendered: str = redact_secrets(
+            self._renderer.render(materialized, plan),
+            self._security_config,
+        )
+        self._output.write(str(a_output_path), rendered)
+        logger.info(
+            "Context generated: %d files, %d tokens, %d chunks, %d skipped",
+            plan.total_files,
+            plan.total_tokens,
+            len(plan.chunks),
+            len(skipped_files),
+        )
+        logger.info("Output: %s", a_output_path)
+        return (
+            ContextResult(
+                output_path=a_output_path,
+                total_files=plan.total_files,
+                total_tokens=plan.total_tokens,
+                elapsed_seconds=0,
+            ),
+            skipped_files,
         )
 
     @staticmethod

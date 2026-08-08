@@ -15,6 +15,7 @@ from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.file_output_writer import FileOutputWriter
 from arian.infrastructure.gitignore_filter import GitignoreOptions
 from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
@@ -85,6 +86,7 @@ def create_application(a_config: ArianConfig | None = None) -> Application:
         a_builder=builder,
         a_renderer=renderer,
         a_output=output,
+        a_resolve_output=resolve_output_path,
         a_security_config=cfg.security,
         a_validator=validator,
         a_root=root,

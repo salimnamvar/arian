@@ -1,18 +1,21 @@
 """CLI parsing utilities — extracted from the controller.
 
-Handles budget string parsing, group option parsing, and request validation.
-These are CLI-specific concerns that do not belong in the command definition.
+Handles budget string parsing and group option parsing. Business
+validation of ``ContextRequest`` (paths, budget limits, scope) belongs
+to the Application layer (``ContextRequestValidator``); the controller
+only translates domain errors into CLI exit codes.
 """
 
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import typer
 
 from arian.application.context import ContextRequest
+from arian.application.validator import ContextRequestValidator
 from arian.domain.context.models import ContextTask
+from arian.domain.exceptions import ProjectBaseError
 from arian.infrastructure.config import ControllerConfig
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -68,12 +71,21 @@ def parse_groups(a_group: list[str] | None) -> tuple[tuple[str, ...], ...]:
 def validate_request(
     a_request: ContextRequest,
     a_config: ControllerConfig = ControllerConfig(),
+    a_validator: ContextRequestValidator | None = None,
 ) -> None:
-    """Validate a ContextRequest before passing to Application.
+    """Validate a ContextRequest at the CLI boundary.
+
+    Delegates business rules to ``ContextRequestValidator`` (application
+    layer) and maps domain exceptions to ``typer.Exit``. Task name is
+    still checked here so invalid enum values fail fast with a helpful
+    list of valid values.
 
     Args:
         a_request: Request DTO to validate.
-        a_config: Controller configuration (valid scopes).
+        a_config: Controller configuration (valid scopes) — used when
+            no validator is injected.
+        a_validator: Optional application validator. Built from
+            ``a_config`` when omitted.
 
     Raises:
         typer.Exit: If validation fails.
@@ -85,16 +97,9 @@ def validate_request(
         logger.error(msg)  # noqa: TRY400
         raise typer.Exit(code=1) from None
 
-    if a_request.scope not in a_config.valid_scopes:
-        msg = f"Invalid scope: {a_request.scope}. Valid scopes: merged, separate"
-        logger.error(msg)
+    validator: ContextRequestValidator = a_validator or ContextRequestValidator(a_controller=a_config)
+    try:
+        validator.validate(a_request)
+    except ProjectBaseError as exc:
+        logger.error("%s", exc)  # noqa: TRY400
         raise typer.Exit(code=1) from None
-
-    root: Path = Path.cwd()
-    if a_request.group:
-        for group_spec in a_request.group:
-            for p in group_spec:
-                gp: Path = root / p
-                if not gp.exists():
-                    logger.error("Path does not exist: %s", gp)
-                    raise typer.Exit(code=1) from None

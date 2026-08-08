@@ -56,6 +56,61 @@ class SQLiteRepositoryIndex:
             self._connection.executescript(self._config.schema_sql)
         return self._connection
 
+    @staticmethod
+    def _row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:
+        """Map a files-table row to a domain model.
+
+        Args:
+            a_row: SQL row (path, language, role, tokens, hash, size_bytes).
+
+        Returns:
+            RepositoryFile domain entity.
+        """
+        return RepositoryFile(
+            path=a_row[0],
+            language=a_row[1],
+            role=FileRole(a_row[2]),
+            tokens=a_row[3],
+            hash=a_row[4],
+            size_bytes=a_row[5],
+        )
+
+    @staticmethod
+    def _row_to_symbol(a_row: tuple[Any, ...]) -> Symbol:
+        """Map a symbols-table row to a domain model.
+
+        Args:
+            a_row: SQL row (name, kind, file_path, signature, docstring, line_start, line_end).
+
+        Returns:
+            Symbol domain entity.
+        """
+        return Symbol(
+            name=a_row[0],
+            kind=SymbolKind(a_row[1]),
+            file_path=a_row[2],
+            signature=a_row[3],
+            docstring=a_row[4],
+            line_start=a_row[5],
+            line_end=a_row[6],
+        )
+
+    @staticmethod
+    def _row_to_dependency(a_row: tuple[Any, ...]) -> Dependency:
+        """Map a dependencies-table row to a domain model.
+
+        Args:
+            a_row: SQL row (source_path, target_path, kind).
+
+        Returns:
+            Dependency domain entity.
+        """
+        return Dependency(
+            source_path=a_row[0],
+            target_path=a_row[1],
+            kind=DependencyKind(a_row[2]),
+        )
+
     async def save_repository(self, a_repo: Repository) -> None:
         """Save a repository by storing its files.
 
@@ -95,14 +150,7 @@ class SQLiteRepositoryIndex:
         row: tuple[Any, ...] | None = cursor.fetchone()
         result: RepositoryFile | None = None
         if row is not None:
-            result = RepositoryFile(
-                path=row[0],
-                language=row[1],
-                role=FileRole(row[2]),
-                tokens=row[3],
-                hash=row[4],
-                size_bytes=row[5],
-            )
+            result = self._row_to_file(row)
         return result
 
     async def list_files(self) -> list[RepositoryFile]:
@@ -115,17 +163,7 @@ class SQLiteRepositoryIndex:
         cursor: sqlite3.Cursor = conn.execute(
             "SELECT path, language, role, tokens, hash, size_bytes FROM files",
         )
-        result: list[RepositoryFile] = [
-            RepositoryFile(
-                path=row[0],
-                language=row[1],
-                role=FileRole(row[2]),
-                tokens=row[3],
-                hash=row[4],
-                size_bytes=row[5],
-            )
-            for row in cursor.fetchall()
-        ]
+        result: list[RepositoryFile] = [self._row_to_file(row) for row in cursor.fetchall()]
         return result
 
     async def save_symbol(self, a_symbol: Symbol) -> None:
@@ -164,18 +202,7 @@ class SQLiteRepositoryIndex:
             "SELECT name, kind, file_path, signature, docstring, line_start, line_end FROM symbols WHERE name = ?",
             (a_name,),
         )
-        result: list[Symbol] = [
-            Symbol(
-                name=row[0],
-                kind=SymbolKind(row[1]),
-                file_path=row[2],
-                signature=row[3],
-                docstring=row[4],
-                line_start=row[5],
-                line_end=row[6],
-            )
-            for row in cursor.fetchall()
-        ]
+        result: list[Symbol] = [self._row_to_symbol(row) for row in cursor.fetchall()]
         return result
 
     async def save_dependency(self, a_dep: Dependency) -> None:
@@ -205,14 +232,7 @@ class SQLiteRepositoryIndex:
             "SELECT source_path, target_path, kind FROM dependencies WHERE source_path = ? OR target_path = ?",
             (a_path, a_path),
         )
-        result: list[Dependency] = [
-            Dependency(
-                source_path=row[0],
-                target_path=row[1],
-                kind=DependencyKind(row[2]),
-            )
-            for row in cursor.fetchall()
-        ]
+        result: list[Dependency] = [self._row_to_dependency(row) for row in cursor.fetchall()]
         return result
 
     async def save_module(self, a_module: Module) -> None:

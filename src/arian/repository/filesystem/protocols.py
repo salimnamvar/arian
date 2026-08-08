@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from arian.domain.repository.models import CollectionStats
 from arian.domain.repository.models import RepositoryFile
-from arian.repository.filesystem.collector import CollectionStats
 
 
 class FileCollectorProtocol(Protocol):

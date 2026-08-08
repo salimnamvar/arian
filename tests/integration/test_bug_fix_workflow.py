@@ -12,7 +12,7 @@ from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
-from arian.service.builder.context_builder import BuildRequest
+from arian.domain.context.models import BuildRequest
 from arian.service.builder.context_builder import ContextBuilder
 from arian.service.classifier.file_classifier import FileClassifier
 from arian.service.context.materializer import ContextMaterializer

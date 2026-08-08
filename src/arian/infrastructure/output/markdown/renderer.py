@@ -11,8 +11,8 @@ from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
+from arian.domain.shared.output import RendererProtocol
 from arian.infrastructure.config import RendererConfig
-from arian.infrastructure.output.protocols import RendererProtocol
 
 logger = logging.getLogger(__name__)
 

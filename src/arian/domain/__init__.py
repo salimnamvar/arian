@@ -4,6 +4,7 @@ Provides domain entities, enums, and exceptions.
 Zero external dependencies — only stdlib imports.
 """
 
+from arian.domain.context import BuildRequest
 from arian.domain.context import ContextChunk
 from arian.domain.context import ContextPlan
 from arian.domain.context import ContextResult
@@ -36,7 +37,12 @@ from arian.domain.exceptions import SecurityError
 from arian.domain.exceptions import SymlinkLoopError
 from arian.domain.exceptions import TokenizationError
 from arian.domain.exceptions import ValidationError
+from arian.domain.protocols import ContextBuilderProtocol
+from arian.domain.protocols import ContextMaterializerProtocol
+from arian.domain.protocols import ContextPlannerProtocol
+from arian.domain.protocols import FileClassifierProtocol
 from arian.domain.protocols import LanguageAnalyzerProtocol
+from arian.domain.repository import CollectionStats
 from arian.domain.repository import Dependency
 from arian.domain.repository import FileContent
 from arian.domain.repository import Module
@@ -48,6 +54,8 @@ from arian.domain.shared import ConcurrencyPolicy
 from arian.domain.shared import DependencyKind
 from arian.domain.shared import EnvironmentSecretProvider
 from arian.domain.shared import FileRole
+from arian.domain.shared import OutputWriterProtocol
+from arian.domain.shared import RendererProtocol
 from arian.domain.shared import SecretProvider
 from arian.domain.shared import SymbolKind
 from arian.domain.shared import TokenBudget
@@ -60,22 +68,28 @@ from arian.domain.shared import validate_input_path
 __all__ = [
     "AnalysisError",
     "BinaryFileError",
+    "BuildRequest",
     "CancellationError",
     "ClassificationError",
     "CollectionError",
+    "CollectionStats",
     "CompressionLevel",
     "ConcurrencyPolicy",
     "ConfigurationError",
     "ConnectionError",
     "ContextBuilderError",
+    "ContextBuilderProtocol",
     "ContextChunk",
+    "ContextMaterializerProtocol",
     "ContextPlan",
+    "ContextPlannerProtocol",
     "ContextResult",
     "ContextTask",
     "Dependency",
     "DependencyKind",
     "EnvironmentSecretProvider",
     "ExternalServiceError",
+    "FileClassifierProtocol",
     "FileContent",
     "FileRole",
     "GitError",
@@ -86,12 +100,14 @@ __all__ = [
     "MaterializationError",
     "Module",
     "NoDocumentsError",
+    "OutputWriterProtocol",
     "PartialResultError",
     "PathTraversalError",
     "PlannedFile",
     "PlanningError",
     "ProcessingError",
     "ProjectBaseError",
+    "RendererProtocol",
     "RenderingError",
     "Repository",
     "RepositoryError",

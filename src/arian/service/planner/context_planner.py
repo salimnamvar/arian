@@ -10,6 +10,7 @@ from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import FileFragment
 from arian.domain.context.models import PlannedFile
+from arian.domain.protocols import FileClassifierProtocol
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
@@ -29,13 +30,13 @@ class ContextPlanner:
     to stay within token budgets while maximizing relevance.
 
     Attributes:
-        _classifier: File classifier for role detection.
+        _classifier: File classifier for role detection (protocol).
         _config: Planner configuration (role ordering, task boosts).
     """
 
     def __init__(
         self,
-        a_classifier: FileClassifier | None = None,
+        a_classifier: FileClassifierProtocol | None = None,
         a_config: PlannerConfig = PlannerConfig(),
     ) -> None:
         """Initialize planner.
@@ -44,7 +45,7 @@ class ContextPlanner:
             a_classifier: Optional file classifier (defaults to new instance).
             a_config: Planner configuration (role ordering, task boosts).
         """
-        self._classifier: FileClassifier = a_classifier if a_classifier is not None else FileClassifier()
+        self._classifier: FileClassifierProtocol = a_classifier if a_classifier is not None else FileClassifier()
         self._config: PlannerConfig = a_config
 
     def plan(

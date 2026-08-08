@@ -9,11 +9,15 @@ import hashlib
 import logging
 from pathlib import Path
 
+from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.exceptions import ContextBuilderError
 from arian.domain.exceptions import InputError
+from arian.domain.protocols import ContextMaterializerProtocol
+from arian.domain.protocols import ContextPlannerProtocol
+from arian.domain.repository.models import CollectionStats
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import ConcurrencyPolicy
@@ -24,11 +28,8 @@ from arian.domain.shared.security import redact_secrets
 from arian.infrastructure.config import DomainLimitsConfig
 from arian.infrastructure.config import RetryConfig
 from arian.infrastructure.config import SecurityConfig
-from arian.repository.filesystem.collector import CollectionStats
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
-from arian.service.context.materializer import ContextMaterializer
-from arian.service.planner.context_planner import ContextPlanner
 
 logger = logging.getLogger(__name__)
 
@@ -59,34 +60,6 @@ class ContextBuilderOptions:
     max_collected_files: int = DomainLimitsConfig().max_collected_files
     retry: RetryConfig = field(default_factory=RetryConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
-
-
-@dataclass(frozen=True)
-class BuildRequest:
-    """Per-call input to :meth:`ContextBuilder.build`.
-
-    Grouping all build inputs into a single object keeps the public
-    surface short and self-documenting, and makes it easy to add new
-    optional fields without breaking existing callers.
-
-    Attributes:
-        path: Repository root path.
-        task: The context task type.
-        budget: Token budget constraints.
-        query: Optional query for relevance matching.
-        root: Root for computing relative paths. Defaults to ``path``.
-        input_paths: Optional list of specific input paths to scan.
-        explicit_paths: Paths whose contents always pass the
-            ``.gitignore`` filter. Mirrors ``git add -f`` semantics.
-    """
-
-    path: Path
-    task: ContextTask
-    budget: TokenBudget
-    query: str | None = None
-    root: Path | None = None
-    input_paths: list[Path] | None = None
-    explicit_paths: frozenset[Path] = field(default_factory=frozenset[Path])
 
 
 class ContextBuilder:
@@ -120,8 +93,8 @@ class ContextBuilder:
         self,
         a_collector: FileCollectorProtocol,
         a_index: RepositoryIndexProtocol,
-        a_planner: ContextPlanner,
-        a_materializer: ContextMaterializer,
+        a_planner: ContextPlannerProtocol,
+        a_materializer: ContextMaterializerProtocol,
         a_options: ContextBuilderOptions = ContextBuilderOptions(),
     ) -> None:
         """Initialize context builder.
@@ -129,15 +102,15 @@ class ContextBuilder:
         Args:
             a_collector: File collector protocol for repository scanning.
             a_index: Repository index for metadata storage.
-            a_planner: Context planner for file selection.
-            a_materializer: Context materializer for compression.
+            a_planner: Context planner for file selection (protocol).
+            a_materializer: Context materializer for compression (protocol).
             a_options: Concurrency / progress / retry options. See
                 :class:`ContextBuilderOptions`.
         """
         self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
-        self._planner: ContextPlanner = a_planner
-        self._materializer: ContextMaterializer = a_materializer
+        self._planner: ContextPlannerProtocol = a_planner
+        self._materializer: ContextMaterializerProtocol = a_materializer
         self._options: ContextBuilderOptions = a_options
         self._collection_stats: CollectionStats = CollectionStats()
 

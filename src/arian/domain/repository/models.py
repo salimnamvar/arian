@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field
 
 from arian.domain.shared.enums import DependencyKind
 from arian.domain.shared.enums import FileRole
@@ -113,3 +114,39 @@ class Dependency:
     source_path: str
     target_path: str
     kind: DependencyKind
+
+
+@dataclass(frozen=True)
+class CollectionStats:
+    """Transparent collection statistics (domain value object).
+
+    Lives in the domain so Application and Service layers can depend on
+    the type without importing repository implementations (CSR).
+
+    Invariant: ``total_scanned == collected + sum(all skipped_*)``
+    AND ``sum(skipped_gitignore_by_pattern.values()) == skipped_gitignore``.
+
+    Attributes:
+        total_scanned: Total files encountered during traversal.
+        collected: Files that passed all gates.
+        skipped_binary: Files skipped because they are binary.
+        skipped_size: Files skipped because they exceed max_file_size.
+        skipped_gitignore: Files skipped by gitignore/exclude patterns.
+        skipped_permission: Files skipped due to permission errors.
+        skipped_error: Files skipped due to OS errors.
+        skipped_by_extension: Files skipped by extension narrowing filter.
+        unknown_language: Collected files with empty language string.
+        skipped_gitignore_by_pattern: Map of gitignore pattern to the
+            number of files it rejected.
+    """
+
+    total_scanned: int = 0
+    collected: int = 0
+    skipped_binary: int = 0
+    skipped_size: int = 0
+    skipped_gitignore: int = 0
+    skipped_permission: int = 0
+    skipped_error: int = 0
+    skipped_by_extension: int = 0
+    unknown_language: int = 0
+    skipped_gitignore_by_pattern: dict[str, int] = field(default_factory=dict[str, int])

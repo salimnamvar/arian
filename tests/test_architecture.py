@@ -24,8 +24,11 @@ FORBIDDEN: dict[str, set[str]] = {
     "infrastructure": {"application", "service", "repository", "controller", "bootstrap"},
     "service": {"application", "infrastructure", "controller", "bootstrap"},
     "repository": {"application", "service", "controller", "bootstrap"},
-    "application": {"controller", "bootstrap"},
-    "controller": {"service", "repository"},
+    # Application may use service (use-case orchestration) and config, but not
+    # infrastructure adapters, repository implementations, controller, or bootstrap.
+    "application": {"controller", "bootstrap", "infrastructure", "repository"},
+    # Controller may reach application + bootstrap composition root only.
+    "controller": {"service", "repository", "infrastructure"},
 }
 
 # ``arian.infrastructure.config`` is a cross-cutting, data-only module

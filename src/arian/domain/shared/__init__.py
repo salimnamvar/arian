@@ -13,6 +13,7 @@ from arian.domain.shared.events import ProgressHook
 from arian.domain.shared.language import detect_language
 from arian.domain.shared.language import lang_extensions
 from arian.domain.shared.output import OutputWriterProtocol
+from arian.domain.shared.output import RendererProtocol
 from arian.domain.shared.secrets import EnvironmentSecretProvider
 from arian.domain.shared.secrets import SecretProvider
 from arian.domain.shared.security import SafePath
@@ -32,6 +33,7 @@ __all__ = [
     "PipelineProgressProtocol",
     "PipelineStageProtocol",
     "ProgressHook",
+    "RendererProtocol",
     "SafePath",
     "SecretProvider",
     "SymbolKind",

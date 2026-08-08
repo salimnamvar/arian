@@ -3,10 +3,41 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field
+from pathlib import Path
 
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import ContextTask
 from arian.domain.shared.enums import FileRole
+from arian.domain.shared.enums import TokenBudget
+
+
+@dataclass(frozen=True)
+class BuildRequest:
+    """Per-call input to the context build pipeline.
+
+    Grouping all build inputs into a single object keeps the public
+    surface short and self-documenting, and makes it easy to add new
+    optional fields without breaking existing callers.
+
+    Attributes:
+        path: Repository root path.
+        task: The context task type.
+        budget: Token budget constraints.
+        query: Optional query for relevance matching.
+        root: Root for computing relative paths. Defaults to ``path``.
+        input_paths: Optional list of specific input paths to scan.
+        explicit_paths: Paths whose contents always pass the
+            ``.gitignore`` filter. Mirrors ``git add -f`` semantics.
+    """
+
+    path: Path
+    task: ContextTask
+    budget: TokenBudget
+    query: str | None = None
+    root: Path | None = None
+    input_paths: list[Path] | None = None
+    explicit_paths: frozenset[Path] = field(default_factory=frozenset[Path])
 
 
 @dataclass(frozen=True)

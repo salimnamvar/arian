@@ -53,14 +53,9 @@ class ContextRequestValidator:
             SecurityError: If path traversal detected.
         """
         root: Path = self._root or Path.cwd()
-        for path_str in a_request.paths:
-            raw_path: Path = Path(path_str)
-            full_path = raw_path if raw_path.is_absolute() else root / path_str
-            if not full_path.exists():
-                msg = f"Path does not exist: {path_str}"
-                raise InputError(msg)
-            if not raw_path.is_absolute():
-                validate_input_path(full_path, root, self._security)
+        self._validate_paths(a_request.paths, root)
+        for group_spec in a_request.group:
+            self._validate_paths(group_spec, root)
 
         if a_request.budget is not None and a_request.budget <= 0:
             msg = f"Budget must be positive, got: {a_request.budget}"
@@ -73,3 +68,23 @@ class ContextRequestValidator:
         if a_request.scope not in self._controller.valid_scopes:
             msg = f"Invalid scope: {a_request.scope}. Valid scopes: {', '.join(sorted(self._controller.valid_scopes))}"
             raise InputError(msg)
+
+    def _validate_paths(self, a_paths: tuple[str, ...], a_root: Path) -> None:
+        """Validate that each path exists and is not a traversal.
+
+        Args:
+            a_paths: Relative or absolute path strings.
+            a_root: Repository root for relative resolution.
+
+        Raises:
+            InputError: If a path does not exist.
+            SecurityError: If path traversal is detected.
+        """
+        for path_str in a_paths:
+            raw_path: Path = Path(path_str)
+            full_path = raw_path if raw_path.is_absolute() else a_root / path_str
+            if not full_path.exists():
+                msg = f"Path does not exist: {path_str}"
+                raise InputError(msg)
+            if not raw_path.is_absolute():
+                validate_input_path(full_path, a_root, self._security)
