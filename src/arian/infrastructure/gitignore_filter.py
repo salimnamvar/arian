@@ -112,11 +112,15 @@ class PathFilter:
                     gitignore_files.append(descendant)
         specs: list[tuple[Path, Any]] = []
         for gi in gitignore_files:
-            spec: Any = pathspec.PathSpec.from_lines(
-                "gitignore",
-                gi.read_text().splitlines(),
-            )
-            specs.append((gi.parent, spec))
+            try:
+                lines: list[str] = gi.read_text().splitlines()
+                spec: Any = pathspec.PathSpec.from_lines(
+                    "gitignore",
+                    lines,
+                )
+                specs.append((gi.parent, spec))
+            except OSError:
+                continue
         # Deepest first (most parents = deepest file)
         specs.sort(key=lambda pair: len(pair[0].parts), reverse=True)
         return specs
