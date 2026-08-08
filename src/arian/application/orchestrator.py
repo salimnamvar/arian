@@ -17,8 +17,6 @@ from arian.application.validator import ContextRequestValidator
 from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
-from arian.domain.exceptions import InputError
-from arian.domain.exceptions import ProcessingError
 from arian.domain.exceptions import ProjectBaseError
 from arian.domain.protocols import ContextBuilderProtocol
 from arian.domain.repository.models import CollectionStats
@@ -30,6 +28,35 @@ from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.config import SecurityConfig
 
 logger = logging.getLogger(__name__)
+
+
+class BuildContextResult:
+    """Result of the build_context operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        value: The ContextResult if successful, None otherwise.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_value: ContextResult | None = None,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.value: ContextResult | None = a_value
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_value: ContextResult) -> BuildContextResult:
+        return BuildContextResult(a_is_success=True, a_value=a_value)
+
+    @staticmethod
+    def failure(a_message: str) -> BuildContextResult:
+        return BuildContextResult(a_is_success=False, a_message=a_message)
 
 
 class Application:
@@ -82,7 +109,7 @@ class Application:
         self._root: Path = a_root if a_root is not None else Path.cwd()
         self._validator = a_validator or ContextRequestValidator(a_root=self._root)
 
-    async def build_context(self, a_request: ContextRequest) -> ContextResult:
+    async def build_context(self, a_request: ContextRequest) -> BuildContextResult:
         """Execute the full context generation pipeline.
 
         Pipeline:
@@ -96,51 +123,62 @@ class Application:
             a_request: Input DTO from the controller.
 
         Returns:
-            ContextResult with output path, statistics, skips, and warnings.
-
-        Raises:
-            InputError: If task name is invalid or input is bad.
-            ProcessingError: If an OS-level error occurs during processing.
+            BuildContextResult with is_success, value (ContextResult), and message.
         """
         root: Path = self._root
+        result: BuildContextResult = BuildContextResult.failure("uninitialized")
+        b_continue: bool = True
+
         try:
-            self._validator.validate(a_request)
-            t_start: float = time.monotonic()
-            task_enum: ContextTask = ContextTask(a_request.task)
-            budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
-            input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
+            validation_result = self._validator.validate(a_request)
+            if not validation_result.is_success:
+                logger.debug("Validation failed: %s", validation_result.message)
+                result = BuildContextResult.failure(validation_result.message)
+                b_continue = False
 
-            if a_request.group:
-                result, skipped_files = await self._build_grouped(root, task_enum, budget, a_request)
-            elif a_request.scope == "separate":
-                result, skipped_files = await self._build_separate(root, task_enum, budget, a_request)
-            else:
-                result, skipped_files = await self._build_merged(root, task_enum, budget, input_paths, a_request)
+            if b_continue:
+                t_start: float = time.monotonic()
+                task_enum: ContextTask = ContextTask(a_request.task)
+                budget: TokenBudget = TokenBudget(max_tokens=a_request.budget)
+                input_paths: list[Path] = [root / p for p in a_request.paths] if a_request.paths else [root]
 
-            warnings: list[str] = []
-            if skipped_files:
-                warnings.append(f"Skipped {len(skipped_files)} file(s) during content load")
+                if a_request.group:
+                    build_result, skipped_files = await self._build_grouped(root, task_enum, budget, a_request)
+                elif a_request.scope == "separate":
+                    build_result, skipped_files = await self._build_separate(root, task_enum, budget, a_request)
+                else:
+                    build_result, skipped_files = await self._build_merged(
+                        root, task_enum, budget, input_paths, a_request
+                    )
 
-            elapsed: float = time.monotonic() - t_start
-            return ContextResult(
-                output_path=result.output_path,
-                total_files=result.total_files,
-                total_tokens=result.total_tokens,
-                elapsed_seconds=elapsed,
-                skipped_files=skipped_files,
-                warnings=tuple(warnings),
-            )
-        except ProjectBaseError:
+                warnings: list[str] = []
+                if skipped_files:
+                    warnings.append(f"Skipped {len(skipped_files)} file(s) during content load")
+
+                elapsed: float = time.monotonic() - t_start
+                result = BuildContextResult.success(
+                    ContextResult(
+                        output_path=build_result.output_path,
+                        total_files=build_result.total_files,
+                        total_tokens=build_result.total_tokens,
+                        elapsed_seconds=elapsed,
+                        skipped_files=skipped_files,
+                        warnings=tuple(warnings),
+                    )
+                )
+        except ProjectBaseError as exc:
             logger.exception("Context build aborted")
-            raise
+            result = BuildContextResult.failure(exc.message)
         except ValueError as e:
             sanitized = sanitize_error_message(str(e), str(root))
             logger.exception("Invalid context request for %s: %s", root, sanitized)
-            raise InputError(sanitized) from e
+            result = BuildContextResult.failure(sanitized)
         except OSError as e:
             sanitized = sanitize_error_message(str(e), str(root))
             logger.exception("OS error while building context for %s: %s", root, sanitized)
-            raise ProcessingError(sanitized) from e
+            result = BuildContextResult.failure(sanitized)
+
+        return result
 
     async def _build_merged(
         self,
