@@ -1,0 +1,133 @@
+# Contracts and invariants
+# Generalized lessons: preconditions, postconditions, internal invariants, assertion usage.
+
+meta:
+  id: contracts
+  title: Function contracts and internal invariants
+  version: "1.0"
+  related:
+    - function-design
+    - exit-and-raise
+    - input-validation
+  summary: >
+    Every function has a documented contract specifying preconditions,
+    postconditions, side effects, resource ownership, and failure modes.
+    Assertions are used exclusively for internal invariants, never for
+    input validation. Recursion is bounded. I/O has configurable timeouts.
+
+rules:
+  - id: ct-001
+    principle: Preconditions
+    statement: >
+      Every function documents its preconditions, the conditions the caller
+      MUST guarantee before calling. Preconditions are validated at the
+      function's entry point via explicit checks.
+    rationale: >
+      Preconditions are the function's input contract. They define the
+      boundary between the caller's responsibility and the callee's
+      responsibility.
+
+  - id: ct-002
+    principle: Postconditions
+    statement: >
+      Every function documents its postconditions, the conditions the
+      function guarantees after returning successfully. Postconditions
+      define what the caller can depend on.
+    rationale: >
+      Postconditions are the function's output contract. They define what
+      the function delivers. Without them the caller cannot safely depend
+      on the function's behavior.
+
+  - id: ct-003
+    principle: Internal invariants
+    statement: >
+      Every function documents its internal invariants, conditions that are
+      always true within the function's execution and that the function
+      relies on for correctness. Invariant violations indicate defects,
+      not invalid inputs.
+    rationale: >
+      Internal invariants distinguish "this function received bad input"
+      from "this function has a bug." Without them failure diagnosis is
+      ambiguous.
+
+  - id: ct-004
+    principle: Assertion usage
+    statement: >
+      The assert statement is used exclusively to verify internal
+      invariants, conditions that if false indicate a defect in the
+      function's own logic. Assertions are not used for input validation,
+      external state checks, or any condition triggered by a caller.
+    rationale: >
+      Assertions are stripped in optimized mode (python -O). They cannot
+      be relied upon for runtime safety. They exist solely as development-
+      time debugging aids for invariant violations that should never occur
+      in correct code.
+
+  - id: ct-005
+    principle: Recursion limits
+    statement: >
+      Unbounded recursion SHALL NOT exist. Recursive functions have a
+      documented maximum depth and validate depth at each call. Iterative
+      solutions are preferred over recursive solutions.
+    rationale: >
+      Unbounded recursion causes stack overflow, an unrecoverable process-
+      level failure. A recursive function without depth limits is a denial-
+      of-service vulnerability.
+
+  - id: ct-006
+    principle: Configurable timeouts
+    statement: >
+      All I/O operations (network requests, file operations, database
+      queries, subprocess execution) have configurable timeouts. Timeout
+      values are specified as parameters with sensible defaults. Infinite
+      timeouts SHALL NOT exist.
+    rationale: >
+      I/O without timeouts blocks indefinitely. A single blocked thread
+      can cascade into system-wide degradation.
+
+  - id: ct-007
+    principle: Retry and backoff
+    statement: >
+      Retry logic for transient I/O failures specifies: maximum retry count
+      (default 3), backoff strategy (exponential with jitter preferred),
+      which exception types trigger retries, and total timeout across all
+      attempts. Retry is not applied to non-transient failures.
+    rationale: >
+      Unbounded retries amplify failures. No retries make the system
+      brittle on transient issues. Bounded retry with backoff balances
+      resilience with safety.
+
+  - id: ct-008
+    principle: Idempotency
+    statement: >
+      Functions that mutate external state (database writes, file system
+      changes, message queue publishes) are idempotent or document why
+      idempotency is not possible. Retried operations do not produce
+      duplicate side effects.
+    rationale: >
+      In distributed systems operations may be retried. Non-idempotent
+      operations that are retried corrupt state.
+
+  - id: ct-009
+    principle: Side effects documentation
+    statement: >
+      Every function with side effects documents those effects in its
+      contract: database mutations, file system mutations, network calls,
+      process spawning, signal generation, and any other observable change
+      to the external world.
+    rationale: >
+      Undocumented side effects are invisible to reviewers, refactoring
+      tools, and test designers. They create hidden dependencies.
+
+anti_patterns:
+  - name: assert-for-validation
+    description: >
+      Using assert for input validation strips the check in optimized
+      mode, creating a silent production gap.
+    prefer: explicit if-check returning Result.failure
+
+  - name: unbounded-recursion
+    description: >
+      Recursive functions without depth limits are denial-of-service
+      vulnerabilities.
+    prefer: iterative solutions or documented maximum depth
