@@ -14,8 +14,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from arian.domain.exceptions import PathTraversalError
-from arian.domain.exceptions import SymlinkLoopError
 from arian.infrastructure.config import SecurityConfig
 
 
@@ -48,11 +46,40 @@ class SafePath:
         return self.resolved.relative_to(self.root)
 
 
+class ValidatePathResult:
+    """Result of path validation.
+
+    Attributes:
+        is_success: Whether validation passed.
+        value: SafePath if successful, None otherwise.
+        message: Error message if validation failed.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_value: SafePath | None = None,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.value: SafePath | None = a_value
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_value: SafePath) -> ValidatePathResult:
+        return ValidatePathResult(a_is_success=True, a_value=a_value)
+
+    @staticmethod
+    def failure(a_message: str) -> ValidatePathResult:
+        return ValidatePathResult(a_is_success=False, a_message=a_message)
+
+
 def validate_input_path(
     a_path: Path,
     a_root: Path,
     a_config: SecurityConfig,
-) -> SafePath:
+) -> ValidatePathResult:
     """Validate and resolve a path within a root directory.
 
     Checks:
@@ -67,37 +94,46 @@ def validate_input_path(
         a_config: Security configuration.
 
     Returns:
-        SafePath with resolved, validated path.
-
-    Raises:
-        PathTraversalError: If path contains ``..`` components.
-        SymlinkLoopError: If symlink resolution fails.
-        SecurityError: If path escapes the root.
+        ValidatePathResult with is_success, value (SafePath), and message.
     """
     raw: str = str(a_path)
+    result: ValidatePathResult = ValidatePathResult.failure("uninitialized")
+    resolved_root: Path = a_root.resolve()
+    resolved: Path = a_path
+    b_continue: bool = True
+
     if len(raw) > a_config.max_path_length:
         msg = f"Path exceeds maximum length ({a_config.max_path_length}): {len(raw)}"
-        raise PathTraversalError(msg)
+        result = ValidatePathResult.failure(msg)
+        b_continue = False
 
-    parts: tuple[str, ...] = a_path.parts
-    if ".." in parts:
-        msg = f"Path traversal detected: {raw}"
-        raise PathTraversalError(msg)
+    if b_continue:
+        parts: tuple[str, ...] = a_path.parts
+        if ".." in parts:
+            msg = f"Path traversal detected: {raw}"
+            result = ValidatePathResult.failure(msg)
+            b_continue = False
 
-    resolved_root: Path = a_root.resolve()
-    try:
-        resolved: Path = a_path.resolve()
-    except OSError as exc:
-        msg = f"Cannot resolve path (possible symlink loop): {raw}"
-        raise SymlinkLoopError(msg, a_cause=exc) from exc
+    if b_continue:
+        try:
+            resolved = a_path.resolve()
+        except OSError:
+            msg = f"Cannot resolve path (possible symlink loop): {raw}"
+            result = ValidatePathResult.failure(msg)
+            b_continue = False
 
-    try:
-        resolved.relative_to(resolved_root)
-    except ValueError as exc:
-        msg = f"Path escapes root directory: {raw}"
-        raise PathTraversalError(msg, a_cause=exc) from exc
+    if b_continue:
+        try:
+            resolved.relative_to(resolved_root)
+        except ValueError:
+            msg = f"Path escapes root directory: {raw}"
+            result = ValidatePathResult.failure(msg)
+            b_continue = False
 
-    return SafePath(a_resolved=resolved, a_root=resolved_root)
+    if b_continue:
+        result = ValidatePathResult.success(SafePath(a_resolved=resolved, a_root=resolved_root))
+
+    return result
 
 
 def is_binary(a_content: bytes) -> bool:

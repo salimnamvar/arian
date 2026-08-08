@@ -120,10 +120,9 @@ class ContextRequestValidator:
                 msg = f"Path does not exist: {path_str}"
                 break
             if not raw_path.is_absolute():
-                try:
-                    validate_input_path(full_path, a_root, self._security)
-                except (ValueError, OSError) as exc:
-                    msg = f"Path validation failed for {path_str}: {exc}"
+                path_result = validate_input_path(full_path, a_root, self._security)
+                if not path_result.is_success:
+                    msg = f"Path validation failed for {path_str}: {path_result.message}"
                     break
 
         if msg:
