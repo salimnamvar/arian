@@ -403,8 +403,12 @@ class Application:
             raise RuntimeError(materialize_result.message)
         materialized = materialize_result.value
 
+        render_result = self._renderer.render(materialized, plan)
+        if not render_result.is_success or render_result.value is None:
+            raise RuntimeError(render_result.message)
+
         rendered: str = redact_secrets(
-            self._renderer.render(materialized, plan),
+            render_result.value,
             self._security_config,
         )
         write_result = self._output.write(str(a_output_path), rendered)

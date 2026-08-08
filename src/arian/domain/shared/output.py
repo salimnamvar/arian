@@ -67,7 +67,7 @@ class RendererProtocol(Protocol):
         self,
         a_chunks: tuple[MaterializedChunk, ...],
         a_plan: ContextPlan,
-    ) -> str:
+    ) -> RenderResult:
         """Render materialized chunks according to the plan.
 
         Args:
@@ -75,6 +75,35 @@ class RendererProtocol(Protocol):
             a_plan: Context plan with metadata for the output header.
 
         Returns:
-            Rendered document as a string.
+            RenderResult with is_success, value (rendered string), and message.
         """
         ...
+
+
+class RenderResult:
+    """Result of the render() operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        value: Rendered string if successful, None otherwise.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_value: str | None = None,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.value: str | None = a_value
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_value: str) -> RenderResult:
+        return RenderResult(a_is_success=True, a_value=a_value)
+
+    @staticmethod
+    def failure(a_message: str) -> RenderResult:
+        return RenderResult(a_is_success=False, a_message=a_message)

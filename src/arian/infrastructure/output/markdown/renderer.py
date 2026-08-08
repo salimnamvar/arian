@@ -7,11 +7,14 @@ from pathlib import Path
 
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
+from jinja2 import TemplateError
+from jinja2 import TemplateNotFound
 from jinja2 import select_autoescape
 
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.shared.output import RendererProtocol
+from arian.domain.shared.output import RenderResult
 from arian.infrastructure.config import RendererConfig
 
 logger = logging.getLogger(__name__)
@@ -40,13 +43,20 @@ class MarkdownRenderer(RendererProtocol):
             lstrip_blocks=True,
             autoescape=select_autoescape(),
         )
-        self._template = self._environment.get_template("document.md.jinja2")
+        try:
+            self._template = self._environment.get_template("document.md.jinja2")
+        except TemplateNotFound:
+            logger.exception("Template not found: document.md.jinja2")
+            raise
+        except TemplateError:
+            logger.exception("Failed to load template: document.md.jinja2")
+            raise
 
     def render(
         self,
         a_chunks: tuple[MaterializedChunk, ...],
         a_plan: ContextPlan,
-    ) -> str:
+    ) -> RenderResult:
         """Render materialized chunks to Markdown.
 
         Args:
@@ -54,53 +64,62 @@ class MarkdownRenderer(RendererProtocol):
             a_plan: Original context plan for metadata.
 
         Returns:
-            Rendered Markdown string.
+            RenderResult with is_success, value (rendered string), and message.
         """
-        chunks_data: list[dict[str, object]] = []
-        total_files: int = 0
+        result: RenderResult = RenderResult.failure("uninitialized")
 
-        for chunk in a_chunks:
-            files_data: list[dict[str, object]] = []
-            for entry in chunk.entries:
-                lang: str = entry.language or ""
+        try:
+            chunks_data: list[dict[str, object]] = []
+            total_files: int = 0
 
-                file_data: dict[str, object] = {
-                    "path": entry.path,
-                    "representation": entry.compression.value,
-                    "content": entry.content,
-                    "language": lang,
-                    "is_fragment": entry.is_fragment,
-                    "fragment_label": "",
-                    "continuation_hint": "",
-                }
+            for chunk in a_chunks:
+                files_data: list[dict[str, object]] = []
+                for entry in chunk.entries:
+                    lang: str = entry.language or ""
 
-                if entry.is_fragment and entry.fragment_index is not None and entry.fragment_total is not None:
-                    file_data["fragment_label"] = f"Fragment {entry.fragment_index + 1}/{entry.fragment_total}"
+                    file_data: dict[str, object] = {
+                        "path": entry.path,
+                        "representation": entry.compression.value,
+                        "content": entry.content,
+                        "language": lang,
+                        "is_fragment": entry.is_fragment,
+                        "fragment_label": "",
+                        "continuation_hint": "",
+                    }
 
-                if entry.continues_in_chunk is not None:
-                    file_data["continuation_hint"] = f"Continues in Chunk {entry.continues_in_chunk}"
+                    if entry.is_fragment and entry.fragment_index is not None and entry.fragment_total is not None:
+                        file_data["fragment_label"] = f"Fragment {entry.fragment_index + 1}/{entry.fragment_total}"
 
-                files_data.append(file_data)
-                total_files += 1
+                    if entry.continues_in_chunk is not None:
+                        file_data["continuation_hint"] = f"Continues in Chunk {entry.continues_in_chunk}"
 
-            chunks_data.append(
-                {
-                    "header": chunk.header,
-                    "files": files_data,
-                }
+                    files_data.append(file_data)
+                    total_files += 1
+
+                chunks_data.append(
+                    {
+                        "header": chunk.header,
+                        "files": files_data,
+                    }
+                )
+
+            directory_structure: str = self._build_directory_structure(a_plan.repository_files)
+            manifest: str = self._build_manifest(a_plan, total_files)
+
+            rendered: str = self._template.render(
+                manifest=manifest,
+                directory_structure=directory_structure,
+                chunks=chunks_data,
+                total_files=total_files,
+                total_tokens=a_plan.total_tokens,
             )
+            result = RenderResult.success(rendered)
+            logger.debug("Rendered materialized chunks to markdown (%d tokens)", a_plan.total_tokens)
+        except TemplateError as e:
+            msg = f"Template rendering failed: {e}"
+            logger.exception("%s", msg)
+            result = RenderResult.failure(msg)
 
-        directory_structure: str = self._build_directory_structure(a_plan.repository_files)
-        manifest: str = self._build_manifest(a_plan, total_files)
-
-        result: str = self._template.render(
-            manifest=manifest,
-            directory_structure=directory_structure,
-            chunks=chunks_data,
-            total_files=total_files,
-            total_tokens=a_plan.total_tokens,
-        )
-        logger.debug("Rendered materialized chunks to markdown (%d tokens)", a_plan.total_tokens)
         return result
 
     def _build_directory_structure(
