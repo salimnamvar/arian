@@ -1,0 +1,84 @@
+# Security rules
+# Generalized lessons: no secrets in source, parameterized queries, input sanitization.
+
+meta:
+  id: security-rules
+  title: Security coding rules
+  version: "1.0"
+  related:
+    - logging-rules
+    - input-validation
+  summary: >
+    Secrets never appear in source code or logs. All database queries use
+    parameterized forms. User input is sanitized before use in any
+    sensitive context. Functions operate with least privilege. Dynamic
+    code execution is forbidden.
+
+rules:
+  - id: sec-001
+    principle: No secrets in source code
+    statement: >
+      API keys, passwords, tokens, certificates, and any other secrets
+      SHALL NOT appear in source code, configuration files committed to
+      version control, or log entries. Secrets are injected via
+      environment variables or a secrets management system.
+    rationale: >
+      Secrets in source code are visible to everyone with repository
+      access. They persist in git history forever. They are the most
+      common cause of credential leakage.
+
+  - id: sec-002
+    principle: Parameterized queries
+    statement: >
+      All database queries use parameterized queries or ORM-generated
+      queries. String concatenation, f-string formatting, or %-formatting
+      SHALL NOT be used to construct SQL queries.
+    rationale: >
+      String-formatted SQL queries are the primary vector for SQL injection
+      attacks. Parameterized queries separate data from code, eliminating
+      this class of vulnerability entirely.
+
+  - id: sec-003
+    principle: Input sanitization
+    statement: >
+      All user-provided input is sanitized before use in SQL queries, HTML
+      output, shell commands, file paths, URL construction, email bodies,
+      and any other context where untrusted input could cause unintended
+      behavior.
+    rationale: >
+      User input is adversarial until proven otherwise. Every point where
+      user input enters a system is a potential attack vector.
+
+  - id: sec-004
+    principle: Least privilege
+    statement: >
+      Every function, module, and system component operates with the
+      minimum privileges necessary to perform its function. Database
+      connections use read-only accounts where write access is not
+      required. File operations use the minimum necessary permissions.
+    rationale: >
+      Excess privilege is excess risk. A compromised component with least
+      privilege has a limited blast radius.
+
+  - id: sec-005
+    principle: No eval or exec
+    statement: >
+      The eval() and exec() functions SHALL NOT be used in any production
+      code. Dynamic code execution is forbidden.
+    rationale: >
+      eval() and exec() execute arbitrary code, bypassing all static
+      analysis, type checking, and security scanning. They are the single
+      largest source of injection vulnerabilities in Python.
+
+anti_patterns:
+  - name: secrets-in-code
+    description: >
+      Hardcoded API keys or passwords in source files leak through
+      repository access and git history.
+    prefer: inject secrets via environment variables or a vault
+
+  - name: string-formatted-sql
+    description: >
+      Building SQL queries with f-strings or format() creates SQL injection
+      vulnerabilities.
+    prefer: parameterized queries or ORM-generated queries
