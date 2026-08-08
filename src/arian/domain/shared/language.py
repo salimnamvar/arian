@@ -12,9 +12,12 @@ policy (no scattered constants in implementation files).
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from arian.infrastructure.config import LanguageConfig
+
+logger = logging.getLogger(__name__)
 
 
 def lang_extensions(a_config: LanguageConfig) -> frozenset[str]:
@@ -60,6 +63,11 @@ def detect_language(a_path: Path, a_config: LanguageConfig) -> str:
 def _detect_by_content(a_path: Path, a_config: LanguageConfig) -> str:
     """Detect language by reading file content (shebang and modeline).
 
+    Follows the safe-coding shape: the file is read once under a single
+    try that handles the unexpected read failure, and the shebang and
+    modeline steps are guarded by ``b_continue`` so a failed read skips
+    them cleanly instead of being silently swallowed.
+
     Args:
         a_path: Path to read content from.
         a_config: Language configuration.
@@ -69,35 +77,36 @@ def _detect_by_content(a_path: Path, a_config: LanguageConfig) -> str:
     """
     result: str = ""
     lang_map: dict[str, str] = a_config.lang_map
+    b_continue: bool = True
+    lines: list[str] = []
 
     try:
         with a_path.open("r", encoding="utf-8", errors="ignore") as fh:
-            first_line: str = fh.readline(256)
-            if first_line.startswith("#!"):
-                parts: list[str] = first_line.split("/")
-                tail: str = parts[-1].strip() if parts else ""
-                tokens: list[str] = tail.split()
-                interpreter: str = (
-                    tokens[1]
-                    if len(tokens) >= a_config.min_shebang_tokens_for_env and tokens[0] == "env"
-                    else (tokens[0] if tokens else "")
-                )
-                if interpreter in a_config.shebang_map:
-                    result = a_config.shebang_map[interpreter]
+            lines = fh.readlines()
     except OSError:
-        pass
+        logger.debug("Cannot read file for language detection: %s", a_path)
+        b_continue = False
 
-    if not result:
-        try:
-            with a_path.open("r", encoding="utf-8", errors="ignore") as fh:
-                lines: list[str] = fh.readlines()
-                for line in lines[-5:]:
-                    if "ft=" in line:
-                        ft_value: str = line.split("ft=")[-1].split()[0]
-                        if ft_value in lang_map.values():
-                            result = ft_value
-                            break
-        except OSError:
-            pass
+    if b_continue and lines:
+        first_line: str = lines[0]
+        if first_line.startswith("#!"):
+            parts: list[str] = first_line.split("/")
+            tail: str = parts[-1].strip() if parts else ""
+            tokens: list[str] = tail.split()
+            interpreter: str = (
+                tokens[1]
+                if len(tokens) >= a_config.min_shebang_tokens_for_env and tokens[0] == "env"
+                else (tokens[0] if tokens else "")
+            )
+            if interpreter in a_config.shebang_map:
+                result = a_config.shebang_map[interpreter]
+
+    if b_continue and not result:
+        for line in lines[-5:]:
+            if "ft=" in line:
+                ft_value: str = line.split("ft=")[-1].split()[0]
+                if ft_value in lang_map.values():
+                    result = ft_value
+                    break
 
     return result
