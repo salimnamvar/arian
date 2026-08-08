@@ -1,0 +1,88 @@
+# State management rules
+# Generalized lessons: no mutable module state, deterministic execution, local state.
+
+meta:
+  id: state-management
+  title: State management and determinism
+  version: "1.0"
+  related:
+    - function-design
+    - concurrency-rules
+  summary: >
+    No module-level mutable state exists. Business logic is deterministic.
+    State mutations are documented. Functions use only function-local
+    variables for mutable state.
+
+rules:
+  - id: st-001
+    principle: No module-level mutable state
+    statement: >
+      Module-level mutable state (mutable dictionaries, lists, sets, or
+      class instances defined at module scope) SHALL NOT exist. Module-
+      level constants (immutable values, frozen dataclasses) are permitted.
+    rationale: >
+      Module-level mutable state is global state. It is shared across all
+      callers, all threads, and all test runs. It creates invisible
+      coupling between unrelated code paths and makes testing
+      non-deterministic.
+
+  - id: st-002
+    principle: Deterministic execution
+    statement: >
+      Business logic SHALL NOT depend on datetime.now(), time.time(),
+      random.random() without a fixed seed, UUID generation without
+      deterministic mode, or any other source of non-determinism. Time-
+      dependent logic accepts a timestamp parameter. Random-dependent
+      logic accepts a seed parameter.
+    rationale: >
+      Non-deterministic code is untestable and unreproducible. A test that
+      passes sometimes and fails sometimes tells you nothing.
+    exceptions:
+      - Cryptographically secure randomness for token generation, nonce
+        generation, password reset tokens (with documented security
+        justification).
+      - Database drivers, logging frameworks, and metric emitters whose
+        non-determinism is an accepted infrastructure contract.
+
+  - id: st-003
+    principle: State mutation documentation
+    statement: >
+      Every function that mutates external state (database records, files,
+      caches, message queues) documents each mutation in its contract's
+      Side Effects section: what is mutated, under what conditions, and
+      whether the mutation is reversible.
+    rationale: >
+      Undocumented state mutations are invisible to reviewers and
+      refactoring tools. They create hidden dependencies that surface as
+      failures during seemingly unrelated changes.
+
+  - id: st-004
+    principle: Function-local state only
+    statement: >
+      Functions use only function-local variables for mutable state. Class
+      instance attributes used as function-local state are clearly
+      documented as such and are not shared across method calls without
+      explicit synchronization.
+    rationale: >
+      Function-local state is the simplest state model. It is created,
+      used, and destroyed within a single function call. It requires no
+      synchronization, no cleanup, and no lifecycle management.
+    note: >
+      Class instance attributes accessed via self are considered declared
+      dependencies of the method, provided they are initialized in
+      __init__ and documented in the class's contract. Class-level mutable
+      state shared between instances follows the rules for module-level
+      mutable state.
+
+anti_patterns:
+  - name: global-mutable-cache
+    description: >
+      Module-level dictionaries or lists used as caches create invisible
+      coupling between unrelated calls and make testing non-deterministic.
+    prefer: inject cache as a constructor parameter or use function-local state
+
+  - name: non-deterministic-logic
+    description: >
+      Using datetime.now() or random.random() in business logic makes
+      tests unreliable and failures unreproducible.
+    prefer: inject time or seed as parameters
