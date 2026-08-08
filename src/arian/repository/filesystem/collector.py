@@ -15,8 +15,7 @@ from arian.domain.shared.language import detect_language
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.tokenizer import estimate_tokens_from_size
 from arian.infrastructure.config import LanguageConfig
-from arian.infrastructure.gitignore_filter import GitignoreOptions
-from arian.infrastructure.gitignore_filter import PathFilter
+from arian.repository.filesystem.protocols import PathFilterProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -44,27 +43,25 @@ class FileCollector:
     def __init__(
         self,
         a_extensions: frozenset[str] | None,
-        a_exclude: frozenset[str],
         a_classifier: FileClassifierProtocol | None = None,
         a_max_file_size: int = 10 * 1024 * 1024,
-        a_gitignore_options: GitignoreOptions = GitignoreOptions(),
+        a_filter: PathFilterProtocol | None = None,
         a_language_config: LanguageConfig = LanguageConfig(),
     ) -> None:
         """Initialize collector.
 
         Args:
             a_extensions: File extensions to include. None means all text files.
-            a_exclude: Directory names to exclude.
             a_classifier: Optional file classifier for role detection.
             a_max_file_size: Maximum file size in bytes.
-            a_gitignore_options: Static gitignore layer configuration
-                passed through to the underlying :class:`PathFilter`.
+            a_filter: Path filter for gitignore and exclusion patterns.
+                If None, a default PathFilter is created by the bootstrap layer.
             a_language_config: Language detection lookup tables.
         """
         self._extensions: frozenset[str] | None = a_extensions
         self._max_file_size: int = a_max_file_size
         self._language_config: LanguageConfig = a_language_config
-        self._filter: PathFilter = PathFilter(a_exclude, a_gitignore_options)
+        self._filter: PathFilterProtocol | None = a_filter
         self._classifier: FileClassifierProtocol | None = a_classifier
         self._stats: CollectionStats = CollectionStats()
 
@@ -90,7 +87,9 @@ class FileCollector:
         back to ``"<exclude>"`` when the path was rejected by the
         directory-name set.
         """
-        pattern: str = self._filter.last_matched_pattern or "<exclude>"
+        pattern: str = "<exclude>"
+        if self._filter is not None and self._filter.last_matched_pattern is not None:
+            pattern = self._filter.last_matched_pattern
         tally: dict[str, int] = dict(self._stats.skipped_gitignore_by_pattern)
         tally[pattern] = tally.get(pattern, 0) + 1
         return self._bump(
@@ -120,7 +119,8 @@ class FileCollector:
         Returns:
             List of RepositoryFile metadata objects.
         """
-        self._filter.set_explicit_paths(a_explicit_paths)
+        if self._filter is not None:
+            self._filter.set_explicit_paths(a_explicit_paths)
         root: Path = a_root if a_root is not None else a_path
         files: list[RepositoryFile] = []
         emitted: set[Path] = set()
@@ -173,7 +173,7 @@ class FileCollector:
 
         for entry in entries:
             if entry.is_dir():
-                if self._filter.should_include(entry):
+                if self._filter is None or self._filter.should_include(entry):
                     await self._collect_directory(entry, a_files, a_emitted, a_root)
             elif entry.is_file():
                 repo_file: RepositoryFile | None = await self._collect_file(entry, a_emitted, a_root)
@@ -239,7 +239,7 @@ class FileCollector:
                 size_bytes: int = stat_result.st_size
                 if size_bytes > self._max_file_size:
                     self._stats = self._bump(skipped_size=self._stats.skipped_size + 1)
-                elif not self._filter.should_include(a_path):
+                elif self._filter is not None and not self._filter.should_include(a_path):
                     self._stats = self._record_gitignore_skip()
                 elif self._extensions is not None and a_path.suffix.lower() not in self._extensions:
                     self._stats = self._bump(skipped_by_extension=self._stats.skipped_by_extension + 1)

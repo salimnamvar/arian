@@ -14,6 +14,7 @@ from arian.bootstrap.progress import LoggingProgressReporter
 from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.file_output_writer import FileOutputWriter
 from arian.infrastructure.gitignore_filter import GitignoreOptions
+from arian.infrastructure.gitignore_filter import PathFilter
 from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
 from arian.infrastructure.output_path_resolver import resolve_output_path
 from arian.repository.filesystem.collector import FileCollector
@@ -41,15 +42,18 @@ def create_application(a_config: ArianConfig | None = None) -> Application:
     root: Path = Path.cwd()
 
     classifier: FileClassifier = FileClassifier(a_config=cfg.classifier)
-    collector: FileCollector = FileCollector(
-        a_extensions=cfg.collector.extensions,
-        a_exclude=cfg.collector.exclude,
-        a_classifier=classifier,
-        a_max_file_size=cfg.collector.max_file_size,
-        a_gitignore_options=GitignoreOptions(
+    filter: PathFilter = PathFilter(
+        cfg.collector.exclude,
+        GitignoreOptions(
             enabled=cfg.collector.use_gitignore,
             nested=cfg.collector.nested_gitignore,
         ),
+    )
+    collector: FileCollector = FileCollector(
+        a_extensions=cfg.collector.extensions,
+        a_classifier=classifier,
+        a_max_file_size=cfg.collector.max_file_size,
+        a_filter=filter,
         a_language_config=cfg.language,
     )
     index: MemoryRepositoryIndex = MemoryRepositoryIndex()
