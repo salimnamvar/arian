@@ -4,26 +4,37 @@
 meta:
   id: validation-ownership
   title: Validation ownership and boundary translation
-  version: "1.0"
+  version: "2.0"
   related:
     - csr-layering
     - dry
+    - exit-and-raise
+    - error-handling
   summary: >
     Business and security validation belong to application (or domain).
     Controllers and adapters only parse transport shapes and translate
-    exceptions. Never maintain two independent validators for the same rules.
+    Result[T] to transport exceptions. Functions never raise; the
+    controller is the sole raise site. Never maintain two independent
+    validators for the same rules.
 
 ownership:
   controller:
     validates:
-      - Transport parseability (string → int, known enum tokens for UX)
+      - Transport parseability (string to int, known enum tokens for UX)
       - Framework-level option constraints when they cannot be expressed later
     does_not_validate:
       - Path existence (unless purely for early CLI UX, then must call application validator)
       - Budget maxima against domain limits
       - Scope membership against config tables (delegate)
       - Security/path traversal
-    on_failure: raise transport exit (CLI Exit, HTTP 4xx) after catching domain errors
+    on_failure: >
+      Reads Result.is_success() from application and raises transport
+      exception (CLI SystemExit, HTTP HTTPException). This is the ONLY
+      layer that raises. Functions never raise.
+    raises:
+      - SystemExit for CLI failures
+      - HTTPException for HTTP failures
+      - These are transport exceptions, not domain errors
 
   application:
     validates:
@@ -31,22 +42,27 @@ ownership:
       - Budget positivity and upper bounds
       - Scope membership
       - Group path sets with the same path rules as request paths
-    raises:
-      - InputError
-      - SecurityError
-      - other ProjectBaseError subtypes
+    returns:
+      - Result.failure with InputError, SecurityError, or other domain messages
+    does_not_raise: >
+      Application returns Result.failure. It never raises. The controller
+      translates Result to transport exceptions.
 
   domain:
     validates:
       - Aggregate invariants (e.g. plan internal consistency)
-    raises:
-      - ValueError or domain-specific ValidationError mapped at application if needed
+    returns:
+      - Result.failure with domain-specific messages
 
   repository_and_infrastructure:
     validates:
       - Local I/O preconditions only (file readable at read time)
     does_not:
       - Reject whole requests for business rules already checked upstream
+    catches:
+      - IOError, NetworkError, TimeoutError, third-party exceptions
+    returns:
+      - Result.failure for all caught exceptions
 
 rules:
   - id: val-001
@@ -68,17 +84,47 @@ rules:
     note: Enum pre-check is presentation; limits and paths remain application-owned.
 
   - id: val-004
-    principle: Exception translation at the boundary
+    principle: Exception translation at the boundary only
     statement: >
-      Application translates OSError/ValueError into domain errors with
-      sanitized messages. Controllers map ProjectBaseError to exit codes.
+      Application returns Result.failure for all error conditions. It never
+      raises. The controller reads Result.is_success() and raises the
+      transport-appropriate exception (SystemExit, HTTPException). This is
+      the only place where raise occurs for domain errors.
     do:
-      - sanitize_error_message before raising outward
+      - Application: return Result.failure(message)
+      - Controller: if not result.is_success(): raise SystemExit(result.message)
     dont:
-      - Leak absolute internal paths or secrets in error text
+      - Application raising InputError, SecurityError, or any exception
+      - Controller reimplementing business validation instead of translating
+      - Leaking absolute internal paths or secrets in error text
 
   - id: val-005
     principle: No silent skip of group or nested fields
     statement: >
       Nested structures (group path tuples) must be covered by the same
       existence and security rules as top-level paths.
+
+  - id: val-006
+    principle: Functions catch external exceptions, return Result
+    statement: >
+      Functions in all layers catch external exceptions (IOError,
+      NetworkError, TimeoutError, third-party library errors) and convert
+      them to Result.failure. They never raise or propagate. The exception
+      is logged locally at the detection layer with full context.
+    do:
+      - try: open(path) except IOError as e: return Result.failure(str(e))
+    dont:
+      - raise IOError(...)
+
+anti_patterns:
+  - name: application-raises
+    description: >
+      Application layer raising exceptions breaks decoupling. The
+      application is transport-agnostic; it returns Result, not raises.
+    prefer: return Result.failure; let the controller translate
+
+  - name: duplicate-validation
+    description: >
+      Controller reimplementing the same validation rules that application
+      already checks creates drift and maintenance burden.
+    prefer: single validator in application; controller translates only

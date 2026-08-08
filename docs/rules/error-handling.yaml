@@ -4,50 +4,57 @@
 meta:
   id: error-handling
   title: Localized error handling and exception management
-  version: "1.0"
+  version: "2.0"
   related:
     - exit-and-raise
     - b-continue
     - logging-rules
+    - validation-ownership
   summary: >
-    Every function handles its own errors. Exceptions are caught, converted
-    to structured results, and returned. No exception escapes the function
-    boundary. Specific exception types are caught; bare except is forbidden.
-    No error is silently ignored.
+    Functions handle their own errors. External exceptions (disk, network,
+    third-party) are caught, converted to structured results, and returned.
+    No exception escapes the function boundary. The application boundary
+    (controllers, framework adapters) is the only layer that raises:
+    it translates Result.failure into transport exceptions. Specific
+    exception types are caught; bare except is forbidden. No error is
+    silently ignored.
 
 rules:
   - id: err-001
-    principle: Localized error handling
+    principle: Functions handle locally, boundary raises for transport
     statement: >
-      Every function handles its own errors. A function SHALL NOT propagate
-      exceptions to its caller for the caller to decide what to do. The
-      function that detects the error converts it to a structured result.
+      Every function handles its own errors. External exceptions (IOError,
+      NetworkError, TimeoutError, third-party library errors) are caught
+      within the function and converted to Result.failure. Functions never
+      raise or propagate exceptions. The application boundary (controller,
+      framework adapter) is the only layer that raises: it reads
+      Result.is_success() and raises the transport-appropriate exception.
     rationale: >
-      Error handling at the detection layer ensures full contextual
-      awareness. Error handling at a higher layer lacks the context of the
-      specific failure mode and the resources in play.
+      This enforces strict decoupling. Functions are transport-agnostic.
+      The controller is the translation layer with full awareness of the
+      transport protocol (CLI, HTTP, etc.).
     do:
-      - Catch exceptions in the function that encounters them
-      - Convert to Result.failure with a descriptive message
+      - Function catches IOError, returns Result.failure("disk error")
+      - Controller reads result, raises SystemExit(1) or HTTPException(500)
     dont:
-      - Let exceptions propagate to the caller for it to handle
-      - Re-raise caught exceptions
+      - Function raising ValueError or any exception
+      - Letting exceptions propagate from functions to callers
+      - Controller reimplementing business logic instead of translating
 
   - id: err-002
     principle: Specific exception handling
     statement: >
       All except clauses catch specific exception types as primary
       handlers. A final `except Exception:` clause may serve as a safety
-      net after all anticipated exceptions have been individually handled,
-      to satisfy the zero-raise policy. Bare `except:` clauses are
-      always forbidden.
+      net after all anticipated exceptions have been individually handled.
+      Bare `except:` clauses are always forbidden.
     rationale: >
       Specific catching ensures only anticipated failures are handled
       gracefully. The safety net exists solely to prevent any exception
-      from escaping the function.
+      from escaping the function boundary.
     do:
       - except FileNotFoundError as e: ...
-      - except ValueError as e: ...
+      - except ConnectionError as e: ...
       - except Exception as e: # last resort, log at CRITICAL
     dont:
       - Bare `except:` clauses
@@ -72,9 +79,10 @@ rules:
   - id: err-004
     principle: Catch-convert-return
     statement: >
-      All exceptions are caught, converted to a structured result, and
-      returned. No exception escapes the function boundary except under
-      documented exemptions (dunder methods, framework adapters).
+      All external exceptions are caught, converted to a structured result,
+      and returned. No exception escapes the function boundary. The only
+      exceptions that escape are those raised at the application boundary
+      for transport (see exit-003).
     do:
       - try: ... except SpecificError as e: result = Result.failure(str(e))
     dont:
@@ -133,3 +141,10 @@ anti_patterns:
       Catching bare Exception when more specific types are known hides
       programming errors and makes debugging harder.
     prefer: catch specific types; use Exception only as final safety net
+
+  - name: function-raises
+    description: >
+      A domain/application/service/repository function that raises
+      breaks decoupling. Only the application boundary (controller)
+      raises for transport.
+    prefer: return Result.failure; let the controller raise

@@ -4,16 +4,21 @@
 meta:
   id: exit-and-raise
   title: Single-exit point and zero-raise policy
-  version: "1.0"
+  version: "2.0"
   related:
     - b-continue
     - error-handling
     - contracts
+    - validation-ownership
   summary: >
     Every function contains exactly one return statement and zero raise
     statements. All code paths converge to that single return. Exceptions
-    are caught locally and converted to structured results, never propagated
-    to callers.
+    from external sources (disk, network, third-party libs) are caught
+    locally and converted to structured results. Raises happen only at
+    the application boundary (controllers, framework adapters) where
+    domain results are translated to transport exceptions (CLI exit
+    codes, HTTP errors). This enforces strict decoupling: functions
+    never raise, application boundary raises for transport.
 
 rules:
   - id: exit-001
@@ -38,28 +43,52 @@ rules:
       - Async functions (await is not an exit)
 
   - id: exit-002
-    principle: Zero-raise policy
+    principle: Zero-raise in functions
     statement: >
-      Every function contains zero `raise` statements. All exceptions are
-      caught within the function and converted to a structured result.
+      Every function (in domain, application, service, repository,
+      infrastructure) contains zero `raise` statements. External exceptions
+      (IOError, NetworkError, TimeoutError, third-party library errors)
+      are caught within the function and converted to a structured result.
+      Functions never raise; they return.
     rationale: >
-      A raise is an unhandled failure transferred to an unknown caller.
-      It is a declaration that the function does not know how to handle
-      its own errors. Localized handling ensures every failure is
-      addressed with full contextual awareness.
+      Raising is a declaration that the function does not know how to
+      handle its own errors. Functions that raise leak implementation
+      concerns to their callers and break decoupling. Every external
+      failure is converted to a Result at the point of detection with
+      full contextual awareness.
     do:
-      - Catch specific exceptions and convert to Result.failure
+      - Catch specific external exceptions and convert to Result.failure
       - Log the exception locally before returning the failure result
+      - Return Result.failure(message) for all error conditions
     dont:
       - `raise ValueError(...)` for input validation failures
+      - `raise` for any condition the function can detect and handle
       - Re-raise caught exceptions
       - Use exceptions for normal control flow
     exceptions:
       - Dunder methods and protocol-constrained interfaces mandated by Python
-      - Framework boundary adapters (e.g. FastAPI HTTPException translators)
-      - These exemptions SHALL be documented in the function's contract
 
   - id: exit-003
+    principle: Application boundary raises for transport
+    statement: >
+      The application boundary (controllers, CLI entry points, framework
+      adapters) translates domain Result[T] into transport exceptions.
+      This is the ONLY place where raise is used. The boundary catches
+      Result.failure and raises the appropriate transport exception (CLI
+      SystemExit, HTTP HTTPException, etc.).
+    rationale: >
+      Strict decoupling requires that functions never know about
+      transport. The controller is the translation layer: it reads
+      Result.is_success() and raises the transport-appropriate exception.
+      This keeps domain/application/service code transport-agnostic.
+    do:
+      - Controller checks result.is_success(), raises SystemExit on failure
+      - Framework adapters translate Result to HTTPException
+    dont:
+      - Functions raising transport-specific exceptions
+      - Application/service code knowing about CLI exit codes or HTTP status
+
+  - id: exit-004
     principle: Structured result return
     statement: >
       Every function returns a typed Result[T] with is_success(), value,
@@ -89,3 +118,9 @@ anti_patterns:
       Raising and immediately catching to choose between branches
       hides the real paths and makes single-exit impossible.
     prefer: b_continue guards for expected decisions
+
+  - name: function-raises
+    description: >
+      A domain/application/service/repository function that raises
+      breaks decoupling and leaks transport concerns.
+    prefer: return Result.failure; let the controller boundary raise
