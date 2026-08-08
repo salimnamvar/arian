@@ -90,16 +90,19 @@ def validate_request(
     Raises:
         typer.Exit: If validation fails.
     """
+    msg: str = ""
     try:
         ContextTask(a_request.task)
     except ValueError:
         msg = f"Invalid task: {a_request.task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
-        logger.error(msg)  # noqa: TRY400
-        raise typer.Exit(code=1) from None
 
     validator: ContextRequestValidator = a_validator or ContextRequestValidator(a_controller=a_config)
-    try:
-        validator.validate(a_request)
-    except ProjectBaseError as exc:
-        logger.error("%s", exc)  # noqa: TRY400
+    if not msg:
+        try:
+            validator.validate(a_request)
+        except ProjectBaseError as exc:
+            msg = str(exc)
+
+    if msg:
+        logger.error("%s", msg)
         raise typer.Exit(code=1) from None

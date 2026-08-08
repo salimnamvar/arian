@@ -70,23 +70,28 @@ class ContextPlan:
         """
         seen_paths: set[str] = set()
         computed_tokens: int = 0
+        msg: str = ""
         for chunk in self.chunks:
             chunk_tokens: int = 0
             for planned_file in chunk.files:
                 if planned_file.compression == CompressionLevel.AUTO:
                     msg = f"AUTO compression not resolved: {planned_file.path}"
-                    raise ValueError(msg)
+                    break
                 chunk_tokens += planned_file.tokens
                 if planned_file.path in seen_paths:
                     msg = f"Duplicate file in plan: {planned_file.path}"
-                    raise ValueError(msg)
+                    break
                 seen_paths.add(planned_file.path)
+            if msg:
+                break
             if chunk_tokens != chunk.token_count:
                 msg = f"Chunk token count mismatch: {chunk_tokens} != {chunk.token_count}"
-                raise ValueError(msg)
+                break
             computed_tokens += chunk_tokens
-        if computed_tokens != self.total_tokens:
+        if not msg and computed_tokens != self.total_tokens:
             msg = f"Total token count mismatch: {computed_tokens} != {self.total_tokens}"
+
+        if msg:
             raise ValueError(msg)
 
 

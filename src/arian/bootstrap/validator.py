@@ -25,11 +25,14 @@ class StartupValidator:
             ConfigurationError: If config is invalid.
         """
         root: Path = a_root or Path.cwd()
+        msg: str = ""
         if not root.exists():
             msg = f"Root path does not exist: {root}"
-            raise ConfigurationError(msg)
-        if a_config.logging.level not in a_config.logging.valid_levels:
+        elif a_config.logging.level not in a_config.logging.valid_levels:
             msg = f"Invalid log level: {a_config.logging.level}"
+
+        if msg:
+            logger.debug("Rejected configuration: %s", msg)
             raise ConfigurationError(msg)
 
         logger.debug("Startup validation passed for root=%s", root)
