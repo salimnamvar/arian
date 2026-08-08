@@ -24,14 +24,29 @@ class FileOutputWriter:
     def write(self, a_path: str, a_content: str) -> None:
         """Atomically write rendered content to a file.
 
-        Creates parent directories as needed. Writes to a same-directory
-        temp file first, then renames into place. Uses
-        ``retry_sync_with_backoff`` for transient filesystem errors.
+        Contract: raises on invalid input or on failure, and returns
+        ``None`` only after the content is durably on disk. Inputs are
+        verified up front (non-empty path and content) so a bad call
+        fails fast instead of producing an empty or misplaced file.
 
         Args:
             a_path: Output file path.
             a_content: Rendered content string.
+
+        Raises:
+            ValueError: If ``a_path`` or ``a_content`` is empty.
+            OSError: On filesystem failure.
         """
+        msg: str = ""
+        if not a_path or not a_path.strip():
+            msg = "Output path must be a non-empty string"
+        elif not a_content:
+            msg = "Output content must not be empty"
+
+        if msg:
+            logger.error("%s", msg)
+            raise ValueError(msg)
+
         path = Path(a_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         retry_sync_with_backoff(
@@ -46,6 +61,10 @@ class FileOutputWriter:
     @staticmethod
     def _write_atomic(a_path: Path, a_content: str) -> None:
         """Perform a single atomic write attempt.
+
+        Logs the per-attempt failure at debug level before re-raising so
+        the transient attempts are visible; the final failure after all
+        retries is logged at error level by ``retry_sync_with_backoff``.
 
         Args:
             a_path: Destination path.
@@ -69,6 +88,7 @@ class FileOutputWriter:
             Path(tmp_name).replace(a_path)
             logger.debug("Atomically wrote %d bytes to %s", len(a_content), a_path)
         except Exception:
+            logger.debug("Atomic write to %s failed", a_path)
             with contextlib.suppress(OSError):
                 Path(tmp_name).unlink(missing_ok=True)
             raise

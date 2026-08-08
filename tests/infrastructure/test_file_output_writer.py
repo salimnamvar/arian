@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from arian.infrastructure.file_output_writer import FileOutputWriter
 
 
@@ -16,6 +18,18 @@ class TestFileOutputWriter:
         writer = FileOutputWriter()
         writer.write(str(target), "hello world")
         assert target.read_text(encoding="utf-8") == "hello world"
+
+    def test_empty_path_rejected(self, tmp_path: Path) -> None:
+        """Verify an empty output path raises ValueError."""
+        writer = FileOutputWriter()
+        with pytest.raises(ValueError, match="non-empty string"):
+            writer.write("", "content")
+
+    def test_empty_content_rejected(self, tmp_path: Path) -> None:
+        """Verify empty output content raises ValueError."""
+        writer = FileOutputWriter()
+        with pytest.raises(ValueError, match="must not be empty"):
+            writer.write(str(tmp_path / "out.md"), "")
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
         """Verify nested parent directories are created."""
