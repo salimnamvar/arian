@@ -1,0 +1,119 @@
+# Function design rules
+# Generalized lessons: single responsibility, closed state, pure functions, length limits.
+
+meta:
+  id: function-design
+  title: Function design principles
+  version: "1.0"
+  related:
+    - exit-and-raise
+    - contracts
+    - state-management
+  summary: >
+    Every function has a single well-defined responsibility. It depends
+    only on its declared inputs and documented contracts. It does not
+    mutate its inputs. It prefers purity over side effects. It stays
+    within a reasonable length limit.
+
+rules:
+  - id: fd-001
+    principle: Single responsibility
+    statement: >
+      Every function has a single, well-defined responsibility. A function
+      has exactly one reason to change. The docstring's first sentence
+      captures the single core purpose.
+    rationale: >
+      Functions with multiple responsibilities are difficult to test,
+      difficult to reason about, and difficult to reuse.
+    do:
+      - One function, one job
+      - Decompose when describing responsibility requires listing multiple loosely related tasks
+    dont:
+      - Functions that orchestrate, validate, transform, and persist in one body
+
+  - id: fd-002
+    principle: Closed function state
+    statement: >
+      A function's observable behavior depends only on its declared inputs
+      and documented external contracts. It SHALL NOT depend on implicit
+      global state, module-level mutable variables, or undocumented side
+      effects of other functions.
+    rationale: >
+      Hidden dependencies make functions non-deterministic and
+      non-reusable. A function that reads a global variable is coupled to
+      that variable's lifecycle, which is invisible to the caller.
+    exceptions:
+      - Configuration constants loaded at module initialization from
+        environment variables, provided they are immutable after loading.
+
+  - id: fd-003
+    principle: No mutation of inputs
+    statement: >
+      Functions SHALL NOT mutate their input parameters. Input objects are
+      treated as read-only. If a modified copy is needed, the function
+      creates an explicit copy.
+    rationale: >
+      Input mutation creates hidden side effects. The caller cannot predict
+      that its data will be modified. This violates the principle of least
+      surprise.
+    exceptions:
+      - Performance-critical paths where copying is prohibitively expensive,
+        documented in the function's contract and justified in code review.
+
+  - id: fd-004
+    principle: Pure functions preferentially
+    statement: >
+      Functions SHOULD be pure (no side effects, deterministic) whenever
+      the task permits. Side effects are isolated to explicit, documented
+      functions whose sole responsibility is to perform those effects.
+    rationale: >
+      Pure functions are trivially testable, composable, and
+      parallelizable. Side effects are the primary source of
+      non-determinism.
+
+  - id: fd-005
+    principle: Explicit return types
+    statement: >
+      Every function has an explicit return type annotation. The return
+      type is Result[T] for functions that can fail, or the direct type
+      for pure functions that cannot fail.
+    rationale: >
+      Explicit return types are contracts. They tell the caller what to
+      expect and enable static analysis to catch type mismatches.
+
+  - id: fd-006
+    principle: Function length limit
+    statement: >
+      No function exceeds 60 lines of executable code (excluding
+      docstrings, comments, blank lines, and the function signature).
+      Functions exceeding this limit are decomposed into sub-functions.
+    rationale: >
+      Long functions are cognitively opaque. They accumulate hidden state,
+      assume multiple responsibilities, and resist testing. Decomposition
+      forces clarity.
+    exceptions:
+      - Generated code (protocol buffers, ORM models) where structure is
+        imposed by external tooling.
+
+  - id: fd-007
+    principle: No star imports
+    statement: >
+      The `from module import *` statement SHALL NOT be used. All imports
+      are explicit, naming each imported symbol.
+    rationale: >
+      Star imports pollute the namespace, create implicit dependencies,
+      and make it impossible to determine where a symbol originates
+      without reading the imported module.
+
+anti_patterns:
+  - name: god-function
+    description: >
+      A function that validates, transforms, persists, and returns is
+      impossible to test in isolation and hides multiple reasons to change.
+    prefer: decompose into focused single-responsibility functions
+
+  - name: input-mutation
+    description: >
+      Modifying a caller's data structure inside a function creates hidden
+      side effects and subtle coupling.
+    prefer: work on explicit copies; treat inputs as read-only
