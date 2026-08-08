@@ -1,0 +1,106 @@
+# Input validation rules
+# Generalized lessons: validate every parameter at function entry, in all environments.
+
+meta:
+  id: input-validation
+  title: Input validation at function entry
+  version: "1.0"
+  related:
+    - b-continue
+    - exit-and-raise
+    - error-handling
+  summary: >
+    Every function validates all parameters before executing any business
+    logic. Validation checks type, range, nullability, and domain-specific
+    constraints. It runs in all environments including production, never
+    gated behind debug or feature flags.
+
+rules:
+  - id: val-001
+    principle: Validate before use
+    statement: >
+      Every function validates all input parameters before any business
+      logic executes. Validation occurs at the function's entry point,
+      not lazily at the point of first use.
+    rationale: >
+      Early validation prevents partially executed logic from leaving the
+      system in an inconsistent state. It produces clearer error messages
+      because the failure context is the function's entry.
+    do:
+      - Check all parameters at the top of the function body
+      - Set b_continue = False on validation failure
+    dont:
+      - Trust caller-provided values without a guard
+      - Defer validation to deep internal points
+
+  - id: val-002
+    principle: Type validation
+    statement: >
+      Every function validates the type of each parameter using
+      isinstance() checks. Type hints are advisory; runtime type
+      validation is mandatory.
+    rationale: >
+      Python type hints are not enforced at runtime. A caller passing an
+      int where a str is expected will not trigger a runtime error without
+      an explicit check.
+    do:
+      - if not isinstance(param, ExpectedType): set failure
+    dont:
+      - Rely solely on type annotations for safety
+    exceptions:
+      - Functions receiving typed framework objects (Pydantic, dataclasses
+        with __init__ validation) may rely on the framework, provided the
+        reliance is documented in the function's contract.
+
+  - id: val-003
+    principle: Range and constraint validation
+    statement: >
+      After type validation, validate domain-specific constraints: value
+      ranges, string lengths, collection sizes, enum membership, regex
+      patterns, and any business rule that constrains valid input.
+    rationale: >
+      Type validation alone is insufficient. A negative integer may be the
+      wrong kind of valid input. Domain constraints are the second layer.
+
+  - id: val-004
+    principle: Nullability validation
+    statement: >
+      Explicitly validate whether each parameter may be None. If a
+      parameter is not nullable, check for None and return an error result.
+    rationale: >
+      None is Python's universal null. An unhandled None propagates
+      through the codebase causing failures at distant, unrelated points.
+
+  - id: val-005
+    principle: Validation runs in all environments
+    statement: >
+      Validation logic SHALL NOT be disabled by configuration flags,
+      environment variables, or feature toggles. Validation runs in all
+      environments without exception.
+    rationale: >
+      Disabling validation in production, where the stakes are highest,
+      defeats its purpose entirely.
+
+  - id: val-006
+    principle: No assert for validation
+    statement: >
+      The assert statement SHALL NOT be used for input validation or
+      runtime checks. Asserts are stripped in optimized mode (python -O).
+      Use explicit if-checks that return error results.
+    rationale: >
+      Using assert for validation means validation disappears in
+      production when Python runs with -O. Runtime validation must use
+      explicit checks.
+
+anti_patterns:
+  - name: deferred validation
+    description: >
+      Checking a parameter deep inside the body instead of at entry makes
+      the failure context unclear and may leave partial state.
+    prefer: validate at the top of the function body
+
+  - name: assert-for-validation
+    description: >
+      Using assert for input validation strips the check in optimized
+      mode, creating a silent production gap.
+    prefer: explicit if-check returning Result.failure
