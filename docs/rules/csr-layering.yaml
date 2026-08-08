@@ -1,0 +1,163 @@
+# Controller–Service–Repository (CSR) and Clean Architecture layering
+# Generalized lessons: ownership, allowed dependencies, and purity of each layer.
+
+meta:
+  id: csr-layering
+  title: CSR and layer separation
+  version: "1.0"
+  applies_to:
+    - application-code
+    - architecture-tests
+  summary: >
+    Each layer owns one concern. Cross-layer use happens only through
+    domain ports (protocols) or the composition root. Import graphs and
+    type usage must match the dependency rules.
+
+layers:
+  domain:
+    role: Pure models, value objects, exceptions, and ports (protocols).
+    may_depend_on: []
+    may_not_depend_on:
+      - application
+      - service
+      - repository
+      - infrastructure
+      - controller
+      - bootstrap
+    notes:
+      - No I/O, no framework adapters, no concrete persistence.
+      - Shared config models may be exempt only if they are data-only.
+
+  application:
+    role: Use-case orchestration; validates requests; coordinates ports.
+    may_depend_on:
+      - domain
+      - service  # via protocols preferred; DTOs only when needed
+    may_not_depend_on:
+      - controller
+      - bootstrap
+      - infrastructure  # except explicit data-only config exemption
+      - repository      # no concrete implementations or adapter modules
+    notes:
+      - Depend on protocols defined in domain, not on adapter modules.
+      - Do not resolve paths, open files, or construct infrastructure by default.
+
+  service:
+    role: Domain workflows (plan, classify, materialize, analyze).
+    may_depend_on:
+      - domain
+      - repository  # via protocols only
+    may_not_depend_on:
+      - application
+      - controller
+      - bootstrap
+      - infrastructure  # except data-only config exemption
+    notes:
+      - Collaborators typed as protocols, not concrete classes.
+
+  repository:
+    role: Persistence and collection adapters implementing domain/repository ports.
+    may_depend_on:
+      - domain
+      - infrastructure  # drivers, filters, low-level I/O helpers as needed
+    may_not_depend_on:
+      - application
+      - service
+      - controller
+      - bootstrap
+
+  infrastructure:
+    role: External world (filesystem, templates, tokenizers, DB drivers).
+    may_depend_on:
+      - domain  # models and ports only
+    may_not_depend_on:
+      - application
+      - service
+      - repository
+      - controller
+      - bootstrap
+
+  controller:
+    role: Thin interface (CLI/API); parse input; map errors to transport.
+    may_depend_on:
+      - application
+      - domain  # enums/DTOs only when mapping transport
+      - bootstrap  # composition root entry only
+    may_not_depend_on:
+      - service
+      - repository
+      - infrastructure  # except data-only config exemption
+    notes:
+      - No pipeline logic, no direct repository or service construction.
+
+  bootstrap:
+    role: Single composition root; wire concrete implementations once.
+    may_depend_on:
+      - all layers
+    notes:
+      - Only place that constructs adapters and injects them into application.
+
+rules:
+  - id: csr-001
+    principle: One direction of dependency
+    statement: >
+      Dependencies point inward toward domain. Outer layers depend on
+      inner contracts; inner layers never import outer modules.
+    enforce_with:
+      - AST-based import tests per layer
+      - CI failure on forbidden imports
+
+  - id: csr-002
+    principle: Ports live in domain
+    statement: >
+      Protocols that application or service depend on (renderer, writer,
+      builder, planner, materializer, classifier, analyzer) belong in
+      domain. Infrastructure and service only implement them.
+    do:
+      - Define Protocol in domain with domain types only
+      - Implement Protocol in infrastructure or service
+    dont:
+      - Define application-facing protocols inside infrastructure packages
+      - Re-export domain protocols from adapter modules for convenience
+
+  - id: csr-003
+    principle: Value objects used across layers live in domain
+    statement: >
+      Stats, request shapes, and result types shared by application and
+      repository/service are domain models, not repository-local classes.
+    examples:
+      - Collection statistics used in application metadata → domain
+      - Build pipeline input DTO used by application and builder → domain
+
+  - id: csr-004
+    principle: Composition root injects adapters
+    statement: >
+      Application must not default-import concrete infrastructure helpers
+      (path resolvers, writers, renderers). Bootstrap always injects them.
+    do:
+      - Required constructor ports for I/O and resolution
+    dont:
+      - `or resolve_from_infrastructure` fallbacks inside application
+
+  - id: csr-005
+    principle: Controller is transport-only
+    statement: >
+      Controllers parse, construct request DTOs, call application, and
+      translate domain/application errors into exit codes or HTTP status.
+    dont:
+      - Duplicate business validation rules in the controller
+      - Call services or repositories from the controller
+
+  - id: csr-006
+    principle: Config exemption is narrow
+    statement: >
+      A shared data-only configuration module may be imported by any layer
+      only if it has no behavior and no reverse dependency on outer layers.
+    dont:
+      - Treat behavioral infrastructure modules as “config”
+
+config_exemption:
+  module_pattern: "*.infrastructure.config"
+  reason: Data-only settings (Pydantic models); no side effects
+  still_forbidden:
+    - Behavior modules (writers, filters, tokenizers, DB connections)

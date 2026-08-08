@@ -1,0 +1,81 @@
+# DRY — Don't Repeat Yourself
+# Generalized lessons: extract shared paths, single ownership of rules, mappers.
+
+meta:
+  id: dry
+  title: DRY and single ownership
+  version: "1.0"
+  related:
+    - csr-layering
+    - validation-ownership
+  summary: >
+    Duplicate logic is a design smell: either extract a shared private
+    path, move the rule to the owning layer, or introduce a single mapper.
+    Prefer one implementation with multiple callers over parallel copies.
+
+rules:
+  - id: dry-001
+    principle: Shared pipeline steps are one method
+    statement: >
+      When multiple modes (merged, separate, grouped, batch variants)
+      share the same sequence (load → transform → side-effect → result),
+      extract one private method and pass mode-specific parameters.
+    do:
+      - `_materialize_render_write(...)` (or equivalent) called from each mode
+    dont:
+      - Copy-paste render/write/log blocks into every mode branch
+
+  - id: dry-002
+    principle: Business rules have one owner
+    statement: >
+      Validation of domain/application rules lives once in the application
+      (or domain) validator. Controllers only translate failures to
+      transport errors; they do not reimplement the same checks.
+    do:
+      - Application validator checks paths, budgets, scopes, groups
+      - Controller catches domain exceptions → exit code / HTTP status
+    dont:
+      - Parallel scope/path checks in both CLI parsing and application
+
+  - id: dry-003
+    principle: Symmetric path sets share one validator
+    statement: >
+      Request paths and group paths are the same kind of path list.
+      One `_validate_paths` (or equivalent) handles both.
+    dont:
+      - Separate loops with divergent existence/security rules
+
+  - id: dry-004
+    principle: Persistence row mapping is centralized
+    statement: >
+      When multiple queries construct the same entity from rows, use
+      private static mappers (`_row_to_entity`) instead of inlined
+      constructor calls.
+    do:
+      - `_row_to_file`, `_row_to_symbol`, `_row_to_dependency`
+    benefits:
+      - Schema column order changes in one place
+      - Fewer drift bugs between get-one and list-all
+
+  - id: dry-005
+    principle: Protocols are not duplicated definitions
+    statement: >
+      One Protocol definition per capability; implementations and
+      consumers import that definition. Duplication of Protocol bodies
+      is a DRY and CSR failure.
+    related_rule: ports-and-protocols.port-003
+
+  - id: dry-006
+    principle: Extract when three copies appear
+    statement: >
+      Two similar blocks may stay if intentionally divergent; three or
+      more near-identical blocks must be generalized before merge.
+    heuristic: rule-of-three
+
+anti_patterns:
+  - name: convenience re-export as fake DRY
+    description: >
+      Re-exporting a type from its old module so old import paths keep
+      working is not DRY; it freezes two public homes for one concept.
+    prefer: update all call sites; delete the old module
+    related: no-aliases

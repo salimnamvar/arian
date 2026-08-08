@@ -1,0 +1,78 @@
+# Ports, protocols, and dependency injection contracts
+# Generalized lessons: how interfaces are defined, typed, and wired.
+
+meta:
+  id: ports-and-protocols
+  title: Ports and protocol-based DI
+  version: "1.0"
+  related:
+    - csr-layering
+    - no-aliases
+    - typing-contracts
+  summary: >
+    Depend on abstractions owned by the domain. Implementations live at
+    the edges. Protocol method signatures must match implementations
+    without widening parameters to untyped objects.
+
+rules:
+  - id: port-001
+    principle: Port ownership
+    statement: >
+      Every cross-layer collaborator is a named Protocol in domain (or a
+      dedicated ports package with zero outer dependencies).
+    do:
+      - Name ports by capability (e.g. RendererProtocol, FileCollectorProtocol)
+      - Document Args/Returns on protocol methods for implementers
+    dont:
+      - Pass concrete service classes into application constructors when a protocol exists
+
+  - id: port-002
+    principle: Structural typing must type-check
+    statement: >
+      Protocol parameters must be as specific as the real implementation.
+      Using `object` (or overly wide types) for request DTOs breaks
+      assignability of concrete classes under strict type checkers.
+    do:
+      - Place shared request/response value objects in domain
+      - Use those types in both Protocol and implementation
+    dont:
+      - `async def build(self, a_request: object)` when the impl takes BuildRequest
+      - Fix type errors by casting at the composition root instead of fixing the contract
+
+  - id: port-003
+    principle: One protocol per capability
+    statement: >
+      Do not redefine a narrower copy of an existing domain protocol in a
+      service or infrastructure module for local convenience.
+    examples:
+      - LanguageAnalyzerProtocol defined once in domain; materializer imports it
+    dont:
+      - Local Protocol with a subset of methods that shadows the domain name
+
+  - id: port-004
+    principle: Inject all edge capabilities
+    statement: >
+      Renderers, writers, path resolvers, progress reporters, and security
+      config used at the use-case boundary are constructor-injected ports.
+    do:
+      - Bootstrap wires concrete types to protocol-typed parameters
+    dont:
+      - Hidden imports of adapters inside use-case methods
+
+  - id: port-005
+    principle: Service collaborators are ports
+    statement: >
+      Planners, materializers, classifiers, collectors, and indexes are
+      typed as protocols on builders and orchestrators.
+    do:
+      - `a_planner: ContextPlannerProtocol`
+      - `a_classifier: FileClassifierProtocol`
+    dont:
+      - Hard-code concrete class types on cross-module constructors when tests need fakes
+
+wiring:
+  composition_root: bootstrap
+  pattern: manual constructor injection
+  tests:
+    - Contract tests for multi-implementation ports (e.g. memory vs sqlite)
+    - Application unit tests inject stubs implementing the same protocols

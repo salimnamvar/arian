@@ -1,0 +1,84 @@
+# Validation ownership and error translation
+# Generalized lessons: who validates what, and how errors cross layers.
+
+meta:
+  id: validation-ownership
+  title: Validation ownership and boundary translation
+  version: "1.0"
+  related:
+    - csr-layering
+    - dry
+  summary: >
+    Business and security validation belong to application (or domain).
+    Controllers and adapters only parse transport shapes and translate
+    exceptions. Never maintain two independent validators for the same rules.
+
+ownership:
+  controller:
+    validates:
+      - Transport parseability (string → int, known enum tokens for UX)
+      - Framework-level option constraints when they cannot be expressed later
+    does_not_validate:
+      - Path existence (unless purely for early CLI UX, then must call application validator)
+      - Budget maxima against domain limits
+      - Scope membership against config tables (delegate)
+      - Security/path traversal
+    on_failure: raise transport exit (CLI Exit, HTTP 4xx) after catching domain errors
+
+  application:
+    validates:
+      - Path existence and traversal safety
+      - Budget positivity and upper bounds
+      - Scope membership
+      - Group path sets with the same path rules as request paths
+    raises:
+      - InputError
+      - SecurityError
+      - other ProjectBaseError subtypes
+
+  domain:
+    validates:
+      - Aggregate invariants (e.g. plan internal consistency)
+    raises:
+      - ValueError or domain-specific ValidationError mapped at application if needed
+
+  repository_and_infrastructure:
+    validates:
+      - Local I/O preconditions only (file readable at read time)
+    does_not:
+      - Reject whole requests for business rules already checked upstream
+
+rules:
+  - id: val-001
+    principle: Single validator for request DTOs
+    statement: >
+      One ContextRequestValidator (or equivalent) is the source of truth
+      for request fields. CLI/API call it; they do not fork the rules.
+
+  - id: val-002
+    principle: Symmetric field sets share helpers
+    statement: >
+      If two fields are lists of paths, both run through `_validate_paths`.
+
+  - id: val-003
+    principle: Fast-fail UX may stay at the edge
+    statement: >
+      Controllers may pre-check enum names to print friendly valid-value
+      lists, then still call the application validator for all other rules.
+    note: Enum pre-check is presentation; limits and paths remain application-owned.
+
+  - id: val-004
+    principle: Exception translation at the boundary
+    statement: >
+      Application translates OSError/ValueError into domain errors with
+      sanitized messages. Controllers map ProjectBaseError to exit codes.
+    do:
+      - sanitize_error_message before raising outward
+    dont:
+      - Leak absolute internal paths or secrets in error text
+
+  - id: val-005
+    principle: No silent skip of group or nested fields
+    statement: >
+      Nested structures (group path tuples) must be covered by the same
+      existence and security rules as top-level paths.

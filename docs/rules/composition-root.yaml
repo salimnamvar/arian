@@ -1,0 +1,62 @@
+# Composition root and wiring
+# Generalized lessons: where objects are created and how edges are injected.
+
+meta:
+  id: composition-root
+  title: Composition root
+  version: "1.0"
+  related:
+    - csr-layering
+    - ports-and-protocols
+  summary: >
+    Exactly one composition root constructs concrete adapters and injects
+    them into the application. No other layer is allowed to new-up the
+    full graph.
+
+rules:
+  - id: wire-001
+    principle: Single composition root
+    statement: >
+      Bootstrap (or equivalent) is the only module that imports both
+      application and concrete service/repository/infrastructure types
+      to assemble the graph.
+    do:
+      - `create_application(a_config) -> Application`
+    dont:
+      - Controllers constructing collectors, planners, or writers directly
+
+  - id: wire-002
+    principle: All edge ports required
+    statement: >
+      Application constructor requires renderer, output writer, path
+      resolver, builder, and security config. Defaults that import
+      infrastructure defeat the root.
+    do:
+      - Bootstrap passes `resolve_output_path` explicitly
+    dont:
+      - `a_resolve_output or resolve_output_path` with infrastructure import in application
+
+  - id: wire-003
+    principle: Config drives construction
+    statement: >
+      Tunables (limits, classifier tables, retry, renderer template dir)
+      come from a loaded config object, not module-level constants in
+      services.
+    related: csr-layering.config_exemption
+
+  - id: wire-004
+    principle: Tests may rebuild the graph
+    statement: >
+      Unit tests may call the composition root or manually inject stubs.
+      Manual injection must use the same protocol-typed constructor
+      parameters as production.
+    do:
+      - Pass `a_resolve_output=wired._resolve_output` when replacing only the writer
+    dont:
+      - Partial constructors that omit required ports
+
+  - id: wire-005
+    principle: Lifecycle stays outside use cases
+    statement: >
+      Logging setup, async lifespan, and process-wide listeners are
+      bootstrap/lifespan concerns; application code only uses getLogger.

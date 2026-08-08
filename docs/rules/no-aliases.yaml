@@ -1,0 +1,71 @@
+# No aliases, shims, or compatibility re-exports
+# Generalized lessons: one canonical home for every public symbol.
+
+meta:
+  id: no-aliases
+  title: Canonical locations only — no re-export shims
+  version: "1.0"
+  related:
+    - csr-layering
+    - dry
+    - ports-and-protocols
+  summary: >
+    When a type or function moves to its correct layer, delete the old
+    module entirely. Do not leave re-export files, `__all__` forwarders,
+    or “backward-compatible” import paths.
+
+rules:
+  - id: alias-001
+    principle: One canonical import path
+    statement: >
+      Each public type, protocol, and value object has exactly one module
+      of definition. All consumers import from that module (or its package
+      `__init__` that re-exports within the same layer only).
+    do:
+      - Update every call site in the same change as the move
+      - Delete the old file in the same commit
+    dont:
+      - Keep `old_module.py` that only does `from new_module import X; __all__ = ["X"]`
+      - Document “import from either place”
+
+  - id: alias-002
+    principle: Package __init__ is not a cross-layer bridge
+    statement: >
+      A layer’s `__init__.py` may re-export symbols defined inside that
+      layer. It must not re-export domain ports from infrastructure (or
+      vice versa) to “help” callers.
+    examples:
+      - infrastructure.output may export MarkdownRenderer only
+      - RendererProtocol is imported from domain by application and by the renderer impl
+
+  - id: alias-003
+    principle: No dual homes for moved value objects
+    statement: >
+      After a stats/DTO/protocol moves to domain, repository/service
+      modules import domain; they do not re-export the name for old paths.
+    do:
+      - Tests import CollectionStats from domain
+    dont:
+      - `collector.py` with `__all__ = ["CollectionStats", "FileCollector"]` after the move
+
+  - id: alias-004
+    principle: Move + delete is one change set
+    statement: >
+      A relocation that leaves a shim is incomplete. Reviewers treat leftover
+      shims as defects, not transitional helpers, unless an explicit
+      deprecation window is agreed (this project defaults to no window).
+    default_deprecation_window: none
+
+  - id: alias-005
+    principle: Prefer breaking the wrong import over hiding the move
+    statement: >
+      Strict type checkers and architecture tests should fail if code still
+      imports from a deleted path. That is the desired signal.
+
+checklist_on_move:
+  - Identify new canonical module (usually domain)
+  - Update production imports
+  - Update tests and docs examples
+  - Remove old module and any re-export entries from package __init__
+  - Run architecture boundary tests
+  - Confirm no remaining references to the old path (search)

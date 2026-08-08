@@ -1,0 +1,88 @@
+# Catalog of generalized engineering rules derived from practice.
+# Each subject file is self-contained YAML; this index maps topics to files.
+
+meta:
+  id: rules-index
+  title: Engineering rules catalog
+  version: "1.0"
+  location: docs/rules/
+  purpose: >
+    Capture architecture and coding lessons in a machine-readable,
+    subject-oriented form. Rules are project-agnostic enough to reuse;
+    examples may refer to this codebase but principles stand alone.
+
+subjects:
+  - id: csr-layering
+    file: csr-layering.yaml
+    title: CSR and layer separation
+    tags: [architecture, imports, clean-architecture]
+
+  - id: ports-and-protocols
+    file: ports-and-protocols.yaml
+    title: Ports and protocol-based DI
+    tags: [di, protocols, ports]
+
+  - id: composition-root
+    file: composition-root.yaml
+    title: Composition root and wiring
+    tags: [bootstrap, di, lifecycle]
+
+  - id: dry
+    file: dry.yaml
+    title: DRY and single ownership
+    tags: [refactoring, duplication]
+
+  - id: no-aliases
+    file: no-aliases.yaml
+    title: Canonical locations — no re-export shims
+    tags: [imports, migration, api-surface]
+
+  - id: naming
+    file: naming.yaml
+    title: Naming consistency
+    tags: [style, a-prefix, protocols]
+
+  - id: validation-ownership
+    file: validation-ownership.yaml
+    title: Validation ownership and error translation
+    tags: [validation, errors, controller]
+
+  - id: typing-contracts
+    file: typing-contracts.yaml
+    title: Typing contracts for ports and DTOs
+    tags: [pyright, mypy, protocols]
+
+  - id: safe-code
+    file: safe-code.yaml
+    title: Safe coding — single exit, b_continue, error contracts
+    tags: [errors, flow-control, logging, robustness]
+
+schema:
+  common_fields:
+    meta:
+      required: [id, title, version, summary]
+    rules:
+      required: [id, principle, statement]
+      optional: [do, dont, examples, enforce_with, related_rule]
+
+how_to_use:
+  - Read index.yaml for the subject map
+  - Open the subject file when reviewing PRs or scaffolding modules
+  - Prefer adding a new subject file over bloating an existing one when the concern is orthogonal
+  - Keep statements imperative and layer-agnostic; put project-specific names only in examples
+
+session_origins:
+  note: >
+    Initial content distilled from a CSR/DRY/naming refactor that moved
+    ports and value objects into domain, removed infrastructure re-export
+    shims, unified application pipelines and validation, and fixed
+    protocol typing so the composition root type-checks without casts.
+  mapped_lessons:
+    - "Application must not import repository/infrastructure adapters"
+    - "Protocols and shared DTOs belong in domain"
+    - "Delete old modules after moves; never leave re-export aliases"
+    - "Extract shared pipeline steps (DRY)"
+    - "Validation owned by application; controller translates only"
+    - "Protocol parameter types must match implementations (strict typing)"
+    - "Bootstrap injects all edge ports including path resolution"
+    - "Consistent a_ argument names and protocol-typed attributes"

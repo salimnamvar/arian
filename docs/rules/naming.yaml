@@ -1,0 +1,113 @@
+# Naming and argument conventions
+# Generalized lessons: consistent names for methods, args, attributes, ports.
+
+meta:
+  id: naming
+  title: Naming consistency across modules and layers
+  version: "1.0"
+  related:
+    - ports-and-protocols
+    - csr-layering
+  summary: >
+    Names encode role and layer. The same concept uses the same identifier
+    everywhere. Function arguments follow project prefix rules; public
+    framework entrypoints may be exempt only when marked.
+
+conventions:
+  argument_prefix:
+    rule: All function/method parameters start with `a_` except exemptions
+    exemptions:
+      - self
+      - cls
+      - "*args / **kwargs bare names"
+      - dunder methods (`__init__` signature required by Python protocols)
+      - Framework public APIs (CLI option names) marked `a-prefix-ignore`
+    rationale: >
+      Visual distinction between parameters and locals; grep-friendly
+      call sites; uniform style across the codebase.
+
+  private_attributes:
+    rule: Injected collaborators and mutable state use single-underscore prefix
+    pattern: "_<role>"
+    examples:
+      - _builder
+      - _renderer
+      - _output
+      - _planner
+      - _classifier
+      - _resolve_output
+    note: Type the attribute as the Protocol, not the concrete class
+
+  protocols:
+    pattern: "<Capability>Protocol"
+    examples:
+      - RendererProtocol
+      - OutputWriterProtocol
+      - ContextBuilderProtocol
+      - FileClassifierProtocol
+      - LanguageAnalyzerProtocol
+    dont:
+      - Duplicate local Protocol with a different name for the same capability
+      - Suffix implementations with Protocol
+
+  value_objects:
+    rule: Domain nouns; no layer prefix in the type name
+    examples:
+      - BuildRequest
+      - CollectionStats
+      - ContextPlan
+    dont:
+      - ServiceBuildRequest vs DomainBuildRequest for the same shape
+
+  methods:
+    pipeline_verbs:
+      - collect
+      - plan
+      - load_content / load
+      - materialize
+      - render
+      - write
+      - validate
+      - build
+    note: >
+      Same verb means same stage across layers; avoid synonyms
+      (e.g. do not mix process/run/execute for the same stage).
+
+rules:
+  - id: name-001
+    principle: Same concept, same name
+    statement: >
+      When a parameter appears in protocol, implementation, and caller,
+      use the same argument name (including `a_` prefix).
+    examples:
+      - a_plan, a_content, a_root, a_request, a_path
+
+  - id: name-002
+    principle: Generalized mode parameters
+    statement: >
+      Shared helpers take generalized names (`a_scope`, `a_output_path`,
+      `a_paths`, `a_stats`) rather than mode-specific aliases
+      (`stats_sep`, `stats_grp`) at the helper boundary.
+    do:
+      - Callers map local names into the shared helper’s parameter list
+    dont:
+      - Three helper variants with near-identical signatures
+
+  - id: name-003
+    principle: Mapper names encode direction
+    statement: >
+      Private mappers use `_row_to_<entity>` / `_entity_to_row` style so
+      intent is obvious without reading the body.
+
+  - id: name-004
+    principle: Avoid layer leakage in names
+    statement: >
+      Domain types do not include Infrastructure/Service in their names.
+      Application DTOs may use Request/Result; domain uses Plan/File/Symbol.
+
+  - id: name-005
+    principle: Single-return style (project lint)
+    statement: >
+      Functions assign to a result variable and return once where the
+      project enforces single-return; names stay stable across branches
+      (`result`, not early return of differently named values).
