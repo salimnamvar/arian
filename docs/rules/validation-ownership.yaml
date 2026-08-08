@@ -4,7 +4,7 @@
 meta:
   id: validation-ownership
   title: Validation ownership and boundary translation
-  version: "2.0"
+  version: "2.1"
   related:
     - csr-layering
     - dry

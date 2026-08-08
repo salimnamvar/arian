@@ -4,7 +4,7 @@
 meta:
   id: dry
   title: DRY and single ownership
-  version: "1.0"
+  version: "2.1"
   related:
     - csr-layering
     - validation-ownership

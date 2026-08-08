@@ -4,7 +4,7 @@
 meta:
   id: safe-code
   title: Safe coding principles
-  version: "2.0"
+  version: "2.1"
   summary: >
     Functions follow a disciplined shape: validate inputs, step through
     expected outcomes via an execution guard, catch only unexpected errors,

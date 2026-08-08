@@ -4,7 +4,7 @@
 meta:
   id: csr-layering
   title: CSR and layer separation
-  version: "1.0"
+  version: "2.1"
   applies_to:
     - application-code
     - architecture-tests
