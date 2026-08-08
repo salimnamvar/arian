@@ -13,17 +13,16 @@ from arian.domain.context.models import BuildRequest
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import ContextTask
 from arian.domain.context.models import MaterializedChunk
-from arian.domain.protocols import BuildPlanResult
-from arian.domain.protocols import ContentLoadResult
+from arian.domain.protocols import ContentLoadData
 from arian.domain.protocols import ContextMaterializerProtocol
 from arian.domain.protocols import ContextPlannerProtocol
-from arian.domain.protocols import MaterializeResult
 from arian.domain.repository.models import CollectionStats
 from arian.domain.repository.models import FileContent
 from arian.domain.repository.models import RepositoryFile
 from arian.domain.shared.enums import ConcurrencyPolicy
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import PipelineProgressProtocol
+from arian.domain.shared.result import Result
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
@@ -124,7 +123,7 @@ class ContextBuilder:
     async def build(
         self,
         a_request: BuildRequest,
-    ) -> BuildPlanResult:
+    ) -> Result[ContextPlan]:
         """Build a context plan from a :class:`BuildRequest`.
 
         Pipeline: collect files -> store metadata -> plan context.
@@ -135,7 +134,7 @@ class ContextBuilder:
                 per-call input paths, and the explicit-path allow-list.
 
         Returns:
-            BuildPlanResult with is_success, value (ContextPlan), and message.
+            Result[ContextPlan] with is_success, value (ContextPlan), and message.
         """
         a_path: Path = a_request.path
         a_task: ContextTask = a_request.task
@@ -151,7 +150,7 @@ class ContextBuilder:
         files: list[RepositoryFile] = []
         seen: set[str] = set()
         sources: list[Path] = a_input_paths if a_input_paths is not None else [a_path]
-        result: BuildPlanResult = BuildPlanResult.failure("uninitialized")
+        result: Result[ContextPlan] = Result.failure("uninitialized")
         plan: ContextPlan = ContextPlan(chunks=(), total_tokens=0, total_files=0, task=a_task)
         b_continue: bool = True
 
@@ -161,7 +160,7 @@ class ContextBuilder:
             sanitized: str = sanitize_error_message(str(e), str(root))
             logger.exception("File collection failed for %s: %s", a_path, sanitized)
             msg: str = f"File collection failed for {a_path}: {sanitized}"
-            result = BuildPlanResult.failure(msg)
+            result = Result.failure(msg)
             b_continue = False
 
         if b_continue:
@@ -171,7 +170,7 @@ class ContextBuilder:
             if len(files) > self._options.max_collected_files:
                 msg = f"Too many files collected ({len(files)}), limit is {self._options.max_collected_files}"
                 logger.error("%s", msg)
-                result = BuildPlanResult.failure(msg)
+                result = Result.failure(msg)
                 b_continue = False
 
         if b_continue:
@@ -184,7 +183,7 @@ class ContextBuilder:
                 sanitized = sanitize_error_message(str(e), str(root))
                 logger.exception("Planning failed: %s", sanitized)
                 msg = f"Planning failed: {sanitized}"
-                result = BuildPlanResult.failure(msg)
+                result = Result.failure(msg)
                 b_continue = False
 
             if b_continue:
@@ -192,7 +191,7 @@ class ContextBuilder:
                 if not validation_result.is_success:
                     msg = f"Plan validation failed: {validation_result.message}"
                     logger.error("%s", msg)
-                    result = BuildPlanResult.failure(msg)
+                    result = Result.failure(msg)
                     b_continue = False
 
         if b_continue:
@@ -215,7 +214,7 @@ class ContextBuilder:
                 len(all_paths),
             )
             self._notify_complete("plan")
-            result = BuildPlanResult.success(plan)
+            result = Result.success(plan)
 
         return result
 
@@ -223,7 +222,7 @@ class ContextBuilder:
         self,
         a_plan: ContextPlan,
         a_root: Path,
-    ) -> ContentLoadResult:
+    ) -> Result[ContentLoadData]:
         """Load file content for all files in the plan.
 
         Honours ConcurrencyPolicy for parallel reads. Skips binary files and
@@ -234,7 +233,7 @@ class ContextBuilder:
             a_root: Repository root path.
 
         Returns:
-            ContentLoadResult with is_success, content mapping, skipped paths, and message.
+            Result[ContentLoadData] with is_success, content mapping, skipped paths, and message.
         """
         content_map: dict[str, FileContent] = {}
         skipped: list[str] = []
@@ -262,13 +261,13 @@ class ContextBuilder:
             len(skipped),
         )
         self._notify_complete("load")
-        return ContentLoadResult.success(content_map, tuple(skipped))
+        return Result.success(ContentLoadData(content=content_map, skipped=tuple(skipped)))
 
     def materialize(
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-    ) -> MaterializeResult:
+    ) -> Result[tuple[MaterializedChunk, ...]]:
         """Materialize a context plan with compressed content.
 
         Args:
@@ -276,13 +275,13 @@ class ContextBuilder:
             a_content: Mapping of file path to FileContent.
 
         Returns:
-            MaterializeResult with is_success, value (MaterializedChunk tuple), and message.
+            Result[tuple[MaterializedChunk, ...]] with is_success, value (MaterializedChunk tuple), and message.
         """
         self._notify_start("materialize", len(a_plan.chunks))
         materialized: tuple[MaterializedChunk, ...] = self._materializer.materialize(a_plan, a_content)
         self._notify_complete("materialize")
         logger.debug("Materialized %d chunks", len(materialized))
-        return MaterializeResult.success(materialized)
+        return Result.success(materialized)
 
     async def _load_all(
         self,

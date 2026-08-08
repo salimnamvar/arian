@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from arian.domain.repository.models import CollectionStats
-from arian.infrastructure.gitignore_filter import GitignoreOptions
+from arian.infrastructure.gitignore_filter import GitignoreOptions, PathFilter
 from arian.repository.filesystem.collector import FileCollector
 
 
@@ -44,7 +44,7 @@ async def test_collector_collects_text_files(tmp_path: Path) -> None:
     (tmp_path / "data.json").write_text('{"key": "value"}')
     (tmp_path / "readme.md").write_text("# Hello")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     assert len(files) == 3
@@ -57,7 +57,7 @@ async def test_collector_skips_binary(tmp_path: Path) -> None:
     (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
     (tmp_path / "hello.py").write_text("print('hello')")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     assert len(files) == 1
@@ -70,7 +70,7 @@ async def test_collector_extension_narrowing(tmp_path: Path) -> None:
     (tmp_path / "hello.py").write_text("print('hello')")
     (tmp_path / "data.json").write_text('{"key": "value"}')
 
-    collector = FileCollector(a_extensions=frozenset({".py"}), a_exclude=frozenset())
+    collector = FileCollector(a_extensions=frozenset({".py"}), a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     assert len(files) == 1
@@ -83,7 +83,7 @@ async def test_collector_extension_narrowing_with_dot_prefix(tmp_path: Path) -> 
     (tmp_path / "hello.py").write_text("print('hello')")
     (tmp_path / "data.json").write_text('{"key": "value"}')
 
-    collector = FileCollector(a_extensions=frozenset({".py"}), a_exclude=frozenset())
+    collector = FileCollector(a_extensions=frozenset({".py"}), a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     assert len(files) == 1
@@ -95,7 +95,7 @@ async def test_stats_invariant_after_collect(tmp_path: Path) -> None:
     (tmp_path / "hello.py").write_text("print('hello')")
     (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     await collector.collect(tmp_path)
 
     stats = collector.stats
@@ -114,7 +114,7 @@ async def test_language_computed_once(tmp_path: Path) -> None:
     """Language is computed at collection time and stored in RepositoryFile."""
     (tmp_path / "hello.py").write_text("print('hello')")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     assert len(files) == 1
@@ -137,7 +137,7 @@ async def test_collector_respects_gitignore(tmp_path: Path, monkeypatch) -> None
     (data_dir / "ct_y.yaml").write_text("kind: DataContract\n")
     (tmp_path / "readme.md").write_text("# hi\n")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(tmp_path)
 
     # The .gitignore file is itself a text file and is collected. The
@@ -162,8 +162,7 @@ async def test_collector_use_gitignore_false_disables_filter(tmp_path: Path, mon
 
     collector = FileCollector(
         a_extensions=None,
-        a_exclude=frozenset(),
-        a_gitignore_options=GitignoreOptions(enabled=False),
+        a_filter=PathFilter(frozenset(), GitignoreOptions(enabled=False)),
     )
     files = await collector.collect(tmp_path)
 
@@ -182,7 +181,7 @@ async def test_collector_explicit_paths_bypass_gitignore(tmp_path: Path, monkeyp
     (data_dir / "ct_x.yaml").write_text("kind: DataContract\n")
     (data_dir / "ct_y.yaml").write_text("kind: DataContract\n")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(
         data_dir,
         a_root=tmp_path,
@@ -209,7 +208,7 @@ async def test_collector_explicit_paths_does_not_leak(tmp_path: Path, monkeypatc
     # Only `data` is explicit; `secret` is not, but it isn't gitignored either,
     # so both should be collected. The point is that explicit doesn't filter
     # out other paths.
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(
         tmp_path,
         a_explicit_paths=frozenset({data_dir}),
@@ -237,7 +236,7 @@ async def test_collector_explicit_path_dir_level_bypass(tmp_path: Path, monkeypa
 
     # Build a collector with a normal use_gitignore=True; then call collect
     # with the explicit-path override.
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     files = await collector.collect(
         data_dir,
         a_explicit_paths=frozenset({data_dir}),
@@ -261,7 +260,7 @@ async def test_collector_pattern_tally_attributes_each_file(tmp_path: Path, monk
     (tmp_path / "build" / "out.bin").write_text("x")
     (tmp_path / "ok.py").write_text("x")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     await collector.collect(tmp_path)
 
     assert collector.stats.skipped_gitignore == 3
@@ -274,7 +273,7 @@ async def test_collector_dir_exclude_falls_back_to_exclude_placeholder(tmp_path:
     git_dir.mkdir()
     (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
 
-    collector = FileCollector(a_extensions=None, a_exclude=frozenset({".git"}))
+    collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset({".git"})))
     files = await collector.collect(tmp_path)
 
     assert files == []
@@ -296,7 +295,7 @@ async def test_collector_nested_gitignore(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "root.log").write_text("x")
     (nested / "deep.log").write_text("x")
 
-    collector_default = FileCollector(a_extensions=None, a_exclude=frozenset())
+    collector_default = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
     await collector_default.collect(tmp_path)
     # Only the cwd .gitignore applies.
     assert collector_default.stats.skipped_gitignore == 1
@@ -304,8 +303,7 @@ async def test_collector_nested_gitignore(tmp_path: Path, monkeypatch) -> None:
 
     collector_nested = FileCollector(
         a_extensions=None,
-        a_exclude=frozenset(),
-        a_gitignore_options=GitignoreOptions(nested=True),
+        a_filter=PathFilter(frozenset(), GitignoreOptions(nested=True)),
     )
     await collector_nested.collect(tmp_path)
     # Both .gitignore files apply.

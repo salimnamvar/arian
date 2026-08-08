@@ -8,6 +8,7 @@ from unittest.mock import patch
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.tokenizer import estimate_tokens_from_size
+from arian.infrastructure.gitignore_filter import PathFilter
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
@@ -48,7 +49,7 @@ class TestCollectorLazyLoading:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
 
         with patch.object(Path, "read_text", side_effect=Exception("should not be called")):
@@ -64,7 +65,7 @@ class TestCollectorLazyLoading:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
         files = await collector.collect(tmp_path)
 
@@ -76,7 +77,7 @@ class TestCollectorLazyLoading:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
         files = await collector.collect(tmp_path)
 
@@ -92,7 +93,7 @@ class TestEmptyFileCollection:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
         files = await collector.collect(tmp_path)
 
@@ -110,7 +111,7 @@ class TestHashLifecycle:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -124,7 +125,8 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
 
         stored_files = await index.list_files()
         for f in stored_files:
@@ -136,7 +138,7 @@ class TestHashLifecycle:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -150,8 +152,12 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
-        content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
+        plan = build_result.value
+        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        assert load_result.is_success
+        content_map = load_result.value.content
 
         for _path, content in content_map.items():
             assert content.hash != ""
@@ -167,7 +173,7 @@ class TestSingleReadVerification:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -181,7 +187,9 @@ class TestSingleReadVerification:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
+        plan = build_result.value
 
         read_count = 0
         original_read_bytes = Path.read_bytes
@@ -192,8 +200,10 @@ class TestSingleReadVerification:
             return original_read_bytes(self, *args, **kwargs)
 
         with patch.object(Path, "read_bytes", counting_read_bytes):
-            content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
+            load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
 
+        assert load_result.is_success
+        content_map = load_result.value.content
         assert read_count == len(content_map)
 
 
@@ -206,7 +216,7 @@ class TestBinaryFileSkipping:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
         files = await collector.collect(tmp_path)
 
@@ -223,7 +233,7 @@ class TestSymlinkDeduplication:
 
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
         )
         files = await collector.collect(tmp_path)
 

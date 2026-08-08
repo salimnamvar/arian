@@ -90,30 +90,32 @@ class TestValidateRequest:
     """Tests for the validate_request utility."""
 
     def test_valid_request_passes(self) -> None:
-        """A well-formed request should not raise."""
+        """A well-formed request should return success."""
         request = ContextRequest(task="general", scope="merged")
-        validate_request(request)
+        result = validate_request(request)
+        assert result.is_success is True
 
-    def test_invalid_task_exits(self) -> None:
-        """An invalid task name should cause typer.Exit."""
+    def test_invalid_task_returns_failure(self) -> None:
+        """An invalid task name should return failure."""
         request = ContextRequest(task="nonexistent_task")
-        with pytest.raises(typer.Exit):
-            validate_request(request)
+        result = validate_request(request)
+        assert result.is_success is False
 
-    def test_invalid_scope_exits(self) -> None:
-        """An invalid scope should cause typer.Exit."""
+    def test_invalid_scope_returns_failure(self) -> None:
+        """An invalid scope should return failure."""
         request = ContextRequest(task="general", scope="bogus")
-        with pytest.raises(typer.Exit):
-            validate_request(request)
+        result = validate_request(request)
+        assert result.is_success is False
 
     def test_valid_scopes_accepted(self) -> None:
         """Both 'merged' and 'separate' scopes should be accepted."""
         for scope in ("merged", "separate"):
             request = ContextRequest(task="general", scope=scope)
-            validate_request(request)
+            result = validate_request(request)
+            assert result.is_success is True
 
-    def test_group_with_nonexistent_path_exits(self) -> None:
-        """A group referencing a non-existent path should cause typer.Exit.
+    def test_group_with_nonexistent_path_returns_failure(self) -> None:
+        """A group referencing a non-existent path should return failure.
 
         Note: validate_request uses Path.cwd() as root, so this test
         verifies the validation logic exists without relying on cwd.
@@ -123,5 +125,5 @@ class TestValidateRequest:
             scope="merged",
             group=(("this_path_definitely_does_not_exist_xyz123",),),
         )
-        with pytest.raises(typer.Exit):
-            validate_request(request)
+        result = validate_request(request)
+        assert result.is_success is False

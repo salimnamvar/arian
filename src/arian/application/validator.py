@@ -6,33 +6,13 @@ import logging
 from pathlib import Path
 
 from arian.application.context import ContextRequest
+from arian.domain.shared.result import Result
 from arian.domain.shared.security import validate_input_path
 from arian.infrastructure.config import ControllerConfig
 from arian.infrastructure.config import DomainLimitsConfig
 from arian.infrastructure.config import SecurityConfig
 
 logger = logging.getLogger(__name__)
-
-
-class ValidationResult:
-    """Result of request validation.
-
-    Attributes:
-        is_success: Whether validation passed.
-        message: Error message if validation failed.
-    """
-
-    def __init__(self, *, a_is_success: bool, a_message: str = "") -> None:
-        self.is_success: bool = a_is_success
-        self.message: str = a_message
-
-    @staticmethod
-    def success() -> ValidationResult:
-        return ValidationResult(a_is_success=True)
-
-    @staticmethod
-    def failure(a_message: str) -> ValidationResult:
-        return ValidationResult(a_is_success=False, a_message=a_message)
 
 
 class ContextRequestValidator:
@@ -65,24 +45,24 @@ class ContextRequestValidator:
         self._security: SecurityConfig = a_security
         self._controller: ControllerConfig = a_controller
 
-    def validate(self, a_request: ContextRequest) -> ValidationResult:
-        """Validate a request. Returns ValidationResult instead of raising.
+    def validate(self, a_request: ContextRequest) -> Result[None]:
+        """Validate a request. Returns Result[None] instead of raising.
 
         Args:
             a_request: Request to validate.
 
         Returns:
-            ValidationResult with is_success=True or error message.
+            Result[None] with is_success=True or error message.
         """
         root: Path = self._root or Path.cwd()
-        result: ValidationResult = ValidationResult.success()
+        result: Result[None] = Result.success(None)
 
-        path_result: ValidationResult = self._validate_paths(a_request.paths, root)
+        path_result: Result[None] = self._validate_paths(a_request.paths, root)
         if not path_result.is_success:
             result = path_result
         else:
             for group_spec in a_request.group:
-                group_result: ValidationResult = self._validate_paths(group_spec, root)
+                group_result: Result[None] = self._validate_paths(group_spec, root)
                 if not group_result.is_success:
                     result = group_result
                     break
@@ -98,11 +78,11 @@ class ContextRequestValidator:
 
             if msg:
                 logger.debug("Rejected context request: %s", msg)
-                result = ValidationResult.failure(msg)
+                result = Result.failure(msg)
 
         return result
 
-    def _validate_paths(self, a_paths: tuple[str, ...], a_root: Path) -> ValidationResult:
+    def _validate_paths(self, a_paths: tuple[str, ...], a_root: Path) -> Result[None]:
         """Validate that each path exists and is not a traversal.
 
         Args:
@@ -110,7 +90,7 @@ class ContextRequestValidator:
             a_root: Repository root for relative resolution.
 
         Returns:
-            ValidationResult with is_success=True or error message.
+            Result[None] with is_success=True or error message.
         """
         msg: str = ""
         for path_str in a_paths:
@@ -128,4 +108,4 @@ class ContextRequestValidator:
         if msg:
             logger.debug("Rejected path: %s", msg)
 
-        return ValidationResult.failure(msg) if msg else ValidationResult.success()
+        return Result.failure(msg) if msg else Result.success(None)

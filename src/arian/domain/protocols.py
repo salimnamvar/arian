@@ -6,6 +6,7 @@ abstractions, not concrete implementations (CSR).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -20,100 +21,29 @@ from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import TokenBudget
+from arian.domain.shared.result import Result
 
 
 class LanguageAnalyzerProtocol(Protocol):
-    """Language-specific code analysis interface.
+    """Language-specific code analysis interface."""
 
-    Implementations provide language-aware symbol extraction,
-    import detection, public API extraction, and content compression.
-    """
+    def extract_symbols(self, a_content: str, a_path: Path) -> list[Symbol]: ...
 
-    def extract_symbols(self, a_content: str, a_path: Path) -> list[Symbol]:
-        """Extract code symbols from source content.
+    def extract_imports(self, a_content: str) -> list[str]: ...
 
-        Args:
-            a_content: Source code content.
-            a_path: File path for context.
+    def extract_public_api(self, a_content: str) -> str: ...
 
-        Returns:
-            List of extracted symbols.
-        """
-        ...
+    def compress(self, a_content: str, a_level: CompressionLevel) -> str: ...
 
-    def extract_imports(self, a_content: str) -> list[str]:
-        """Extract import statements from source content.
-
-        Args:
-            a_content: Source code content.
-
-        Returns:
-            List of imported module paths.
-        """
-        ...
-
-    def extract_public_api(self, a_content: str) -> str:
-        """Extract public API surface from source content.
-
-        Args:
-            a_content: Source code content.
-
-        Returns:
-            String representation of the public API.
-        """
-        ...
-
-    def compress(self, a_content: str, a_level: CompressionLevel) -> str:
-        """Compress source content according to compression level.
-
-        Args:
-            a_content: Source code content.
-            a_level: Desired compression level.
-
-        Returns:
-            Compressed content string.
-        """
-        ...
-
-    def strip_comments(self, a_content: str) -> str:
-        """Strip comments from source content.
-
-        Args:
-            a_content: Source code content.
-
-        Returns:
-            Content with comments removed.
-        """
-        ...
+    def strip_comments(self, a_content: str) -> str: ...
 
 
 class FileClassifierProtocol(Protocol):
-    """File classification interface.
+    """File classification interface."""
 
-    Implementations classify files by role and importance.
-    """
+    def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]: ...
 
-    def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]:
-        """Classify a file path into role, importance, and compression.
-
-        Args:
-            a_path: Relative file path.
-
-        Returns:
-            Tuple of (role, importance, compression_level).
-        """
-        ...
-
-    def get_role(self, a_path: str) -> FileRole:
-        """Get the file role for a path.
-
-        Args:
-            a_path: Relative file path.
-
-        Returns:
-            Detected file role.
-        """
-        ...
+    def get_role(self, a_path: str) -> FileRole: ...
 
 
 class ContextPlannerProtocol(Protocol):
@@ -126,20 +56,7 @@ class ContextPlannerProtocol(Protocol):
         a_budget: TokenBudget,
         a_query: str | None = None,
         a_symbols: dict[str, list[Symbol]] | None = None,
-    ) -> ContextPlan:
-        """Create a context plan for the given files and task.
-
-        Args:
-            a_files: Repository files to plan for.
-            a_task: The context task type.
-            a_budget: Token budget constraints.
-            a_query: Optional query for relevance matching.
-            a_symbols: Optional mapping of file path to extracted symbols.
-
-        Returns:
-            ContextPlan with chunks and metadata.
-        """
-        ...
+    ) -> ContextPlan: ...
 
 
 class ContextMaterializerProtocol(Protocol):
@@ -149,160 +66,41 @@ class ContextMaterializerProtocol(Protocol):
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-    ) -> tuple[MaterializedChunk, ...]:
-        """Apply compression levels from plan to actual file content.
-
-        Args:
-            a_plan: Context plan with compression decisions.
-            a_content: Mapping of file path to FileContent.
-
-        Returns:
-            Tuple of MaterializedChunk with compressed content.
-        """
-        ...
+    ) -> tuple[MaterializedChunk, ...]: ...
 
 
-class BuildPlanResult:
-    """Result of the build() operation.
+@dataclass(frozen=True)
+class ContentLoadData:
+    """Data returned by load_content() on success."""
 
-    Attributes:
-        is_success: Whether the operation succeeded.
-        value: The ContextPlan if successful, None otherwise.
-        message: Error message if failed, empty string if successful.
-    """
-
-    def __init__(
-        self,
-        *,
-        a_is_success: bool,
-        a_value: ContextPlan | None = None,
-        a_message: str = "",
-    ) -> None:
-        self.is_success: bool = a_is_success
-        self.value: ContextPlan | None = a_value
-        self.message: str = a_message
-
-    @staticmethod
-    def success(a_value: ContextPlan) -> BuildPlanResult:
-        return BuildPlanResult(a_is_success=True, a_value=a_value)
-
-    @staticmethod
-    def failure(a_message: str) -> BuildPlanResult:
-        return BuildPlanResult(a_is_success=False, a_message=a_message)
-
-
-class ContentLoadResult:
-    """Result of the load_content() operation.
-
-    Attributes:
-        is_success: Whether the operation succeeded.
-        content: Content mapping if successful, None otherwise.
-        skipped: Skipped file paths if successful, empty tuple otherwise.
-        message: Error message if failed, empty string if successful.
-    """
-
-    def __init__(
-        self,
-        *,
-        a_is_success: bool,
-        a_content: dict[str, FileContent] | None = None,
-        a_skipped: tuple[str, ...] = (),
-        a_message: str = "",
-    ) -> None:
-        self.is_success: bool = a_is_success
-        self.content: dict[str, FileContent] | None = a_content
-        self.skipped: tuple[str, ...] = a_skipped
-        self.message: str = a_message
-
-    @staticmethod
-    def success(a_content: dict[str, FileContent], a_skipped: tuple[str, ...]) -> ContentLoadResult:
-        return ContentLoadResult(a_is_success=True, a_content=a_content, a_skipped=a_skipped)
-
-    @staticmethod
-    def failure(a_message: str) -> ContentLoadResult:
-        return ContentLoadResult(a_is_success=False, a_message=a_message)
-
-
-class MaterializeResult:
-    """Result of the materialize() operation.
-
-    Attributes:
-        is_success: Whether the operation succeeded.
-        value: Materialized chunks if successful, None otherwise.
-        message: Error message if failed, empty string if successful.
-    """
-
-    def __init__(
-        self,
-        *,
-        a_is_success: bool,
-        a_value: tuple[MaterializedChunk, ...] | None = None,
-        a_message: str = "",
-    ) -> None:
-        self.is_success: bool = a_is_success
-        self.value: tuple[MaterializedChunk, ...] | None = a_value
-        self.message: str = a_message
-
-    @staticmethod
-    def success(a_value: tuple[MaterializedChunk, ...]) -> MaterializeResult:
-        return MaterializeResult(a_is_success=True, a_value=a_value)
-
-    @staticmethod
-    def failure(a_message: str) -> MaterializeResult:
-        return MaterializeResult(a_is_success=False, a_message=a_message)
+    content: dict[str, FileContent]
+    skipped: tuple[str, ...]
 
 
 class ContextBuilderProtocol(Protocol):
-    """Full collect -> plan -> load -> materialize pipeline port.
-
-    Application depends on this protocol; bootstrap wires the concrete
-    ContextBuilder.
-    """
+    """Full collect -> plan -> load -> materialize pipeline port."""
 
     @property
     def collection_stats(self) -> CollectionStats:
         """Return collection statistics from the last build() call."""
         ...
 
-    async def build(self, a_request: BuildRequest) -> BuildPlanResult:
-        """Build a context plan from a build request value object.
-
-        Args:
-            a_request: Build request (path, task, budget, filters).
-
-        Returns:
-            BuildPlanResult with is_success, value (ContextPlan), and message.
-        """
+    async def build(self, a_request: BuildRequest) -> Result[ContextPlan]:
+        """Build a context plan from a build request value object."""
         ...
 
     async def load_content(
         self,
         a_plan: ContextPlan,
         a_root: Path,
-    ) -> ContentLoadResult:
-        """Load file content for all files in the plan.
-
-        Args:
-            a_plan: Context plan with file references.
-            a_root: Repository root path.
-
-        Returns:
-            ContentLoadResult with is_success, content mapping, skipped paths, and message.
-        """
+    ) -> Result[ContentLoadData]:
+        """Load file content for all files in the plan."""
         ...
 
     def materialize(
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-    ) -> MaterializeResult:
-        """Materialize a context plan with compressed content.
-
-        Args:
-            a_plan: Context plan with compression decisions.
-            a_content: Mapping of file path to FileContent.
-
-        Returns:
-            MaterializeResult with is_success, value (MaterializedChunk tuple), and message.
-        """
+    ) -> Result[tuple[MaterializedChunk, ...]]:
+        """Materialize a context plan with compressed content."""
         ...

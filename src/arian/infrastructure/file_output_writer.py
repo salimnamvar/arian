@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from arian.domain.shared.output import WriteResult
+from arian.domain.shared.result import Result
 from arian.infrastructure.retry import retry_sync_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -22,10 +22,10 @@ class FileOutputWriter:
     if the process crashes mid-write. Transient OS errors are retried.
     """
 
-    def write(self, a_path: str, a_content: str) -> WriteResult:
+    def write(self, a_path: str, a_content: str) -> Result[None]:
         """Atomically write rendered content to a file.
 
-        Contract: returns WriteResult with is_success and message.
+        Contract: returns Result[None] with is_success and message.
         Inputs are verified up front (non-empty path and content) so
         a bad call fails fast instead of producing an empty or misplaced file.
 
@@ -34,20 +34,20 @@ class FileOutputWriter:
             a_content: Rendered content string.
 
         Returns:
-            WriteResult with is_success and message.
+            Result[None] with is_success and message.
         """
-        result: WriteResult = WriteResult.failure("uninitialized")
+        result: Result[None] = Result[None].failure("uninitialized")
         b_continue: bool = True
 
         if not a_path or not a_path.strip():
             msg = "Output path must be a non-empty string"
             logger.error("%s", msg)
-            result = WriteResult.failure(msg)
+            result = Result[None].failure(msg)
             b_continue = False
         elif not a_content:
             msg = "Output content must not be empty"
             logger.error("%s", msg)
-            result = WriteResult.failure(msg)
+            result = Result[None].failure(msg)
             b_continue = False
 
         path: Path = Path(a_path) if b_continue else Path("x")
@@ -58,7 +58,7 @@ class FileOutputWriter:
             except OSError:
                 msg = f"Failed to create output directory: {path.parent}"
                 logger.exception("%s", msg)
-                result = WriteResult.failure(msg)
+                result = Result[None].failure(msg)
                 b_continue = False
 
         if b_continue:
@@ -71,11 +71,11 @@ class FileOutputWriter:
                     a_base_delay=0.05,
                     a_exceptions=(OSError,),
                 )
-                result = WriteResult.success()
+                result = Result[None].success()
             except OSError:
                 msg = f"Failed to write output file: {a_path}"
                 logger.exception("%s", msg)
-                result = WriteResult.failure(msg)
+                result = Result[None].failure(msg)
 
         return result
 

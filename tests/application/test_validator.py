@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from arian.application.context import ContextRequest
 from arian.application.validator import ContextRequestValidator
-from arian.domain.exceptions import InputError
-from arian.domain.exceptions import SecurityError
 
 
 class TestContextRequestValidator:
@@ -20,58 +16,66 @@ class TestContextRequestValidator:
         (tmp_path / "src").mkdir()
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=("src",), budget=5000, scope="merged")
-        validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is True
 
-    def test_nonexistent_path_raises(self, tmp_path: Path) -> None:
-        """Verify missing path raises InputError."""
+    def test_nonexistent_path_fails(self, tmp_path: Path) -> None:
+        """Verify missing path returns failure."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=("nonexistent",), scope="merged")
-        with pytest.raises(InputError, match="Path does not exist"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Path does not exist" in result.message
 
-    def test_negative_budget_raises(self, tmp_path: Path) -> None:
-        """Verify negative budget raises InputError."""
+    def test_negative_budget_fails(self, tmp_path: Path) -> None:
+        """Verify negative budget returns failure."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(budget=-1, scope="merged")
-        with pytest.raises(InputError, match="Budget must be positive"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Budget must be positive" in result.message
 
-    def test_zero_budget_raises(self, tmp_path: Path) -> None:
-        """Verify zero budget raises InputError."""
+    def test_zero_budget_fails(self, tmp_path: Path) -> None:
+        """Verify zero budget returns failure."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(budget=0, scope="merged")
-        with pytest.raises(InputError, match="Budget must be positive"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Budget must be positive" in result.message
 
     def test_none_budget_passes(self, tmp_path: Path) -> None:
         """Verify None budget (unlimited) passes validation."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(budget=None, scope="merged")
-        validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is True
 
-    def test_invalid_scope_raises(self, tmp_path: Path) -> None:
-        """Verify invalid scope raises InputError."""
+    def test_invalid_scope_fails(self, tmp_path: Path) -> None:
+        """Verify invalid scope returns failure."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(scope="group")
-        with pytest.raises(InputError, match="Invalid scope"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Invalid scope" in result.message
 
     def test_separate_scope_passes(self, tmp_path: Path) -> None:
         """Verify 'separate' scope passes validation."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(scope="separate")
-        validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is True
 
-    def test_path_traversal_nonexistent_raises_input(self, tmp_path: Path) -> None:
-        """Verify traversal path that doesn't exist raises InputError first."""
+    def test_path_traversal_nonexistent_returns_failure(self, tmp_path: Path) -> None:
+        """Verify traversal path that doesn't exist returns failure."""
         (tmp_path / "src").mkdir()
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=("src/../../etc",), scope="merged")
-        with pytest.raises(InputError, match="Path does not exist"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Path does not exist" in result.message
 
-    def test_symlink_escape_raises_security(self, tmp_path: Path) -> None:
-        """Verify symlink pointing outside root raises SecurityError."""
+    def test_symlink_escape_returns_security_failure(self, tmp_path: Path) -> None:
+        """Verify symlink pointing outside root returns failure."""
         outside = tmp_path.parent / "outside_root"
         outside.mkdir(exist_ok=True)
         (outside / "secret.txt").write_text("secret")
@@ -79,8 +83,8 @@ class TestContextRequestValidator:
         link.symlink_to(outside)
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=("sneaky",), scope="merged")
-        with pytest.raises(SecurityError):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
 
     def test_default_root_is_none_lazy(self) -> None:
         """Verify default root is None (resolved lazily to cwd)."""
@@ -91,17 +95,20 @@ class TestContextRequestValidator:
         """Verify empty paths with no budget passes validation."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(paths=(), budget=None, scope="merged")
-        validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is True
 
-    def test_budget_exceeding_max_raises(self, tmp_path: Path) -> None:
-        """Verify budget exceeding MAX_TOKEN_BUDGET raises InputError."""
+    def test_budget_exceeding_max_fails(self, tmp_path: Path) -> None:
+        """Verify budget exceeding MAX_TOKEN_BUDGET returns failure."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(budget=2_000_000, scope="merged")
-        with pytest.raises(InputError, match="Budget exceeds maximum"):
-            validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is False
+        assert "Budget exceeds maximum" in result.message
 
     def test_budget_at_max_passes(self, tmp_path: Path) -> None:
         """Verify budget exactly at MAX_TOKEN_BUDGET passes validation."""
         validator = ContextRequestValidator(a_root=tmp_path)
         request = ContextRequest(budget=1_000_000, scope="merged")
-        validator.validate(request)
+        result = validator.validate(request)
+        assert result.is_success is True

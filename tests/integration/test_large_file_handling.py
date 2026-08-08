@@ -9,6 +9,7 @@ import pytest
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
 from arian.infrastructure.output.markdown.renderer import MarkdownRenderer
+from arian.infrastructure.gitignore_filter import PathFilter
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
@@ -47,7 +48,7 @@ class TestLargeFileHandling:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py", ".md"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -62,8 +63,12 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=10000, per_chunk_target=500)
-        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
-        content_map, _skipped = await builder.load_content(plan, tmp_path)
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
+        plan = build_result.value
+        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        assert load_result.is_success
+        content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)
 
         assert plan.total_files >= 2
@@ -93,7 +98,7 @@ class TestLargeFileHandling:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py", ".md"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -109,12 +114,18 @@ class TestLargeFileHandling:
         renderer = MarkdownRenderer()
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(
+        build_result = await builder.build(
             BuildRequest(path=tmp_path, task=ContextTask.BUG_FIX, budget=budget, query="authentication timeout")
         )
-        content_map, _skipped = await builder.load_content(plan, tmp_path)
+        assert build_result.is_success
+        plan = build_result.value
+        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        assert load_result.is_success
+        content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)
-        output = renderer.render(materialized, plan)
+        render_result = renderer.render(materialized, plan)
+        assert render_result.is_success
+        output = render_result.value
 
         assert "# Arian Context Manifest" in output
         assert "task: bug_fix" in output
@@ -133,7 +144,7 @@ class TestLargeFileHandling:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py", ".md"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -148,8 +159,12 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
-        content_map, _skipped = await builder.load_content(plan, tmp_path)
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
+        plan = build_result.value
+        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        assert load_result.is_success
+        content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)
 
         for chunk in materialized:

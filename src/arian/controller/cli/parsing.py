@@ -15,7 +15,7 @@ import typer
 from arian.application.context import ContextRequest
 from arian.application.validator import ContextRequestValidator
 from arian.domain.context.models import ContextTask
-from arian.domain.exceptions import ProjectBaseError
+from arian.domain.shared.result import Result
 from arian.infrastructure.config import ControllerConfig
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -72,12 +72,12 @@ def validate_request(
     a_request: ContextRequest,
     a_config: ControllerConfig = ControllerConfig(),
     a_validator: ContextRequestValidator | None = None,
-) -> None:
+) -> Result[None]:
     """Validate a ContextRequest at the CLI boundary.
 
     Delegates business rules to ``ContextRequestValidator`` (application
-    layer) and maps domain exceptions to ``typer.Exit``. Task name is
-    still checked here so invalid enum values fail fast with a helpful
+    layer) and maps domain errors into a ``Result[None]``. Task name
+    is still checked here so invalid enum values fail fast with a helpful
     list of valid values.
 
     Args:
@@ -87,22 +87,28 @@ def validate_request(
         a_validator: Optional application validator. Built from
             ``a_config`` when omitted.
 
-    Raises:
-        typer.Exit: If validation fails.
+    Returns:
+        Result[None] with is_success and message.
     """
     msg: str = ""
+    result: Result[None] = Result[None].failure("uninitialized")
+    b_continue: bool = True
+
     try:
         ContextTask(a_request.task)
     except ValueError:
         msg = f"Invalid task: {a_request.task}. Valid tasks: {', '.join(t.value for t in ContextTask)}"
+        b_continue = False
 
-    validator: ContextRequestValidator = a_validator or ContextRequestValidator(a_controller=a_config)
-    if not msg:
-        try:
-            validator.validate(a_request)
-        except ProjectBaseError as exc:
-            msg = str(exc)
+    if b_continue:
+        validator: ContextRequestValidator = a_validator or ContextRequestValidator(a_controller=a_config)
+        result = validator.validate(a_request)
 
-    if msg:
+        if not result.is_success:
+            logger.error("%s", result.message)
+
+    if not b_continue:
         logger.error("%s", msg)
-        raise typer.Exit(code=1) from None
+        result = Result[None].failure(msg)
+
+    return result

@@ -14,7 +14,7 @@ from jinja2 import select_autoescape
 from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.shared.output import RendererProtocol
-from arian.domain.shared.output import RenderResult
+from arian.domain.shared.result import Result
 from arian.infrastructure.config import RendererConfig
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class MarkdownRenderer(RendererProtocol):
         self,
         a_chunks: tuple[MaterializedChunk, ...],
         a_plan: ContextPlan,
-    ) -> RenderResult:
+    ) -> Result[str]:
         """Render materialized chunks to Markdown.
 
         Args:
@@ -64,9 +64,9 @@ class MarkdownRenderer(RendererProtocol):
             a_plan: Original context plan for metadata.
 
         Returns:
-            RenderResult with is_success, value (rendered string), and message.
+            Result[str] with is_success, value (rendered string), and message.
         """
-        result: RenderResult = RenderResult.failure("uninitialized")
+        result: Result[str] = Result[str].failure("uninitialized")
 
         try:
             chunks_data: list[dict[str, object]] = []
@@ -113,12 +113,12 @@ class MarkdownRenderer(RendererProtocol):
                 total_files=total_files,
                 total_tokens=a_plan.total_tokens,
             )
-            result = RenderResult.success(rendered)
+            result = Result[str].success(rendered)
             logger.debug("Rendered materialized chunks to markdown (%d tokens)", a_plan.total_tokens)
         except TemplateError as e:
             msg = f"Template rendering failed: {e}"
             logger.exception("%s", msg)
-            result = RenderResult.failure(msg)
+            result = Result[str].failure(msg)
 
         return result
 

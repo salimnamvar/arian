@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from arian.domain.shared.result import Result
 from arian.infrastructure.config import SecurityConfig
 
 
@@ -46,40 +47,11 @@ class SafePath:
         return self.resolved.relative_to(self.root)
 
 
-class ValidatePathResult:
-    """Result of path validation.
-
-    Attributes:
-        is_success: Whether validation passed.
-        value: SafePath if successful, None otherwise.
-        message: Error message if validation failed.
-    """
-
-    def __init__(
-        self,
-        *,
-        a_is_success: bool,
-        a_value: SafePath | None = None,
-        a_message: str = "",
-    ) -> None:
-        self.is_success: bool = a_is_success
-        self.value: SafePath | None = a_value
-        self.message: str = a_message
-
-    @staticmethod
-    def success(a_value: SafePath) -> ValidatePathResult:
-        return ValidatePathResult(a_is_success=True, a_value=a_value)
-
-    @staticmethod
-    def failure(a_message: str) -> ValidatePathResult:
-        return ValidatePathResult(a_is_success=False, a_message=a_message)
-
-
 def validate_input_path(
     a_path: Path,
     a_root: Path,
     a_config: SecurityConfig,
-) -> ValidatePathResult:
+) -> Result[SafePath]:
     """Validate and resolve a path within a root directory.
 
     Checks:
@@ -94,24 +66,24 @@ def validate_input_path(
         a_config: Security configuration.
 
     Returns:
-        ValidatePathResult with is_success, value (SafePath), and message.
+        Result[SafePath] with is_success, value (SafePath), and message.
     """
     raw: str = str(a_path)
-    result: ValidatePathResult = ValidatePathResult.failure("uninitialized")
+    result: Result[SafePath] = Result[SafePath].failure("uninitialized")
     resolved_root: Path = a_root.resolve()
     resolved: Path = a_path
     b_continue: bool = True
 
     if len(raw) > a_config.max_path_length:
         msg = f"Path exceeds maximum length ({a_config.max_path_length}): {len(raw)}"
-        result = ValidatePathResult.failure(msg)
+        result = Result[SafePath].failure(msg)
         b_continue = False
 
     if b_continue:
         parts: tuple[str, ...] = a_path.parts
         if ".." in parts:
             msg = f"Path traversal detected: {raw}"
-            result = ValidatePathResult.failure(msg)
+            result = Result[SafePath].failure(msg)
             b_continue = False
 
     if b_continue:
@@ -119,7 +91,7 @@ def validate_input_path(
             resolved = a_path.resolve()
         except OSError:
             msg = f"Cannot resolve path (possible symlink loop): {raw}"
-            result = ValidatePathResult.failure(msg)
+            result = Result[SafePath].failure(msg)
             b_continue = False
 
     if b_continue:
@@ -127,11 +99,11 @@ def validate_input_path(
             resolved.relative_to(resolved_root)
         except ValueError:
             msg = f"Path escapes root directory: {raw}"
-            result = ValidatePathResult.failure(msg)
+            result = Result[SafePath].failure(msg)
             b_continue = False
 
     if b_continue:
-        result = ValidatePathResult.success(SafePath(a_resolved=resolved, a_root=resolved_root))
+        result = Result[SafePath].success(SafePath(a_resolved=resolved, a_root=resolved_root))
 
     return result
 

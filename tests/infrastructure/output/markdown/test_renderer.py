@@ -29,8 +29,9 @@ class TestMarkdownRenderer:
             task=ContextTask.GENERAL,
         )
         result = self.renderer.render((), plan)
-        assert "Files: 0" in result
-        assert "Tokens: 0" in result
+        assert result.is_success
+        assert "Files: 0" in result.value
+        assert "Tokens: 0" in result.value
 
     def test_render_with_files(self) -> None:
         """Test rendering with materialized files."""
@@ -72,9 +73,10 @@ class TestMarkdownRenderer:
             ),
         )
         result = self.renderer.render(chunks, plan)
-        assert "def main(): pass" in result
-        assert "Files: 1" in result
-        assert "bug_fix" in result
+        assert result.is_success
+        assert "def main(): pass" in result.value
+        assert "Files: 1" in result.value
+        assert "bug_fix" in result.value
 
     def test_render_with_compressed_content(self) -> None:
         """Test rendering with compressed (signatures) content."""
@@ -116,8 +118,9 @@ class TestMarkdownRenderer:
             ),
         )
         result = self.renderer.render(chunks, plan)
-        assert "def method(self) -> None: ..." in result
-        assert "SIGNATURES" in result
+        assert result.is_success
+        assert "def method(self) -> None: ..." in result.value
+        assert "SIGNATURES" in result.value
 
     def test_manifest_exists(self) -> None:
         """Test that YAML manifest is present in output."""
@@ -128,8 +131,9 @@ class TestMarkdownRenderer:
             task=ContextTask.GENERAL,
         )
         result = self.renderer.render((), plan)
-        assert "# Arian Context Manifest" in result
-        assert "task: general" in result
+        assert result.is_success
+        assert "# Arian Context Manifest" in result.value
+        assert "task: general" in result.value
 
     def test_fragment_labels_rendered(self) -> None:
         """Test that fragment labels are displayed."""
@@ -174,7 +178,8 @@ class TestMarkdownRenderer:
             ),
         )
         result = self.renderer.render(chunks, plan)
-        assert "Fragment 1/3" in result
+        assert result.is_success
+        assert "Fragment 1/3" in result.value
 
     def test_continuation_hints_rendered(self) -> None:
         """Test that continuation hints are displayed."""
@@ -220,7 +225,8 @@ class TestMarkdownRenderer:
             ),
         )
         result = self.renderer.render(chunks, plan)
-        assert "Continues in Chunk 2" in result
+        assert result.is_success
+        assert "Continues in Chunk 2" in result.value
 
     def test_no_provenance_in_markdown(self) -> None:
         """Test that provenance is not displayed in Markdown output."""
@@ -269,5 +275,6 @@ class TestMarkdownRenderer:
             ),
         )
         result = self.renderer.render(chunks, plan)
-        assert "source_file" not in result
-        assert "source_lines" not in result
+        assert result.is_success
+        assert "source_file" not in result.value
+        assert "source_lines" not in result.value

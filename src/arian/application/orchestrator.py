@@ -23,40 +23,12 @@ from arian.domain.repository.models import CollectionStats
 from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.output import OutputWriterProtocol
 from arian.domain.shared.output import RendererProtocol
+from arian.domain.shared.result import Result
 from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.config import SecurityConfig
 
 logger = logging.getLogger(__name__)
-
-
-class BuildContextResult:
-    """Result of the build_context operation.
-
-    Attributes:
-        is_success: Whether the operation succeeded.
-        value: The ContextResult if successful, None otherwise.
-        message: Error message if failed, empty string if successful.
-    """
-
-    def __init__(
-        self,
-        *,
-        a_is_success: bool,
-        a_value: ContextResult | None = None,
-        a_message: str = "",
-    ) -> None:
-        self.is_success: bool = a_is_success
-        self.value: ContextResult | None = a_value
-        self.message: str = a_message
-
-    @staticmethod
-    def success(a_value: ContextResult) -> BuildContextResult:
-        return BuildContextResult(a_is_success=True, a_value=a_value)
-
-    @staticmethod
-    def failure(a_message: str) -> BuildContextResult:
-        return BuildContextResult(a_is_success=False, a_message=a_message)
 
 
 class Application:
@@ -109,7 +81,7 @@ class Application:
         self._root: Path = a_root if a_root is not None else Path.cwd()
         self._validator = a_validator or ContextRequestValidator(a_root=self._root)
 
-    async def build_context(self, a_request: ContextRequest) -> BuildContextResult:
+    async def build_context(self, a_request: ContextRequest) -> Result[ContextResult]:
         """Execute the full context generation pipeline.
 
         Pipeline:
@@ -123,17 +95,17 @@ class Application:
             a_request: Input DTO from the controller.
 
         Returns:
-            BuildContextResult with is_success, value (ContextResult), and message.
+            Result[ContextResult] with is_success, value (ContextResult), and message.
         """
         root: Path = self._root
-        result: BuildContextResult = BuildContextResult.failure("uninitialized")
+        result: Result[ContextResult] = Result[ContextResult].failure("uninitialized")
         b_continue: bool = True
 
         try:
             validation_result = self._validator.validate(a_request)
             if not validation_result.is_success:
                 logger.debug("Validation failed: %s", validation_result.message)
-                result = BuildContextResult.failure(validation_result.message)
+                result = Result[ContextResult].failure(validation_result.message)
                 b_continue = False
 
             if b_continue:
@@ -156,7 +128,7 @@ class Application:
                     warnings.append(f"Skipped {len(skipped_files)} file(s) during content load")
 
                 elapsed: float = time.monotonic() - t_start
-                result = BuildContextResult.success(
+                result = Result[ContextResult].success(
                     ContextResult(
                         output_path=build_result.output_path,
                         total_files=build_result.total_files,
@@ -168,15 +140,15 @@ class Application:
                 )
         except ProjectBaseError as exc:
             logger.exception("Context build aborted")
-            result = BuildContextResult.failure(exc.message)
+            result = Result[ContextResult].failure(exc.message)
         except ValueError as e:
             sanitized = sanitize_error_message(str(e), str(root))
             logger.exception("Invalid context request for %s: %s", root, sanitized)
-            result = BuildContextResult.failure(sanitized)
+            result = Result[ContextResult].failure(sanitized)
         except OSError as e:
             sanitized = sanitize_error_message(str(e), str(root))
             logger.exception("OS error while building context for %s: %s", root, sanitized)
-            result = BuildContextResult.failure(sanitized)
+            result = Result[ContextResult].failure(sanitized)
 
         return result
 
@@ -393,10 +365,10 @@ class Application:
             a_stats=stats,
         )
         content_load_result = await self._builder.load_content(a_plan=plan, a_root=a_root)
-        if not content_load_result.is_success or content_load_result.content is None:
+        if not content_load_result.is_success or content_load_result.value is None:
             raise RuntimeError(content_load_result.message)
-        content = content_load_result.content
-        skipped_files = content_load_result.skipped
+        content = content_load_result.value.content
+        skipped_files = content_load_result.value.skipped
 
         materialize_result = self._builder.materialize(plan, content)
         if not materialize_result.is_success or materialize_result.value is None:

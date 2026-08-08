@@ -10,27 +10,7 @@ from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import ContextTask
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import TokenBudget
-
-
-class ValidatePlanResult:
-    """Result of ContextPlan validation.
-
-    Attributes:
-        is_success: Whether validation passed.
-        message: Error message if validation failed.
-    """
-
-    def __init__(self, *, a_is_success: bool, a_message: str = "") -> None:
-        self.is_success: bool = a_is_success
-        self.message: str = a_message
-
-    @staticmethod
-    def success() -> ValidatePlanResult:
-        return ValidatePlanResult(a_is_success=True)
-
-    @staticmethod
-    def failure(a_message: str) -> ValidatePlanResult:
-        return ValidatePlanResult(a_is_success=False, a_message=a_message)
+from arian.domain.shared.result import Result
 
 
 @dataclass(frozen=True)
@@ -83,16 +63,15 @@ class ContextPlan:
     metadata: dict[str, str | int | dict[str, str | int | None] | dict[str, int] | list[str]] | None = None
     repository_files: tuple[str, ...] = ()
 
-    def validate(self) -> ValidatePlanResult:
+    def validate(self) -> Result[None]:
         """Validate ContextPlan invariants.
 
         Returns:
-            ValidatePlanResult with is_success and message.
+            Result[None] with is_success and message.
         """
         seen_paths: set[str] = set()
         computed_tokens: int = 0
         msg: str = ""
-        result: ValidatePlanResult = ValidatePlanResult.success()
         b_continue: bool = True
 
         for chunk in self.chunks:
@@ -119,8 +98,9 @@ class ContextPlan:
         if b_continue and not msg and computed_tokens != self.total_tokens:
             msg = f"Total token count mismatch: {computed_tokens} != {self.total_tokens}"
 
+        result: Result[None] = Result.success(None)
         if msg:
-            result = ValidatePlanResult.failure(msg)
+            result = Result.failure(msg)
 
         return result
 

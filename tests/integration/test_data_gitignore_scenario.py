@@ -20,6 +20,7 @@ import sys
 
 import pytest
 
+from arian.infrastructure.gitignore_filter import GitignoreOptions, PathFilter
 from arian.repository.filesystem.collector import FileCollector
 
 
@@ -72,7 +73,7 @@ class TestDataGitignoreScenario:
         _make_repo(tmp_path)
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
-        collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+        collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
         await collector.collect(tmp_path)
 
         assert collector.stats.skipped_gitignore == 3
@@ -88,7 +89,7 @@ class TestDataGitignoreScenario:
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
         data_dir: Path = tmp_path / "docs" / "contracts" / "data"
-        collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+        collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
         files = await collector.collect(
             data_dir,
             a_root=tmp_path,
@@ -105,15 +106,12 @@ class TestDataGitignoreScenario:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """RC-3 fix: ``GitignoreOptions(enabled=False)`` turns the gate off entirely."""
-        from arian.infrastructure.gitignore_filter import GitignoreOptions
-
         _make_repo(tmp_path)
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
         collector = FileCollector(
             a_extensions=None,
-            a_exclude=frozenset(),
-            a_gitignore_options=GitignoreOptions(enabled=False),
+            a_filter=PathFilter(frozenset(), GitignoreOptions(enabled=False)),
         )
         files = await collector.collect(tmp_path)
 
@@ -130,7 +128,7 @@ class TestDataGitignoreScenario:
         (tmp_path / ".gitignore").write_text("data/\n!docs/contracts/data/\n")
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
 
-        collector = FileCollector(a_extensions=None, a_exclude=frozenset())
+        collector = FileCollector(a_extensions=None, a_filter=PathFilter(frozenset()))
         files = await collector.collect(tmp_path)
 
         yaml_paths = {f.path for f in files if f.language == "yaml"}

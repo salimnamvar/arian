@@ -8,6 +8,7 @@ import pytest
 
 from arian.domain.context.models import ContextTask
 from arian.domain.shared.enums import TokenBudget
+from arian.infrastructure.gitignore_filter import PathFilter
 from arian.repository.filesystem.collector import FileCollector
 from arian.repository.index.memory_repository import MemoryRepositoryIndex
 from arian.service.analyzer.python_analyzer import PythonAnalyzer
@@ -38,7 +39,7 @@ class TestContextBuilderIntegration:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py", ".md"}),
-            a_exclude=frozenset({"__pycache__", ".git"}),
+            a_filter=PathFilter(frozenset({"__pycache__", ".git"})),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -52,9 +53,11 @@ class TestContextBuilderIntegration:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(
+        build_result = await builder.build(
             BuildRequest(path=tmp_path, task=ContextTask.BUG_FIX, budget=budget, query="authentication timeout")
         )
+        assert build_result.is_success
+        plan = build_result.value
 
         assert plan.total_files >= 3
         assert plan.total_tokens > 0
@@ -67,7 +70,7 @@ class TestContextBuilderIntegration:
         classifier = FileClassifier()
         collector = FileCollector(
             a_extensions=frozenset({".py"}),
-            a_exclude=frozenset(),
+            a_filter=PathFilter(frozenset()),
             a_classifier=classifier,
         )
         index = MemoryRepositoryIndex()
@@ -81,7 +84,11 @@ class TestContextBuilderIntegration:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        plan = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        assert build_result.is_success
+        plan = build_result.value
 
-        content_map, _skipped = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        assert load_result.is_success
+        content_map = load_result.value.content
         assert len(content_map) >= 1

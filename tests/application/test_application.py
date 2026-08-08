@@ -10,6 +10,7 @@ from arian.application.orchestrator import Application
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.bootstrap.application import create_application
+from arian.domain.shared.result import Result
 from arian.infrastructure.config import ArianConfig
 
 
@@ -24,8 +25,9 @@ class _StubOutputWriter:
     def __init__(self) -> None:
         self.calls: list[_WriteCall] = []
 
-    def write(self, a_path: str, a_content: str) -> None:
+    def write(self, a_path: str, a_content: str) -> Result[None]:
         self.calls.append(_WriteCall(path=a_path, content=a_content))
+        return Result.success(None)
 
 
 class TestContextRequest:
@@ -123,9 +125,11 @@ class TestApplicationBuildContext:
             output_path=str(tmp_path / "out.md"),
         )
         result = await app.build_context(request)
-        assert result.total_files == 0
-        assert result.total_tokens == 0
-        assert result.output_path.exists()
+        assert result.is_success
+        assert result.value is not None
+        assert result.value.total_files == 0
+        assert result.value.total_tokens == 0
+        assert result.value.output_path.exists()
 
     async def test_build_with_files(self, tmp_path: Path) -> None:
         """Verify building context with files produces output."""
@@ -144,11 +148,13 @@ class TestApplicationBuildContext:
         finally:
             os.chdir(original_cwd)
 
-        assert result.total_files >= 1
-        assert result.total_tokens > 0
-        assert result.elapsed_seconds > 0
-        assert result.output_path.exists()
-        content = result.output_path.read_text()
+        assert result.is_success
+        assert result.value is not None
+        assert result.value.total_files >= 1
+        assert result.value.total_tokens > 0
+        assert result.value.elapsed_seconds > 0
+        assert result.value.output_path.exists()
+        content = result.value.output_path.read_text()
         assert "hello.py" in content
 
     async def test_build_returns_elapsed_time(self, tmp_path: Path) -> None:
@@ -159,7 +165,9 @@ class TestApplicationBuildContext:
             output_path=str(tmp_path / "out.md"),
         )
         result = await app.build_context(request)
-        assert result.elapsed_seconds >= 0
+        assert result.is_success
+        assert result.value is not None
+        assert result.value.elapsed_seconds >= 0
 
     async def test_output_writer_called_with_correct_args(self, tmp_path: Path) -> None:
         """Verify OutputWriterProtocol.write receives correct path and content."""
