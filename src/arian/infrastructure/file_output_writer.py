@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 
+from arian.domain.shared.output import WriteResult
 from arian.infrastructure.retry import retry_sync_with_backoff
 
 logger = logging.getLogger(__name__)
@@ -21,42 +22,62 @@ class FileOutputWriter:
     if the process crashes mid-write. Transient OS errors are retried.
     """
 
-    def write(self, a_path: str, a_content: str) -> None:
+    def write(self, a_path: str, a_content: str) -> WriteResult:
         """Atomically write rendered content to a file.
 
-        Contract: raises on invalid input or on failure, and returns
-        ``None`` only after the content is durably on disk. Inputs are
-        verified up front (non-empty path and content) so a bad call
-        fails fast instead of producing an empty or misplaced file.
+        Contract: returns WriteResult with is_success and message.
+        Inputs are verified up front (non-empty path and content) so
+        a bad call fails fast instead of producing an empty or misplaced file.
 
         Args:
             a_path: Output file path.
             a_content: Rendered content string.
 
-        Raises:
-            ValueError: If ``a_path`` or ``a_content`` is empty.
-            OSError: On filesystem failure.
+        Returns:
+            WriteResult with is_success and message.
         """
-        msg: str = ""
+        result: WriteResult = WriteResult.failure("uninitialized")
+        b_continue: bool = True
+
         if not a_path or not a_path.strip():
             msg = "Output path must be a non-empty string"
+            logger.error("%s", msg)
+            result = WriteResult.failure(msg)
+            b_continue = False
         elif not a_content:
             msg = "Output content must not be empty"
-
-        if msg:
             logger.error("%s", msg)
-            raise ValueError(msg)
+            result = WriteResult.failure(msg)
+            b_continue = False
 
-        path = Path(a_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        retry_sync_with_backoff(
-            self._write_atomic,
-            path,
-            a_content,
-            a_max_retries=3,
-            a_base_delay=0.05,
-            a_exceptions=(OSError,),
-        )
+        path: Path = Path(a_path) if b_continue else Path("x")
+
+        if b_continue:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                msg = f"Failed to create output directory: {path.parent}"
+                logger.exception("%s", msg)
+                result = WriteResult.failure(msg)
+                b_continue = False
+
+        if b_continue:
+            try:
+                retry_sync_with_backoff(
+                    self._write_atomic,
+                    path,
+                    a_content,
+                    a_max_retries=3,
+                    a_base_delay=0.05,
+                    a_exceptions=(OSError,),
+                )
+                result = WriteResult.success()
+            except OSError:
+                msg = f"Failed to write output file: {a_path}"
+                logger.exception("%s", msg)
+                result = WriteResult.failure(msg)
+
+        return result
 
     @staticmethod
     def _write_atomic(a_path: Path, a_content: str) -> None:

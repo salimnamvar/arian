@@ -10,6 +10,32 @@ if TYPE_CHECKING:
     from arian.domain.context.models import MaterializedChunk
 
 
+class WriteResult:
+    """Result of the write() operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.message: str = a_message
+
+    @staticmethod
+    def success() -> WriteResult:
+        return WriteResult(a_is_success=True)
+
+    @staticmethod
+    def failure(a_message: str) -> WriteResult:
+        return WriteResult(a_is_success=False, a_message=a_message)
+
+
 class OutputWriterProtocol(Protocol):
     """Output port — writes rendered content to the target destination.
 
@@ -17,12 +43,15 @@ class OutputWriterProtocol(Protocol):
     implementation.
     """
 
-    def write(self, a_path: str, a_content: str) -> None:
+    def write(self, a_path: str, a_content: str) -> WriteResult:
         """Write rendered content to the output destination.
 
         Args:
             a_path: Output file path.
             a_content: Rendered content string.
+
+        Returns:
+            WriteResult with is_success and message.
         """
         ...
 

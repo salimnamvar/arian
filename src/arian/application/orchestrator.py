@@ -407,7 +407,9 @@ class Application:
             self._renderer.render(materialized, plan),
             self._security_config,
         )
-        self._output.write(str(a_output_path), rendered)
+        write_result = self._output.write(str(a_output_path), rendered)
+        if not write_result.is_success:
+            raise RuntimeError(write_result.message)
         logger.info(
             "Context generated: %d files, %d tokens, %d chunks, %d skipped",
             plan.total_files,
