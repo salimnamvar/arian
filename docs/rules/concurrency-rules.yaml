@@ -1,0 +1,46 @@
+# Concurrency rules
+# Generalized lessons: shared state protection, synchronization requirements.
+
+meta:
+  id: concurrency-rules
+  title: Concurrency and shared state protection
+  version: "1.0"
+  related:
+    - state-management
+    - resource-ownership
+  summary: >
+    All shared mutable state accessed by concurrent execution paths is
+    protected by appropriate synchronization mechanisms. If at least one
+    thread performs a write, all concurrent accesses must be synchronized.
+
+rules:
+  - id: conc-001
+    principle: Shared state protection
+    statement: >
+      All shared mutable state accessed by concurrent execution paths is
+      protected by appropriate synchronization mechanisms (locks,
+      semaphores, atomic operations, or concurrent-safe data structures).
+    rationale: >
+      Unprotected shared state under concurrent access causes data races,
+      torn reads, and corrupted state. These failures are non-deterministic
+      and nearly impossible to reproduce.
+
+  - id: conc-002
+    principle: No unsynchronized shared mutable state
+    statement: >
+      If at least one thread performs a write to a mutable object, all
+      concurrent accesses (reads and writes) to that object MUST be
+      synchronized. Concurrent read-only access without writes does not
+      require synchronization.
+    rationale: >
+      Python's GIL does not protect against logical data races. Two threads
+      can interleave between operations on a mutable object, producing
+      corrupted state even with the GIL held.
+
+anti_patterns:
+  - name: unprotected-shared-state
+    description: >
+      Accessing a shared dictionary or list from multiple threads without
+      synchronization creates data races that are non-deterministic and
+      hard to reproduce.
+    prefer: use locks, concurrent-safe data structures, or function-local state
