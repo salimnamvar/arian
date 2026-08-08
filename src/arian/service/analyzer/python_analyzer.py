@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import ast
+import logging
 from pathlib import Path
 
 from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import SymbolKind
 from arian.infrastructure.config import AnalyzerConfig
+
+logger = logging.getLogger(__name__)
 
 
 class PythonAnalyzer:
@@ -41,12 +44,15 @@ class PythonAnalyzer:
         """
         symbols: list[Symbol] = []
         tree: ast.Module | None = None
+        b_continue: bool = True
+
         try:
             tree = ast.parse(a_content)
         except SyntaxError:
-            tree = None
+            logger.debug("Cannot parse %s as Python source", a_path)
+            b_continue = False
 
-        if tree is not None:
+        if b_continue and tree is not None:
             for node in ast.iter_child_nodes(tree):
                 if isinstance(node, ast.ClassDef):
                     symbols.append(self._make_class_symbol(node, a_path))
