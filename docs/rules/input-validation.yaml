@@ -17,10 +17,10 @@ meta:
     gated behind debug or feature flags.
 
 rules:
-  - id: val-001
+  - id: inv-001
     principle: Validate before use
     statement: >
-      Every function validates all input parameters before any business
+      Every function validates all untrusted input before any business
       logic executes. Validation occurs at the function's entry point,
       not lazily at the point of first use.
     rationale: >
@@ -33,27 +33,36 @@ rules:
     dont:
       - Trust caller-provided values without a guard
       - Defer validation to deep internal points
-
-  - id: val-002
-    principle: Type validation
-    statement: >
-      Every function validates the type of each parameter using
-      isinstance() checks. Type hints are advisory; runtime type
-      validation is mandatory.
-    rationale: >
-      Python type hints are not enforced at runtime. A caller passing an
-      int where a str is expected will not trigger a runtime error without
-      an explicit check.
-    do:
-      - if not isinstance(param, ExpectedType): set failure
-    dont:
-      - Rely solely on type annotations for safety
     exceptions:
-      - Functions receiving typed framework objects (Pydantic, dataclasses
-        with __init__ validation) may rely on the framework, provided the
-        reliance is documented in the function's contract.
+      - Values already validated by the immediate caller of a private
+        helper (the helper documents that it relies on the caller's
+        guarantee).
 
-  - id: val-003
+  - id: inv-002
+    principle: Runtime checks match the documented contract
+    statement: >
+      Every function runtime-checks the parameters it does not fully
+      trust, in the way its contract promises. Type hints are advisory;
+      a caller passing an int where a str is expected will not fail
+      without an explicit check.
+    do:
+      - isinstance() checks for values whose type the contract does not
+        guarantee (CLI arguments, deserialized data, third-party output)
+      - range, nullability, and membership checks for constrained values
+    dont:
+      - Rely solely on type annotations for safety at trust boundaries
+    exceptions:
+      - Functions receiving typed framework objects (Pydantic models,
+        frozen dataclasses with __init__ validation) may rely on the
+        framework, provided the reliance is documented in the function's
+        contract.
+      - Private helpers whose caller has already validated the value
+        (see inv-001).
+      - Protocol implementations whose parameter types are enforced by
+        strict static typing against the same domain types (see
+        typing-contracts.type-001).
+
+  - id: inv-003
     principle: Range and constraint validation
     statement: >
       After type validation, validate domain-specific constraints: value
@@ -63,7 +72,7 @@ rules:
       Type validation alone is insufficient. A negative integer may be the
       wrong kind of valid input. Domain constraints are the second layer.
 
-  - id: val-004
+  - id: inv-004
     principle: Nullability validation
     statement: >
       Explicitly validate whether each parameter may be None. If a
@@ -72,7 +81,7 @@ rules:
       None is Python's universal null. An unhandled None propagates
       through the codebase causing failures at distant, unrelated points.
 
-  - id: val-005
+  - id: inv-005
     principle: Validation runs in all environments
     statement: >
       Validation logic SHALL NOT be disabled by configuration flags,
@@ -82,7 +91,7 @@ rules:
       Disabling validation in production, where the stakes are highest,
       defeats its purpose entirely.
 
-  - id: val-006
+  - id: inv-006
     principle: No assert for validation
     statement: >
       The assert statement SHALL NOT be used for input validation or

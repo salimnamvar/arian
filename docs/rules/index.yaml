@@ -118,7 +118,7 @@ schema:
       required: [id, title, version, summary]
     rules:
       required: [id, principle, statement]
-      optional: [do, dont, examples, enforce_with, related_rule]
+      optional: [do, dont, examples, enforce_with, related_rule, related_rules]
 
 how_to_use:
   - Read index.yaml for the subject map

@@ -89,11 +89,11 @@ rules:
     statement: >
       Application returns Result.failure for all error conditions. It never
       raises. The controller reads Result.is_success() and raises the
-      transport-appropriate exception. This is the only place where raise
-      occurs for domain errors.
+      transport-appropriate exception — the only place where raise occurs
+      for domain errors (see exit-and-raise.exit-003).
     do:
       - Application: return Result.failure(message)
-      - Controller: if not result.is_success(): raise SystemExit(result.message)
+      - "Controller: if not result.is_success(): raise SystemExit(result.message)"
     dont:
       - Application raising any exception
       - Controller reimplementing business validation instead of translating

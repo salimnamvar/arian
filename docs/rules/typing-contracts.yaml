@@ -56,7 +56,7 @@ rules:
       Instance attributes holding collaborators are annotated with the
       Protocol type, even when bootstrap injects a concrete class.
     do:
-      - `self._builder: BuilderProtocol = a_builder`
+      - "`self._builder: BuilderProtocol = a_builder`"
     dont:
       - Annotate as concrete class then cast for tests
 

@@ -49,7 +49,7 @@ rules:
       private static mappers (``_row_to_entity``) instead of inlined
       constructor calls.
     do:
-      - ``_row_to_file``, ``_row_to_symbol``, ``_row_to_dependency``
+      - "``_row_to_file``, ``_row_to_symbol``, ``_row_to_dependency``"
     benefits:
       - Schema column order changes in one place
       - Fewer drift bugs between get-one and list-all
@@ -61,7 +61,6 @@ rules:
       consumers import that definition. Duplication of Protocol bodies
       is a DRY and CSR failure.
     related_rule: ports-and-protocols.port-003
-
   - id: dry-006
     principle: Extract when three copies appear
     statement: >
@@ -75,4 +74,4 @@ anti_patterns:
       Re-exporting a type from its old module so old import paths keep
       working is not DRY; it freezes two public homes for one concept.
     prefer: update all call sites; delete the old module
-    related: no-aliases
+    related_rule: no-aliases.alias-001

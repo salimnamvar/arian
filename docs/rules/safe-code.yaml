@@ -9,31 +9,16 @@ meta:
     Functions follow a disciplined shape: validate inputs, step through
     expected outcomes via an execution guard, catch only unexpected errors,
     and return exactly once with an explicit structured result. This file
-    points to the dedicated rule files for each concern.
+    is the entry point for the safe-coding subject files; the full catalog
+    and subject map live in index.yaml.
 
 related_files:
-  - file: exit-and-raise.yaml
-    concern: Single-exit point and zero-raise policy
-  - file: b-continue.yaml
-    concern: Execution guard pattern
-  - file: input-validation.yaml
-    concern: Input validation at function entry
-  - file: error-handling.yaml
-    concern: Localized error handling and exception management
-  - file: logging-rules.yaml
-    concern: Logging discipline and structured logging
-  - file: function-design.yaml
-    concern: Function design principles (SRP, purity, length)
-  - file: state-management.yaml
-    concern: State management and determinism
-  - file: resource-ownership.yaml
-    concern: Resource ownership and lifecycle
-  - file: contracts.yaml
-    concern: Function contracts and invariants
-  - file: security-rules.yaml
-    concern: Security coding rules
-  - file: concurrency-rules.yaml
-    concern: Concurrency and shared state
+  note: >
+    See index.yaml for the canonical subject map and each subject's file.
+    The dedicated safe-coding subjects are: exit-and-raise, b-continue,
+    input-validation, error-handling, logging-rules, function-design,
+    state-management, resource-ownership, contracts, security-rules,
+    and concurrency-rules.
 
 canonical_shape: >
   Every function follows this shape:

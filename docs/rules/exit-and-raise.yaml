@@ -35,7 +35,7 @@ rules:
       - Use an execution guard to skip phases on failure, never early return
     dont:
       - Multiple `return` statements scattered across branches
-      - `return` inside exception handlers that bypasses the normal contract
+      - "`return` inside exception handlers that bypasses the normal contract"
       - Early returns in the middle of a function body
     exceptions:
       - Python dunder methods mandated by the language data model
@@ -61,8 +61,8 @@ rules:
       - Log the exception locally before returning the failure result
       - Return Result.failure(message) for all error conditions
     dont:
-      - `raise ValueError(...)` for input validation failures
-      - `raise` for any condition the function can detect and handle
+      - "`raise ValueError(...)` for input validation failures"
+      - "`raise` for any condition the function can detect and handle"
       - Re-raise caught exceptions
       - Use exceptions for normal control flow
     exceptions:
@@ -91,20 +91,26 @@ rules:
   - id: exit-004
     principle: Structured result return
     statement: >
-      Every function returns a typed Result[T] with is_success(), value,
-      and message fields. Tuple returns are forbidden for conveying
-      structured data.
+      Every function that can fail returns a typed Result[T] with
+      is_success, value, and message fields. Infallible pure functions
+      return the direct type (see function-design.fd-005); a function
+      is fallible when any parameter is untrusted, any I/O can fail,
+      or any external dependency can error.
     rationale: >
-      Tuple returns couple callers to positional semantics. Adding or
-      reordering fields breaks all callers silently. Named types are
-      self-documenting and refactor-safe.
+      Result[T] couples callers to named fields instead of positional
+      semantics and makes the failure path part of the contract. It is
+      the single mechanism for conveying "operation succeeded with a
+      value" versus "operation failed with a message".
     do:
-      - Return Result.success(value) or Result.failure(message)
+      - Return Result.success(value) or Result.failure(message) for fallible functions
       - Use frozen dataclass for Result[T]
+      - Return the direct type for infallible pure functions (parsers,
+        formatters, pure computations) and document why they cannot fail
     dont:
       - Return (value, message) tuples
-      - Return None silently on the happy path
+      - Return None silently on the happy path of a fallible function
       - Mix return-and-raise contracts across similar functions
+    related_rule: function-design.fd-005
 
 anti_patterns:
   - name: multiple returns

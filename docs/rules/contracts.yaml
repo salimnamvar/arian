@@ -133,7 +133,7 @@ anti_patterns:
       Using assert for input validation strips the check in optimized
       mode, creating a silent production gap.
     prefer: explicit if-check returning Result.failure
-    related_rule: input-validation.val-006
+    related_rule: input-validation.inv-006
 
   - name: unbounded-recursion
     description: >

@@ -36,7 +36,7 @@ rules:
       - Place shared request/response value objects in domain
       - Use those types in both Protocol and implementation
     dont:
-      - `async def build(self, a_request: object)` when the impl takes BuildRequest
+      - "`async def build(self, a_request: object)` when the impl takes BuildRequest"
       - Fix type errors by casting at the composition root instead of fixing the contract
     related_rule: typing-contracts.type-001
 
@@ -57,6 +57,7 @@ rules:
       - Bootstrap wires concrete types to protocol-typed parameters
     dont:
       - Hidden imports of adapters inside use-case methods
+    related_rule: composition-root.wire-002
 
   - id: port-005
     principle: Service collaborators are ports
@@ -64,8 +65,8 @@ rules:
       Planners, materializers, classifiers, collectors, and indexes are
       typed as protocols on builders and orchestrators.
     do:
-      - `planner: PlannerProtocol`
-      - `classifier: ClassifierProtocol`
+      - "`planner: PlannerProtocol`"
+      - "`classifier: ClassifierProtocol`"
     dont:
       - Hard-code concrete class types on cross-module constructors when tests need fakes
 

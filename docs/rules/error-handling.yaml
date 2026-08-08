@@ -26,10 +26,9 @@ rules:
     statement: >
       Every function handles its own errors. External exceptions (IOError,
       NetworkError, TimeoutError, third-party library errors) are caught
-      within the function and converted to Result.failure. Functions never
-      raise or propagate exceptions. The application boundary (controller,
-      framework adapter) is the only layer that raises: it reads
-      Result.is_success() and raises the transport-appropriate exception.
+      within the function and converted to Result.failure at the point of
+      detection. Functions never raise; the application boundary is the
+      only layer that translates Result.failure into transport exceptions.
     rationale: >
       This enforces strict decoupling. Functions are transport-agnostic.
       The controller is the translation layer with full awareness of the
@@ -75,7 +74,7 @@ rules:
     do:
       - Log the exception, then return Result.failure
     dont:
-      - `except Exception: pass`
+      - "`except Exception: pass`"
       - Swallow an exception without logging and without an error return
 
   - id: err-004
@@ -84,9 +83,9 @@ rules:
       All external exceptions are caught, converted to a structured result,
       and returned. No exception escapes the function boundary. The only
       exceptions that escape are those raised at the application boundary
-      for transport (see exit-and-raise.exit-003).
+      for transport.
     do:
-      - try: ... except SpecificError as e: result = Result.failure(str(e))
+      - "try: ... except SpecificError as e: result = Result.failure(str(e))"
     dont:
       - raise inside a function that should handle its own errors
       - Re-raise caught exceptions

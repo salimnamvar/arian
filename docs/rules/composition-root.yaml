@@ -21,7 +21,7 @@ rules:
       application and concrete service/repository/infrastructure types
       to assemble the graph.
     do:
-      - `create_application(config) -> Application`
+      - "`create_application(config) -> Application`"
     dont:
       - Controllers constructing services or repositories directly
 
@@ -42,7 +42,7 @@ rules:
       Tunables (limits, classifier tables, retry, renderer template dir)
       come from a loaded config object, not module-level constants in
       services.
-    related: csr-layering.config_exemption
+    related_rule: csr-layering.csr-006
 
   - id: wire-004
     principle: Tests may rebuild the graph

@@ -134,6 +134,7 @@ rules:
       - Required constructor ports for I/O and resolution
     dont:
       - Infrastructure fallback defaults inside application constructors
+    related_rule: composition-root.wire-002
 
   - id: csr-005
     principle: Controller is transport-only
@@ -149,11 +150,9 @@ rules:
     statement: >
       A shared data-only configuration module may be imported by any layer
       only if it has no behavior and no reverse dependency on outer layers.
+    do:
+      - "module pattern: *.infrastructure.config — data-only settings
+        (Pydantic models) with no side effects"
     dont:
       - Treat behavioral infrastructure modules as "config"
-
-config_exemption:
-  module_pattern: "*.infrastructure.config"
-  reason: Data-only settings (Pydantic models); no side effects
-  still_forbidden:
-    - Behavior modules (writers, filters, tokenizers, DB connections)
+      - Behavior modules (writers, filters, tokenizers, DB connections)
