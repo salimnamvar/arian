@@ -201,13 +201,10 @@ class Application:
             Tuple of ContextResult with stats and skipped file paths.
         """
         output_path: Path = self._resolve_output(a_request.output_path)
-        # Only user-named paths are explicit. The implicit ``a_root``
-        # default (when the user passes no paths) is NOT explicit, so
-        # ``.gitignore`` rules still apply during a default scan.
         explicit_paths: frozenset[Path] = (
             frozenset(a_root / p for p in a_request.paths) if a_request.paths else frozenset()
         )
-        plan: ContextPlan = await self._builder.build(
+        build_plan_result = await self._builder.build(
             BuildRequest(
                 path=a_root,
                 task=a_task,
@@ -218,6 +215,9 @@ class Application:
                 explicit_paths=explicit_paths,
             )
         )
+        if not build_plan_result.is_success or build_plan_result.value is None:
+            raise RuntimeError(build_plan_result.message)
+        plan: ContextPlan = build_plan_result.value
         return await self._materialize_render_write(
             a_plan=plan,
             a_root=a_root,
@@ -252,7 +252,7 @@ class Application:
 
         input_paths: list[Path] = [a_root / p for p in a_request.paths] if a_request.paths else [a_root]
         for input_path in input_paths:
-            plan: ContextPlan = await self._builder.build(
+            build_plan_result = await self._builder.build(
                 BuildRequest(
                     path=input_path,
                     task=a_task,
@@ -262,6 +262,9 @@ class Application:
                     explicit_paths=frozenset({input_path}),
                 )
             )
+            if not build_plan_result.is_success or build_plan_result.value is None:
+                raise RuntimeError(build_plan_result.message)
+            plan: ContextPlan = build_plan_result.value
             input_name: str = str(input_path.relative_to(a_root)) if input_path != a_root else "."
             if input_path == a_root:
                 sep_output = output_base.parent / "root_context.md"
@@ -317,7 +320,7 @@ class Application:
 
         for group_spec in a_request.group:
             group_paths: list[Path] = [a_root / p for p in group_spec]
-            plan: ContextPlan = await self._builder.build(
+            build_plan_result = await self._builder.build(
                 BuildRequest(
                     path=a_root,
                     task=a_task,
@@ -328,6 +331,9 @@ class Application:
                     explicit_paths=frozenset(group_paths),
                 )
             )
+            if not build_plan_result.is_success or build_plan_result.value is None:
+                raise RuntimeError(build_plan_result.message)
+            plan: ContextPlan = build_plan_result.value
             group_names: list[str] = [p.name for p in group_paths]
             group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
             group_output = output_base.parent / f"{group_label}_context.md"
@@ -386,8 +392,17 @@ class Application:
             a_paths=a_paths,
             a_stats=stats,
         )
-        content, skipped_files = await self._builder.load_content(a_plan=plan, a_root=a_root)
-        materialized = self._builder.materialize(plan, content)
+        content_load_result = await self._builder.load_content(a_plan=plan, a_root=a_root)
+        if not content_load_result.is_success or content_load_result.content is None:
+            raise RuntimeError(content_load_result.message)
+        content = content_load_result.content
+        skipped_files = content_load_result.skipped
+
+        materialize_result = self._builder.materialize(plan, content)
+        if not materialize_result.is_success or materialize_result.value is None:
+            raise RuntimeError(materialize_result.message)
+        materialized = materialize_result.value
+
         rendered: str = redact_secrets(
             self._renderer.render(materialized, plan),
             self._security_config,

@@ -162,8 +162,98 @@ class ContextMaterializerProtocol(Protocol):
         ...
 
 
+class BuildPlanResult:
+    """Result of the build() operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        value: The ContextPlan if successful, None otherwise.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_value: ContextPlan | None = None,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.value: ContextPlan | None = a_value
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_value: ContextPlan) -> BuildPlanResult:
+        return BuildPlanResult(a_is_success=True, a_value=a_value)
+
+    @staticmethod
+    def failure(a_message: str) -> BuildPlanResult:
+        return BuildPlanResult(a_is_success=False, a_message=a_message)
+
+
+class ContentLoadResult:
+    """Result of the load_content() operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        content: Content mapping if successful, None otherwise.
+        skipped: Skipped file paths if successful, empty tuple otherwise.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_content: dict[str, FileContent] | None = None,
+        a_skipped: tuple[str, ...] = (),
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.content: dict[str, FileContent] | None = a_content
+        self.skipped: tuple[str, ...] = a_skipped
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_content: dict[str, FileContent], a_skipped: tuple[str, ...]) -> ContentLoadResult:
+        return ContentLoadResult(a_is_success=True, a_content=a_content, a_skipped=a_skipped)
+
+    @staticmethod
+    def failure(a_message: str) -> ContentLoadResult:
+        return ContentLoadResult(a_is_success=False, a_message=a_message)
+
+
+class MaterializeResult:
+    """Result of the materialize() operation.
+
+    Attributes:
+        is_success: Whether the operation succeeded.
+        value: Materialized chunks if successful, None otherwise.
+        message: Error message if failed, empty string if successful.
+    """
+
+    def __init__(
+        self,
+        *,
+        a_is_success: bool,
+        a_value: tuple[MaterializedChunk, ...] | None = None,
+        a_message: str = "",
+    ) -> None:
+        self.is_success: bool = a_is_success
+        self.value: tuple[MaterializedChunk, ...] | None = a_value
+        self.message: str = a_message
+
+    @staticmethod
+    def success(a_value: tuple[MaterializedChunk, ...]) -> MaterializeResult:
+        return MaterializeResult(a_is_success=True, a_value=a_value)
+
+    @staticmethod
+    def failure(a_message: str) -> MaterializeResult:
+        return MaterializeResult(a_is_success=False, a_message=a_message)
+
+
 class ContextBuilderProtocol(Protocol):
-    """Full collect → plan → load → materialize pipeline port.
+    """Full collect -> plan -> load -> materialize pipeline port.
 
     Application depends on this protocol; bootstrap wires the concrete
     ContextBuilder.
@@ -174,14 +264,14 @@ class ContextBuilderProtocol(Protocol):
         """Return collection statistics from the last build() call."""
         ...
 
-    async def build(self, a_request: BuildRequest) -> ContextPlan:
+    async def build(self, a_request: BuildRequest) -> BuildPlanResult:
         """Build a context plan from a build request value object.
 
         Args:
             a_request: Build request (path, task, budget, filters).
 
         Returns:
-            ContextPlan with chunks and metadata.
+            BuildPlanResult with is_success, value (ContextPlan), and message.
         """
         ...
 
@@ -189,7 +279,7 @@ class ContextBuilderProtocol(Protocol):
         self,
         a_plan: ContextPlan,
         a_root: Path,
-    ) -> tuple[dict[str, FileContent], tuple[str, ...]]:
+    ) -> ContentLoadResult:
         """Load file content for all files in the plan.
 
         Args:
@@ -197,7 +287,7 @@ class ContextBuilderProtocol(Protocol):
             a_root: Repository root path.
 
         Returns:
-            Tuple of content mapping and skipped file paths.
+            ContentLoadResult with is_success, content mapping, skipped paths, and message.
         """
         ...
 
@@ -205,7 +295,7 @@ class ContextBuilderProtocol(Protocol):
         self,
         a_plan: ContextPlan,
         a_content: dict[str, FileContent],
-    ) -> tuple[MaterializedChunk, ...]:
+    ) -> MaterializeResult:
         """Materialize a context plan with compressed content.
 
         Args:
@@ -213,6 +303,6 @@ class ContextBuilderProtocol(Protocol):
             a_content: Mapping of file path to FileContent.
 
         Returns:
-            Tuple of MaterializedChunk with compressed content.
+            MaterializeResult with is_success, value (MaterializedChunk tuple), and message.
         """
         ...
