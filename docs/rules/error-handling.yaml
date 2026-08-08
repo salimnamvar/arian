@@ -1,0 +1,135 @@
+# Error handling and exception rules
+# Generalized lessons: catch-convert-return, no silent failures, specific exceptions.
+
+meta:
+  id: error-handling
+  title: Localized error handling and exception management
+  version: "1.0"
+  related:
+    - exit-and-raise
+    - b-continue
+    - logging-rules
+  summary: >
+    Every function handles its own errors. Exceptions are caught, converted
+    to structured results, and returned. No exception escapes the function
+    boundary. Specific exception types are caught; bare except is forbidden.
+    No error is silently ignored.
+
+rules:
+  - id: err-001
+    principle: Localized error handling
+    statement: >
+      Every function handles its own errors. A function SHALL NOT propagate
+      exceptions to its caller for the caller to decide what to do. The
+      function that detects the error converts it to a structured result.
+    rationale: >
+      Error handling at the detection layer ensures full contextual
+      awareness. Error handling at a higher layer lacks the context of the
+      specific failure mode and the resources in play.
+    do:
+      - Catch exceptions in the function that encounters them
+      - Convert to Result.failure with a descriptive message
+    dont:
+      - Let exceptions propagate to the caller for it to handle
+      - Re-raise caught exceptions
+
+  - id: err-002
+    principle: Specific exception handling
+    statement: >
+      All except clauses catch specific exception types as primary
+      handlers. A final `except Exception:` clause may serve as a safety
+      net after all anticipated exceptions have been individually handled,
+      to satisfy the zero-raise policy. Bare `except:` clauses are
+      always forbidden.
+    rationale: >
+      Specific catching ensures only anticipated failures are handled
+      gracefully. The safety net exists solely to prevent any exception
+      from escaping the function.
+    do:
+      - except FileNotFoundError as e: ...
+      - except ValueError as e: ...
+      - except Exception as e: # last resort, log at CRITICAL
+    dont:
+      - Bare `except:` clauses
+      - Catching BaseException or its subclasses (KeyboardInterrupt, SystemExit)
+
+  - id: err-003
+    principle: No silent failures
+    statement: >
+      No error is silently ignored. Every caught exception is either
+      converted to a structured error result with a descriptive message,
+      or logged with full context before conversion. An empty except block
+      is always a defect.
+    rationale: >
+      Silent failures create the illusion of success while the system
+      silently degrades.
+    do:
+      - Log the exception, then return Result.failure
+    dont:
+      - `except Exception: pass`
+      - Swallow an exception without logging and without an error return
+
+  - id: err-004
+    principle: Catch-convert-return
+    statement: >
+      All exceptions are caught, converted to a structured result, and
+      returned. No exception escapes the function boundary except under
+      documented exemptions (dunder methods, framework adapters).
+    do:
+      - try: ... except SpecificError as e: result = Result.failure(str(e))
+    dont:
+      - raise inside a function that should handle its own errors
+      - Re-raise caught exceptions
+
+  - id: err-005
+    principle: Exception context preservation
+    statement: >
+      When catching an exception, preserve the original exception's
+      information in the structured result's message. The message includes
+      the exception type and message. The original traceback is available
+      via structured logging.
+    rationale: >
+      Discarding exception context destroys diagnostic information. The
+      original exception is the root cause; the structured result is the
+      user-facing message. Both are needed.
+
+  - id: err-006
+    principle: Third-party exception handling
+    statement: >
+      When calling third-party libraries, catch the specific exceptions
+      documented by that library's API. Every third-party call is wrapped
+      in a try/except block catching the documented exception types.
+    rationale: >
+      Third-party libraries fail. Network calls timeout. Files disappear.
+      APIs return unexpected status codes. Assuming third-party stability
+      is a defect.
+
+  - id: err-007
+    principle: Resource cleanup on error
+    statement: >
+      When a function acquires a resource, it releases that resource in all
+      code paths, including error paths. The finally block or a context
+      manager guarantees deterministic cleanup.
+    rationale: >
+      Resources leaked on error paths accumulate silently. A single leaked
+      file handle is trivial; a thousand across retry loops is a system
+      failure.
+
+anti_patterns:
+  - name: exception-driven control flow
+    description: >
+      Raising and catching to choose between normal branches hides the real
+      paths, makes single-exit impossible, and bloats logs.
+    prefer: b_continue guards for expected decisions
+
+  - name: swallow-and-continue
+    description: >
+      Catching an error, logging it, and continuing without returning a
+      failure signal breaks the caller contract.
+    prefer: log locally then return the failure result
+
+  - name: broad-except
+    description: >
+      Catching bare Exception when more specific types are known hides
+      programming errors and makes debugging harder.
+    prefer: catch specific types; use Exception only as final safety net
