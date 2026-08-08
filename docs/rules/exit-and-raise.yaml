@@ -1,0 +1,91 @@
+# Single-exit and zero-raise policy
+# Generalized lessons: every function returns from one place and raises nothing.
+
+meta:
+  id: exit-and-raise
+  title: Single-exit point and zero-raise policy
+  version: "1.0"
+  related:
+    - b-continue
+    - error-handling
+    - contracts
+  summary: >
+    Every function contains exactly one return statement and zero raise
+    statements. All code paths converge to that single return. Exceptions
+    are caught locally and converted to structured results, never propagated
+    to callers.
+
+rules:
+  - id: exit-001
+    principle: Single-exit point
+    statement: >
+      Every function returns from exactly one place. All branches,
+      including error paths, converge on a single `return` at the end.
+    rationale: >
+      Multiple exit points create invisible control flow. A reviewer must
+      trace every path to understand what the function returns. A single
+      exit makes the return value the function's explicit contract.
+    do:
+      - Assign to a result variable throughout the body; return once at the end
+      - Use b_continue to skip phases on failure, never early return
+    dont:
+      - Multiple `return` statements scattered across branches
+      - `return` inside exception handlers that bypasses the normal contract
+      - Early returns in the middle of a function body
+    exceptions:
+      - Python dunder methods mandated by the language data model
+      - Generator functions (yield is a suspension, not an exit)
+      - Async functions (await is not an exit)
+
+  - id: exit-002
+    principle: Zero-raise policy
+    statement: >
+      Every function contains zero `raise` statements. All exceptions are
+      caught within the function and converted to a structured result.
+    rationale: >
+      A raise is an unhandled failure transferred to an unknown caller.
+      It is a declaration that the function does not know how to handle
+      its own errors. Localized handling ensures every failure is
+      addressed with full contextual awareness.
+    do:
+      - Catch specific exceptions and convert to Result.failure
+      - Log the exception locally before returning the failure result
+    dont:
+      - `raise ValueError(...)` for input validation failures
+      - Re-raise caught exceptions
+      - Use exceptions for normal control flow
+    exceptions:
+      - Dunder methods and protocol-constrained interfaces mandated by Python
+      - Framework boundary adapters (e.g. FastAPI HTTPException translators)
+      - These exemptions SHALL be documented in the function's contract
+
+  - id: exit-003
+    principle: Structured result return
+    statement: >
+      Every function returns a typed Result[T] with is_success(), value,
+      and message fields. Tuple returns are forbidden for conveying
+      structured data.
+    rationale: >
+      Tuple returns couple callers to positional semantics. Adding or
+      reordering fields breaks all callers silently. Named types are
+      self-documenting and refactor-safe.
+    do:
+      - Return Result.success(value) or Result.failure(message)
+      - Use frozen dataclass for Result[T]
+    dont:
+      - Return (value, message) tuples
+      - Return None silently on the happy path
+      - Mix return-and-raise contracts across similar functions
+
+anti_patterns:
+  - name: multiple returns
+    description: >
+      Scattered return statements make the function's output contract
+      opaque and create invisible control flow.
+    prefer: single return with result variable
+
+  - name: raise-then-catch
+    description: >
+      Raising and immediately catching to choose between branches
+      hides the real paths and makes single-exit impossible.
+    prefer: b_continue guards for expected decisions
