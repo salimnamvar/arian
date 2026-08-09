@@ -81,6 +81,16 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
                 raise DatabaseConnectionError(msg, a_cause=e) from e
         return self._connection
 
+    def _on_close(self) -> None:
+        """Close the SQLite connection on module shutdown."""
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            except sqlite3.Error:
+                logger.debug("Error closing SQLite connection")
+            finally:
+                self._connection = None
+
     def _execute_write(self, a_sql: str, a_params: tuple[object, ...]) -> None:
         """Run a write statement and commit, translating failures.
 

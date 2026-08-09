@@ -11,6 +11,8 @@ from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
+_GIT_TIMEOUT_SECONDS: float = 30.0
+
 
 class GitAnalyzer(BaseInfrastructureModule):
     """Analyzes git repository metadata.
@@ -39,8 +41,9 @@ class GitAnalyzer(BaseInfrastructureModule):
             Branch name or empty string if not a git repo.
         """
         result: str = ""
+        process: asyncio.subprocess.Process | None = None
         try:
-            process: asyncio.subprocess.Process = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 "git",
                 "rev-parse",
                 "--abbrev-ref",
@@ -51,11 +54,17 @@ class GitAnalyzer(BaseInfrastructureModule):
             )
             stdout: bytes
             _stderr: bytes
-            stdout, _stderr = await process.communicate()
+            stdout, _stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=_GIT_TIMEOUT_SECONDS,
+            )
             if process.returncode == 0:
                 result = stdout.decode().strip()
         except (OSError, TimeoutError):
             logger.debug("Cannot get git branch for %s", a_path)
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.communicate()
         return result
 
     async def load_changed_files(self, a_path: Path) -> list[str]:
@@ -68,8 +77,9 @@ class GitAnalyzer(BaseInfrastructureModule):
             List of changed file paths.
         """
         result: list[str] = []
+        process: asyncio.subprocess.Process | None = None
         try:
-            process: asyncio.subprocess.Process = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 "git",
                 "diff",
                 "--name-only",
@@ -80,9 +90,15 @@ class GitAnalyzer(BaseInfrastructureModule):
             )
             stdout: bytes
             _stderr: bytes
-            stdout, _stderr = await process.communicate()
+            stdout, _stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=_GIT_TIMEOUT_SECONDS,
+            )
             if process.returncode == 0:
                 result = [f for f in stdout.decode().strip().splitlines() if f]
         except (OSError, TimeoutError):
             logger.debug("Cannot get git changes for %s", a_path)
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.communicate()
         return result

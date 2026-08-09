@@ -61,6 +61,9 @@ async def execute_with_retry(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
                         e,
                     )
                     await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                result = Result.failure("Operation cancelled")
+                b_continue = False
             except Exception as e:
                 last_exception = e
                 logger.exception("Unexpected error during retry")
