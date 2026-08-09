@@ -935,7 +935,7 @@ class ArianConfig(BaseModel):
         return cls(logging=logging_cfg, collector=collector_cfg)
 
     @classmethod
-    def load_from_dict(cls, a_data: dict[str, Any]) -> ArianConfig:
+    def load_from_dict(cls, a_data: dict[str, Any]) -> ArianConfig:  # any-exempt: external dict input schema
         """Create ArianConfig from a dictionary — useful for testing.
 
         Args:

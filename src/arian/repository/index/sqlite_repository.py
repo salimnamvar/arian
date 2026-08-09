@@ -100,7 +100,9 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             logger.exception(msg)
             raise RepositoryIndexError(msg, a_cause=e) from e
 
-    def _fetch_rows(self, a_sql: str, a_params: tuple[object, ...]) -> list[tuple[Any, ...]]:
+    def _fetch_rows(
+        self, a_sql: str, a_params: tuple[object, ...]
+    ) -> list[tuple[Any, ...]]:  # any-exempt: SQLite rows are schemaless
         """Run a query and return all rows, translating failures.
 
         Args:
@@ -125,7 +127,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         return result
 
     @staticmethod
-    def _map_row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:
+    def _map_row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:  # any-exempt: SQLite rows are schemaless
         """Map a files-table row to a domain model.
 
         Args:
@@ -144,7 +146,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         )
 
     @staticmethod
-    def _map_row_to_symbol(a_row: tuple[Any, ...]) -> Symbol:
+    def _map_row_to_symbol(a_row: tuple[Any, ...]) -> Symbol:  # any-exempt: SQLite rows are schemaless
         """Map a symbols-table row to a domain model.
 
         Args:
@@ -164,7 +166,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         )
 
     @staticmethod
-    def _map_row_to_dependency(a_row: tuple[Any, ...]) -> Dependency:
+    def _map_row_to_dependency(a_row: tuple[Any, ...]) -> Dependency:  # any-exempt: SQLite rows are schemaless
         """Map a dependencies-table row to a domain model.
 
         Args:

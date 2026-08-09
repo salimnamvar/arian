@@ -109,6 +109,7 @@ class FileCollector(BaseRepositoryModule):
     async def collect(
         self,
         a_path: Path,
+        *,
         a_root: Path | None = None,
         a_explicit_paths: frozenset[Path] = frozenset(),
     ) -> list[RepositoryFile]:

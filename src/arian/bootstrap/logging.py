@@ -116,7 +116,7 @@ class DiagnosticLevelFilter(logging.Filter):
         return record.levelno < logging.INFO
 
 
-def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:
+def _build_logging_config(a_config: LoggingConfig) -> dict[str, Any]:  # any-exempt: stdlib logging config schema
     """Build dictConfig: named loggers propagate to root; root owns handlers.
 
     Handlers:

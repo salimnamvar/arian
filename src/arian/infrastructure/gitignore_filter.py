@@ -73,7 +73,7 @@ class PathFilter:
         """
         self._exclude: frozenset[str] = a_exclude
         self._explicit_paths: frozenset[Path] = frozenset()
-        self._gitignore_specs: list[tuple[Path, Any]] = (
+        self._gitignore_specs: list[tuple[Path, Any]] = (  # any-exempt: pathspec.PathSpec has no public type
             self._load_gitignore_specs(a_gitignore_options) if a_gitignore_options.enabled else []
         )
         self.last_matched_pattern: str | None = None
@@ -86,7 +86,9 @@ class PathFilter:
         """
         self._explicit_paths = a_paths
 
-    def _load_gitignore_specs(self, a_options: GitignoreOptions) -> list[tuple[Path, Any]]:
+    def _load_gitignore_specs(
+        self, a_options: GitignoreOptions
+    ) -> list[tuple[Path, Any]]:  # any-exempt: pathspec.PathSpec has no public type
         """Return ``(dir, spec)`` pairs for every ``.gitignore`` to honor.
 
         When ``nested`` is disabled, only ``<cwd>/.gitignore`` is
@@ -126,7 +128,9 @@ class PathFilter:
         return specs
 
     @staticmethod
-    def _map_to_ignore_pattern(a_spec: Any, a_relative: str) -> str | None:
+    def _map_to_ignore_pattern(
+        a_spec: Any, a_relative: str
+    ) -> str | None:  # any-exempt: pathspec.PathSpec has no public type
         """Return the gitignore pattern that caused ``a_relative`` to be ignored.
 
         Gitignore rules are applied in order, and the *last* matching
