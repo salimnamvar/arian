@@ -4,7 +4,7 @@
 meta:
   id: concurrency-rules
   title: Concurrency and shared state protection
-  version: "1.0"
+  version: "2.1"
   related:
     - state-management
     - resource-ownership

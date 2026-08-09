@@ -4,7 +4,7 @@
 meta:
   id: naming
   title: Naming consistency across modules and layers
-  version: "1.0"
+  version: "2.1"
   related:
     - ports-and-protocols
     - csr-layering

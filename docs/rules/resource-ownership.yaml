@@ -4,7 +4,7 @@
 meta:
   id: resource-ownership
   title: Resource ownership and lifecycle management
-  version: "1.0"
+  version: "2.1"
   related:
     - error-handling
     - function-design

@@ -4,7 +4,7 @@
 meta:
   id: b-continue
   title: Execution guard pattern
-  version: "1.0"
+  version: "2.1"
   related:
     - exit-and-raise
     - error-handling

@@ -4,7 +4,7 @@
 meta:
   id: rules-index
   title: Engineering rules catalog
-  version: "2.0"
+  version: "2.1"
   location: docs/rules/
   purpose: >
     Capture architecture and coding lessons in a machine-readable,

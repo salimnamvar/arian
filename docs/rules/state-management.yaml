@@ -4,7 +4,7 @@
 meta:
   id: state-management
   title: State management and determinism
-  version: "1.0"
+  version: "2.1"
   related:
     - function-design
     - concurrency-rules

@@ -4,7 +4,7 @@
 meta:
   id: function-design
   title: Function design principles
-  version: "1.0"
+  version: "2.1"
   related:
     - exit-and-raise
     - contracts

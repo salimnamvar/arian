@@ -4,7 +4,7 @@
 meta:
   id: input-validation
   title: Input validation at function entry
-  version: "1.0"
+  version: "2.1"
   related:
     - b-continue
     - exit-and-raise

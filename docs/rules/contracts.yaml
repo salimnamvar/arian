@@ -4,7 +4,7 @@
 meta:
   id: contracts
   title: Function contracts and internal invariants
-  version: "1.0"
+  version: "2.1"
   related:
     - function-design
     - exit-and-raise

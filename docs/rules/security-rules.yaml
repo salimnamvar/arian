@@ -4,7 +4,7 @@
 meta:
   id: security-rules
   title: Security coding rules
-  version: "1.0"
+  version: "2.1"
   related:
     - logging-rules
     - input-validation
