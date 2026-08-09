@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import enum
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +53,9 @@ class BaseModule:
     BaseModule is a convention and lifecycle boundary. It must not become
     a god object or a place for business logic.
 
-    Use composition for optional capabilities. Do not add abstract methods
-    that every layer must implement merely to satisfy inheritance.
+    Capabilities are declared immutable in ModuleMetadata. Do not add
+    mutable runtime capability storage. Use composition for optional
+    capabilities injected via the constructor.
 
     Attributes:
         metadata: Frozen module identity metadata.
@@ -65,7 +65,6 @@ class BaseModule:
     def __init__(self, a_metadata: ModuleMetadata) -> None:
         self._metadata = a_metadata
         self._state = ModuleState.CREATED
-        self._capabilities: dict[str, Any] = {}
 
     @property
     def metadata(self) -> ModuleMetadata:
@@ -90,26 +89,6 @@ class BaseModule:
     def has_capability(self, a_capability: str) -> bool:
         """Check whether the module declares a given capability."""
         return a_capability in self._metadata.capabilities
-
-    def set_capability(self, a_key: str, a_value: Any) -> None:
-        """Register a runtime capability value.
-
-        Args:
-            a_key: Capability identifier.
-            a_value: Capability value or handler.
-        """
-        self._capabilities[a_key] = a_value
-
-    def get_capability(self, a_key: str) -> Any:
-        """Retrieve a runtime capability value.
-
-        Args:
-            a_key: Capability identifier.
-
-        Returns:
-            The capability value, or None if not registered.
-        """
-        return self._capabilities.get(a_key)
 
     def activate(self) -> None:
         """Transition from CREATED to READY.

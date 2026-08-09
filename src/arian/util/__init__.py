@@ -7,15 +7,17 @@ No Arian layer, domain DTO, config model, adapter, or framework imports.
 from arian.util.base import BaseModule
 from arian.util.base import ModuleMetadata
 from arian.util.base import ModuleState
+from arian.util.protocol import AsyncFunctionProtocol
 from arian.util.protocol import ConcurrencyMode
 from arian.util.protocol import ExecutionMode
-from arian.util.protocol import FunctionProtocol
+from arian.util.protocol import SyncFunctionProtocol
 
 __all__ = [
+    "AsyncFunctionProtocol",
     "BaseModule",
     "ConcurrencyMode",
     "ExecutionMode",
-    "FunctionProtocol",
     "ModuleMetadata",
     "ModuleState",
+    "SyncFunctionProtocol",
 ]

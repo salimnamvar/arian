@@ -17,7 +17,12 @@ from arian.repository.base import BaseRepositoryModule
 from arian.service.base import BaseServiceModule
 from arian.template.base import BaseTemplateModule
 from arian.util.base import BaseModule, ModuleMetadata, ModuleState
-from arian.util.protocol import ConcurrencyMode, ExecutionMode, FunctionProtocol
+from arian.util.protocol import (
+    AsyncFunctionProtocol,
+    ConcurrencyMode,
+    ExecutionMode,
+    SyncFunctionProtocol,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -116,24 +121,6 @@ class TestBaseModuleLifecycle:
 
 
 # ---------------------------------------------------------------------------
-# BaseModule — runtime capabilities
-# ---------------------------------------------------------------------------
-
-
-class TestBaseModuleCapabilities:
-    """Verify runtime capability registration."""
-
-    def test_set_and_get_capability(self) -> None:
-        module = BaseModule(a_metadata=ModuleMetadata(name="m", layer="l"))
-        module.set_capability("db", "sqlite:///:memory:")
-        assert module.get_capability("db") == "sqlite:///:memory:"
-
-    def test_get_missing_capability_returns_none(self) -> None:
-        module = BaseModule(a_metadata=ModuleMetadata(name="m", layer="l"))
-        assert module.get_capability("missing") is None
-
-
-# ---------------------------------------------------------------------------
 # Layer base modules — metadata defaults
 # ---------------------------------------------------------------------------
 
@@ -172,14 +159,14 @@ class TestLayerBaseModules:
 
 
 # ---------------------------------------------------------------------------
-# FunctionProtocol — structural subtyping
+# SyncFunctionProtocol — structural subtyping with typed callables
 # ---------------------------------------------------------------------------
 
 
-class TestFunctionProtocol:
-    """Verify FunctionProtocol structural subtyping."""
+class TestSyncFunctionProtocol:
+    """Verify SyncFunctionProtocol structural subtyping with typed I/O."""
 
-    def test_sync_function_satisfies_protocol(self) -> None:
+    def test_typed_callable_satisfies_protocol(self) -> None:
         class Adder:
             @property
             def execution_mode(self) -> ExecutionMode:
@@ -193,16 +180,46 @@ class TestFunctionProtocol:
             def is_idempotent(self) -> bool:
                 return True
 
-            def __call__(self, a: int, b: int) -> int:
-                return a + b
+            def __call__(self, a_input: int) -> int:
+                return a_input + 1
 
-        func: FunctionProtocol = Adder()
+        func: SyncFunctionProtocol[int, int] = Adder()
         assert func.execution_mode is ExecutionMode.SYNC
         assert func.concurrency_mode is ConcurrencyMode.SINGLE_THREADED
         assert func.is_idempotent
-        assert isinstance(func, FunctionProtocol)
+        assert isinstance(func, SyncFunctionProtocol)
+        assert func(5) == 6
 
-    def test_async_function_satisfies_protocol(self) -> None:
+    def test_protocol_with_string_io(self) -> None:
+        class UpperCaser:
+            @property
+            def execution_mode(self) -> ExecutionMode:
+                return ExecutionMode.SYNC
+
+            @property
+            def concurrency_mode(self) -> ConcurrencyMode:
+                return ConcurrencyMode.SINGLE_THREADED
+
+            @property
+            def is_idempotent(self) -> bool:
+                return True
+
+            def __call__(self, a_input: str) -> str:
+                return a_input.upper()
+
+        func: SyncFunctionProtocol[str, str] = UpperCaser()
+        assert func("hello") == "HELLO"
+
+
+# ---------------------------------------------------------------------------
+# AsyncFunctionProtocol — structural subtyping with typed callables
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncFunctionProtocol:
+    """Verify AsyncFunctionProtocol structural subtyping with typed I/O."""
+
+    async def test_typed_callable_satisfies_protocol(self) -> None:
         class AsyncFetcher:
             @property
             def execution_mode(self) -> ExecutionMode:
@@ -216,12 +233,15 @@ class TestFunctionProtocol:
             def is_idempotent(self) -> bool:
                 return False
 
-            def __call__(self, a_url: str) -> str:
-                return f"fetched:{a_url}"
+            async def __call__(self, a_input: str) -> str:
+                return f"fetched:{a_input}"
 
-        func: FunctionProtocol = AsyncFetcher()
+        func: AsyncFunctionProtocol[str, str] = AsyncFetcher()
         assert func.execution_mode is ExecutionMode.ASYNC
         assert not func.is_idempotent
+        assert isinstance(func, AsyncFunctionProtocol)
+        result = await func("data")
+        assert result == "fetched:data"
 
 
 # ---------------------------------------------------------------------------
