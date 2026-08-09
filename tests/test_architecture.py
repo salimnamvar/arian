@@ -168,3 +168,61 @@ def test_no_absolute_imports() -> None:
                     violations.append(f"  {rel}: absolute project import {import_module}")
 
     assert not violations, "No absolute project path imports allowed:\n" + "\n".join(violations)
+
+
+def test_util_has_no_layer_imports() -> None:
+    """Verify arian.util imports only stdlib — no Arian layer dependencies.
+
+    Self-referential imports within arian.util are allowed.
+    """
+    util_path = SRC / "util"
+    violations: list[str] = []
+
+    for py_file in sorted(util_path.rglob("*.py")):
+        if py_file.name == "__pycache__":
+            continue
+        for import_module in _get_imports(py_file):
+            if import_module.startswith("arian.") and not import_module.startswith("arian.util."):
+                rel = py_file.relative_to(SRC)
+                violations.append(f"  {rel}: imports {import_module}")
+
+    assert not violations, "arian.util must not import any Arian layer:\n" + "\n".join(violations)
+
+
+def test_all_layers_have_base_modules() -> None:
+    """Verify every architectural layer has a base.py module."""
+    missing: list[str] = []
+    for layer, layer_path in LAYER_MAP.items():
+        base_file = layer_path / "base.py"
+        if not base_file.exists():
+            missing.append(layer)
+    assert not missing, f"Layers missing base.py: {missing}"
+
+
+def test_no_duplicate_protocol_names() -> None:
+    """Verify no two Protocol classes share the same name across the codebase."""
+    protocol_names: dict[str, list[str]] = {}
+
+    for py_file in sorted(SRC.rglob("*.py")):
+        if py_file.name == "__pycache__":
+            continue
+        try:
+            tree = ast.parse(py_file.read_text())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    base_name = ""
+                    if isinstance(base, ast.Name):
+                        base_name = base.id
+                    elif isinstance(base, ast.Attribute):
+                        base_name = base.attr
+                    if base_name == "Protocol":
+                        rel = py_file.relative_to(SRC)
+                        protocol_names.setdefault(node.name, []).append(str(rel))
+
+    duplicates = {name: files for name, files in protocol_names.items() if len(files) > 1}
+    assert not duplicates, "Duplicate protocol names found:\n" + "\n".join(
+        f"  {name}: {files}" for name, files in sorted(duplicates.items())
+    )
