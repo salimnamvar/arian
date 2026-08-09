@@ -15,12 +15,14 @@ from arian.domain.shared.language import detect_language
 from arian.domain.shared.security import is_binary
 from arian.domain.shared.tokenizer import estimate_tokens_from_size
 from arian.infrastructure.config import LanguageConfig
+from arian.repository.base import BaseRepositoryModule
 from arian.repository.filesystem.protocols import PathFilterProtocol
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class FileCollector:
+class FileCollector(BaseRepositoryModule):
     """Collects repository files from the filesystem.
 
     Scans directories recursively, respects .gitignore patterns,
@@ -58,6 +60,13 @@ class FileCollector:
                 If None, a default PathFilter is created by the bootstrap layer.
             a_language_config: Language detection lookup tables.
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.repository.collector",
+                layer="repository",
+                capabilities=frozenset({"async"}),
+            )
+        )
         self._extensions: frozenset[str] | None = a_extensions
         self._max_file_size: int = a_max_file_size
         self._language_config: LanguageConfig = a_language_config

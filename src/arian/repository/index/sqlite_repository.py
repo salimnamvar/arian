@@ -19,11 +19,13 @@ from arian.domain.shared.enums import DependencyKind
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.infrastructure.config import RepositoryConfig
+from arian.repository.base import BaseRepositoryModule
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class SQLiteRepositoryIndex:
+class SQLiteRepositoryIndex(BaseRepositoryModule):
     """SQLite-backed implementation of RepositoryIndexProtocol.
 
     Stores repository metadata in a SQLite database for persistence
@@ -47,6 +49,13 @@ class SQLiteRepositoryIndex:
             a_db_path: Path to the SQLite database file.
             a_config: Repository configuration (schema DDL).
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.repository.sqlite",
+                layer="repository",
+                capabilities=frozenset({"async"}),
+            )
+        )
         self._db_path: Path = a_db_path
         self._connection: sqlite3.Connection | None = None
         self._config: RepositoryConfig = a_config
