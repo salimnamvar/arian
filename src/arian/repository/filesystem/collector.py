@@ -258,7 +258,7 @@ class FileCollector(BaseRepositoryModule):
                     tokens: int = estimate_tokens_from_size(size_bytes)
                     role: FileRole = FileRole.UNKNOWN
                     if self._classifier is not None:
-                        role = self._classifier.get_role(str(a_path))
+                        role = self._classifier.load_role(str(a_path))
                     rel_path: str = str(a_path.relative_to(a_root))
                     result = RepositoryFile(
                         path=rel_path,

@@ -30,7 +30,7 @@ class SummaryService(BaseServiceModule):
             )
         )
 
-    def generate(
+    def render(
         self,
         a_symbols: list[Symbol],
         a_file_role: FileRole,  # noqa: ARG002 — reserved for future role-specific formatting

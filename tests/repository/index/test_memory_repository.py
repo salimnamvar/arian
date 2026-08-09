@@ -28,7 +28,7 @@ class TestMemoryRepositoryIndex:
         )
 
         await index.save_file(repo_file)
-        result = await index.get_file("src/main.py")
+        result = await index.load("src/main.py")
 
         assert result is not None
         assert result.path == "src/main.py"
@@ -38,7 +38,7 @@ class TestMemoryRepositoryIndex:
     async def test_get_nonexistent_file(self) -> None:
         """Test retrieving a non-existent file."""
         index = MemoryRepositoryIndex()
-        result = await index.get_file("nonexistent.py")
+        result = await index.load("nonexistent.py")
         assert result is None
 
     async def test_list_files(self) -> None:
@@ -52,7 +52,7 @@ class TestMemoryRepositoryIndex:
         for f in files:
             await index.save_file(f)
 
-        result = await index.list_files()
+        result = await index.load_all()
         assert len(result) == 2
 
     async def test_save_and_find_symbols(self) -> None:
@@ -66,7 +66,7 @@ class TestMemoryRepositoryIndex:
         )
 
         await index.save_symbol(symbol)
-        result = await index.find_symbols("MyClass")
+        result = await index.find("MyClass")
 
         assert len(result) == 1
         assert result[0].name == "MyClass"
@@ -75,7 +75,7 @@ class TestMemoryRepositoryIndex:
     async def test_find_nonexistent_symbols(self) -> None:
         """Test finding non-existent symbols."""
         index = MemoryRepositoryIndex()
-        result = await index.find_symbols("Nonexistent")
+        result = await index.find("Nonexistent")
         assert result == []
 
     async def test_save_and_get_dependencies(self) -> None:
@@ -88,7 +88,7 @@ class TestMemoryRepositoryIndex:
         )
 
         await index.save_dependency(dep)
-        result = await index.get_dependencies("src/main.py")
+        result = await index.load_dependencies("src/main.py")
 
         assert len(result) == 1
         assert result[0].source_path == "src/main.py"
@@ -97,7 +97,7 @@ class TestMemoryRepositoryIndex:
     async def test_get_dependencies_nonexistent(self) -> None:
         """Test getting dependencies for non-existent file."""
         index = MemoryRepositoryIndex()
-        result = await index.get_dependencies("nonexistent.py")
+        result = await index.load_dependencies("nonexistent.py")
         assert result == []
 
     async def test_save_and_get_module(self) -> None:
@@ -125,5 +125,5 @@ class TestMemoryRepositoryIndex:
         )
 
         await index.save_repository(repo)
-        result = await index.list_files()
+        result = await index.load_all()
         assert len(result) == 2

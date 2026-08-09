@@ -22,8 +22,8 @@ from arian.infrastructure.config import RetryConfig
 from arian.infrastructure.config import SecurityConfig
 from arian.infrastructure.gitignore_filter import PathFilter
 from arian.infrastructure.output_path_resolver import resolve_output_path
-from arian.infrastructure.retry import retry_sync_with_backoff
-from arian.infrastructure.retry import retry_with_backoff
+from arian.infrastructure.retry import execute_with_retry
+from arian.infrastructure.retry import execute_with_retry_sync
 from arian.infrastructure.tokenizer import count_tokens
 
 __all__ = [
@@ -45,7 +45,7 @@ __all__ = [
     "RetryConfig",
     "SecurityConfig",
     "count_tokens",
+    "execute_with_retry",
+    "execute_with_retry_sync",
     "resolve_output_path",
-    "retry_sync_with_backoff",
-    "retry_with_backoff",
 ]

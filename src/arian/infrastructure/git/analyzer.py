@@ -29,7 +29,7 @@ class GitAnalyzer(BaseInfrastructureModule):
             )
         )
 
-    async def get_branch(self, a_path: Path) -> str:
+    async def load_branch(self, a_path: Path) -> str:
         """Get the current git branch name.
 
         Args:
@@ -58,7 +58,7 @@ class GitAnalyzer(BaseInfrastructureModule):
             logger.debug("Cannot get git branch for %s", a_path)
         return result
 
-    async def get_changed_files(self, a_path: Path) -> list[str]:
+    async def load_changed_files(self, a_path: Path) -> list[str]:
         """Get list of changed files since last commit.
 
         Args:

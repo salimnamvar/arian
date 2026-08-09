@@ -1,4 +1,4 @@
-"""Output ports — write and render contracts for the application layer."""
+"""Output ports — save and render contracts for the application layer."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class OutputWriterProtocol(Protocol):
     implementation.
     """
 
-    def write(self, a_path: str, a_content: str) -> Result[None]:
+    def save(self, a_path: str, a_content: str) -> Result[None]:
         """Write rendered content to the output destination.
 
         Args:

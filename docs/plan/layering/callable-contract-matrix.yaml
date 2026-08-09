@@ -1,0 +1,1049 @@
+# Callable Contract Matrix — Canonical Operation Vocabulary
+#
+# This file is authoritative. Every production function/method is listed
+# with its old name, new canonical name, and contract details.
+# The vocabulary is: pure_transform | validate | execute | collect | load |
+#   save | plan | materialize | render | map | notify | configure | initialize | close
+
+# ── Canonical Vocabulary ──────────────────────────────────────────────
+# execute:  One canonical entry point per operational module
+# load:     Read/retrieve data (replaces get_*, fetch_*, read_*)
+# save:     Persist/write data (replaces write_*, store_*, put_*)
+# plan:     Decide what to include/process
+# materialize: Transform plan decisions into concrete output
+# render:   Produce final formatted output
+# collect:  Gather/scan source data
+# validate: Check preconditions
+# map:      Transform one shape to another (replaces _row_to_*, convert_*)
+# pure_transform: Stateless data transformation (no I/O)
+# notify:   Report progress/events
+# configure: Set up configuration
+# initialize: One-time setup
+# close:    Deterministic cleanup
+
+# ── Domain Layer ──────────────────────────────────────────────────────
+domain:
+  protocols:
+    - old: ContextBuilderProtocol.build
+      new: ContextBuilderProtocol.execute
+      kind: protocol_method
+      async: true
+      result: "Result[ContextPlan]"
+      callers: [application/orchestrator.py]
+
+    - old: ContextBuilderProtocol.load_content
+      new: ContextBuilderProtocol.load
+      kind: protocol_method
+      async: true
+      result: "Result[ContentLoadData]"
+      callers: [application/orchestrator.py]
+
+    - old: ContextBuilderProtocol.materialize
+      new: ContextBuilderProtocol.materialize
+      kind: protocol_method
+      async: false
+      result: "Result[tuple[MaterializedChunk, ...]]"
+      callers: [application/orchestrator.py]
+
+    - old: LanguageAnalyzerProtocol.extract_symbols
+      new: LanguageAnalyzerProtocol.extract_symbols
+      kind: protocol_method
+      async: false
+      result: "list[Symbol]"
+      callers: [service/analyzer/python_analyzer.py]
+
+    - old: LanguageAnalyzerProtocol.extract_imports
+      new: LanguageAnalyzerProtocol.extract_imports
+      kind: protocol_method
+      async: false
+      result: "list[str]"
+      callers: [service/analyzer/python_analyzer.py]
+
+    - old: LanguageAnalyzerProtocol.extract_public_api
+      new: LanguageAnalyzerProtocol.extract_public_api
+      kind: protocol_method
+      async: false
+      result: str
+      callers: [service/analyzer/python_analyzer.py]
+
+    - old: LanguageAnalyzerProtocol.compress
+      new: LanguageAnalyzerProtocol.compress
+      kind: protocol_method
+      async: false
+      result: str
+      callers: [service/analyzer/python_analyzer.py, service/context/materializer.py]
+
+    - old: LanguageAnalyzerProtocol.strip_comments
+      new: LanguageAnalyzerProtocol.strip_comments
+      kind: protocol_method
+      async: false
+      result: str
+      callers: [service/analyzer/python_analyzer.py]
+
+    - old: FileClassifierProtocol.classify
+      new: FileClassifierProtocol.classify
+      kind: protocol_method
+      async: false
+      result: "tuple[FileRole, int, CompressionLevel]"
+      callers: [service/planner/context_planner.py]
+
+    - old: FileClassifierProtocol.get_role
+      new: FileClassifierProtocol.load_role
+      kind: protocol_method
+      async: false
+      result: FileRole
+      callers: []
+
+    - old: ContextPlannerProtocol.plan
+      new: ContextPlannerProtocol.plan
+      kind: protocol_method
+      async: false
+      result: ContextPlan
+      callers: [service/builder/context_builder.py]
+
+    - old: ContextMaterializerProtocol.materialize
+      new: ContextMaterializerProtocol.materialize
+      kind: protocol_method
+      async: false
+      result: "tuple[MaterializedChunk, ...]"
+      callers: [service/builder/context_builder.py]
+
+    - old: OutputWriterProtocol.write
+      new: OutputWriterProtocol.save
+      kind: protocol_method
+      async: false
+      result: "Result[None]"
+      callers: [application/orchestrator.py]
+
+    - old: RendererProtocol.render
+      new: RendererProtocol.render
+      kind: protocol_method
+      async: false
+      result: "Result[str]"
+      callers: [application/orchestrator.py]
+
+# ── Repository Layer ──────────────────────────────────────────────────
+repository:
+  protocols:
+    - old: RepositoryIndexProtocol.save_repository
+      new: RepositoryIndexProtocol.save
+      kind: protocol_method
+      async: true
+      result: None
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.save_file
+      new: RepositoryIndexProtocol.save
+      kind: protocol_method
+      async: true
+      result: None
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.get_file
+      new: RepositoryIndexProtocol.load
+      kind: protocol_method
+      async: true
+      result: "RepositoryFile | None"
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.list_files
+      new: RepositoryIndexProtocol.load_all
+      kind: protocol_method
+      async: true
+      result: "list[RepositoryFile]"
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.save_symbol
+      new: RepositoryIndexProtocol.save
+      kind: protocol_method
+      async: true
+      result: None
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.find_symbols
+      new: RepositoryIndexProtocol.find
+      kind: protocol_method
+      async: true
+      result: "list[Symbol]"
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.save_dependency
+      new: RepositoryIndexProtocol.save
+      kind: protocol_method
+      async: true
+      result: None
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.get_dependencies
+      new: RepositoryIndexProtocol.load_dependencies
+      kind: protocol_method
+      async: true
+      result: "list[Dependency]"
+      callers: [service/builder/context_builder.py]
+
+    - old: RepositoryIndexProtocol.save_module
+      new: RepositoryIndexProtocol.save
+      kind: protocol_method
+      async: true
+      result: None
+      callers: [service/builder/context_builder.py]
+
+    - old: FileCollectorProtocol.collect
+      new: FileCollectorProtocol.collect
+      kind: protocol_method
+      async: true
+      result: "list[RepositoryFile]"
+      callers: [service/builder/context_builder.py]
+
+    - old: PathFilterProtocol.should_include
+      new: PathFilterProtocol.should_include
+      kind: protocol_method
+      async: false
+      result: bool
+      callers: [repository/filesystem/collector.py]
+
+    - old: PathFilterProtocol.set_explicit_paths
+      new: PathFilterProtocol.set_explicit_paths
+      kind: protocol_method
+      async: false
+      result: None
+      callers: [service/builder/context_builder.py]
+
+# ── Service Layer ─────────────────────────────────────────────────────
+service:
+  classes:
+    ContextBuilder:
+      - old: build
+        new: execute
+        kind: method
+        async: true
+        result: "Result[ContextPlan]"
+        callers: [application/orchestrator.py]
+
+      - old: load_content
+        new: load
+        kind: method
+        async: true
+        result: "Result[ContentLoadData]"
+        callers: [application/orchestrator.py]
+
+      - old: materialize
+        new: materialize
+        kind: method
+        async: false
+        result: "Result[tuple[MaterializedChunk, ...]]"
+        callers: [application/orchestrator.py]
+
+      - old: _load_all
+        new: _load_all
+        kind: private
+        async: true
+        result: "list[FileContent | None]"
+        callers: [context_builder.py]
+
+      - old: _load_single_bounded
+        new: _load_single
+        kind: private
+        async: true
+        result: "FileContent | None"
+        callers: [context_builder.py]
+
+      - old: _load_single
+        new: _load_single
+        kind: private
+        async: true
+        result: "FileContent | None"
+        callers: [context_builder.py]
+
+      - old: _collect_files
+        new: _collect_files
+        kind: private
+        async: true
+        result: None
+        callers: [context_builder.py]
+
+      - old: _notify_start
+        new: _notify_start
+        kind: private
+        async: false
+        result: None
+        callers: [context_builder.py]
+
+      - old: _notify_progress
+        new: _notify_progress
+        kind: private
+        async: false
+        result: None
+        callers: [context_builder.py]
+
+      - old: _notify_complete
+        new: _notify_complete
+        kind: private
+        async: false
+        result: None
+        callers: [context_builder.py]
+
+    ContextPlanner:
+      - old: plan
+        new: plan
+        kind: method
+        async: false
+        result: ContextPlan
+        callers: [service/builder/context_builder.py]
+
+      - old: _plan_files
+        new: _plan_files
+        kind: private
+        async: false
+        result: "list[PlannedFile]"
+        callers: [context_planner.py]
+
+      - old: _adjust_importance
+        new: _adjust_importance
+        kind: private
+        async: false
+        result: int
+        callers: [context_planner.py]
+
+      - old: _fit_budget
+        new: _fit_budget
+        kind: private
+        async: false
+        result: "list[PlannedFile]"
+        callers: [context_planner.py]
+
+      - old: _select_for_budget
+        new: _select_for_budget
+        kind: private
+        async: false
+        result: "dict[int, tuple[CompressionLevel, int]]"
+        callers: [context_planner.py]
+
+      - old: _apply_decisions
+        new: _apply_decisions
+        kind: private
+        async: false
+        result: "list[PlannedFile]"
+        callers: [context_planner.py]
+
+      - old: _estimate_tokens
+        new: _estimate_tokens
+        kind: private
+        async: false
+        result: int
+        callers: [context_planner.py]
+
+      - old: _fragment_large_file
+        new: _fragment_large_file
+        kind: private
+        async: false
+        result: "tuple[FileFragment, ...]"
+        callers: [context_planner.py]
+
+      - old: _plan_chunks
+        new: _plan_chunks
+        kind: private
+        async: false
+        result: "tuple[ContextChunk, ...]"
+        callers: [context_planner.py]
+
+    ContextMaterializer:
+      - old: materialize
+        new: materialize
+        kind: method
+        async: false
+        result: "tuple[MaterializedChunk, ...]"
+        callers: [service/builder/context_builder.py]
+
+      - old: _populate_continuation_hints
+        new: _populate_continuation_hints
+        kind: private
+        async: false
+        result: None
+        callers: [materializer.py]
+
+      - old: _extract_content
+        new: _extract_content
+        kind: private
+        async: false
+        result: str
+        callers: [materializer.py]
+
+      - old: _compress
+        new: _compress
+        kind: private
+        async: false
+        result: str
+        callers: [materializer.py]
+
+    FileClassifier:
+      - old: classify
+        new: classify
+        kind: method
+        async: false
+        result: "tuple[FileRole, int, CompressionLevel]"
+        callers: [service/planner/context_planner.py]
+
+      - old: get_role
+        new: load_role
+        kind: method
+        async: false
+        result: FileRole
+        callers: []
+
+      - old: get_importance
+        new: load_importance
+        kind: method
+        async: false
+        result: int
+        callers: []
+
+      - old: _classify_parts
+        new: _classify_parts
+        kind: private
+        async: false
+        result: "tuple[FileRole, int, CompressionLevel]"
+        callers: [file_classifier.py]
+
+      - old: _detect_role
+        new: _detect_role
+        kind: private
+        async: false
+        result: FileRole
+        callers: [file_classifier.py]
+
+      - old: _classify_layer
+        new: _classify_layer
+        kind: private
+        async: false
+        result: FileRole
+        callers: [file_classifier.py]
+
+    PythonAnalyzer:
+      - old: extract_symbols
+        new: extract_symbols
+        kind: method
+        async: false
+        result: "list[Symbol]"
+        callers: [service/builder/context_builder.py]
+
+      - old: extract_imports
+        new: extract_imports
+        kind: method
+        async: false
+        result: "list[str]"
+        callers: [service/builder/context_builder.py]
+
+      - old: extract_public_api
+        new: extract_public_api
+        kind: method
+        async: false
+        result: str
+        callers: []
+
+      - old: compress
+        new: compress
+        kind: method
+        async: false
+        result: str
+        callers: [service/context/materializer.py]
+
+      - old: strip_comments
+        new: strip_comments
+        kind: method
+        async: false
+        result: str
+        callers: []
+
+      - old: _compress_signatures
+        new: _compress_signatures
+        kind: private
+        async: false
+        result: str
+        callers: [python_analyzer.py]
+
+      - old: _compress_structure
+        new: _compress_structure
+        kind: private
+        async: false
+        result: str
+        callers: [python_analyzer.py]
+
+      - old: _compress_summary
+        new: _compress_summary
+        kind: private
+        async: false
+        result: str
+        callers: [python_analyzer.py]
+
+      - old: _make_class_symbol
+        new: _map_node_to_class_symbol
+        kind: private
+        async: false
+        result: Symbol
+        callers: [python_analyzer.py]
+
+      - old: _make_function_symbol
+        new: _map_node_to_function_symbol
+        kind: private
+        async: false
+        result: Symbol
+        callers: [python_analyzer.py]
+
+      - old: _make_method_symbol
+        new: _map_node_to_method_symbol
+        kind: private
+        async: false
+        result: Symbol
+        callers: [python_analyzer.py]
+
+      - old: _extract_args
+        new: _extract_args
+        kind: private
+        async: false
+        result: "list[str]"
+        callers: [python_analyzer.py]
+
+      - old: _extract_return_type
+        new: _extract_return_type
+        kind: private
+        async: false
+        result: str
+        callers: [python_analyzer.py]
+
+      - old: _extract_annotation
+        new: _extract_annotation
+        kind: private
+        async: false
+        result: str
+        callers: [python_analyzer.py]
+
+      - old: _is_inside_string_heuristic
+        new: _is_inside_string_heuristic
+        kind: private
+        async: false
+        result: bool
+        callers: [python_analyzer.py]
+
+    SummaryService:
+      - old: generate
+        new: render
+        kind: method
+        async: false
+        result: str
+        callers: [service/builder/context_builder.py]
+
+      - old: _format_imports
+        new: _format_imports
+        kind: private
+        async: false
+        result: str
+        callers: [summary_service.py]
+
+      - old: _format_classes
+        new: _format_classes
+        kind: private
+        async: false
+        result: str
+        callers: [summary_service.py]
+
+      - old: _format_functions
+        new: _format_functions
+        kind: private
+        async: false
+        result: str
+        callers: [summary_service.py]
+
+      - old: _format_methods
+        new: _format_methods
+        kind: private
+        async: false
+        result: str
+        callers: [summary_service.py]
+
+# ── Application Layer ─────────────────────────────────────────────────
+application:
+  classes:
+    Application:
+      - old: build_context
+        new: execute
+        kind: method
+        async: true
+        result: "Result[ContextResult]"
+        callers: [controller/cli/commands.py]
+
+      - old: _build_merged
+        new: _execute_merged
+        kind: private
+        async: true
+        result: "Result[tuple[ContextResult, tuple[str, ...]]]"
+        callers: [orchestrator.py]
+
+      - old: _build_separate
+        new: _execute_separate
+        kind: private
+        async: true
+        result: "Result[tuple[ContextResult, tuple[str, ...]]]"
+        callers: [orchestrator.py]
+
+      - old: _build_grouped
+        new: _execute_grouped
+        kind: private
+        async: true
+        result: "Result[tuple[ContextResult, tuple[str, ...]]]"
+        callers: [orchestrator.py]
+
+      - old: _materialize_render_write
+        new: _materialize_render_save
+        kind: private
+        async: true
+        result: "Result[tuple[ContextResult, tuple[str, ...]]]"
+        callers: [orchestrator.py]
+
+      - old: _with_metadata
+        new: _map_to_plan_with_metadata
+        kind: private
+        async: false
+        result: ContextPlan
+        callers: [orchestrator.py]
+
+    ContextRequestValidator:
+      - old: validate
+        new: validate
+        kind: method
+        async: false
+        result: "Result[None]"
+        callers: [application/orchestrator.py]
+
+      - old: _validate_paths
+        new: _validate_paths
+        kind: private
+        async: false
+        result: "Result[None]"
+        callers: [validator.py]
+
+# ── Repository Layer (implementations) ────────────────────────────────
+repository:
+  implementations:
+    FileCollector:
+      - old: collect
+        new: collect
+        kind: method
+        async: true
+        result: "list[RepositoryFile]"
+        callers: [service/builder/context_builder.py]
+
+      - old: _collect_directory
+        new: _collect_directory
+        kind: private
+        async: true
+        result: None
+        callers: [collector.py]
+
+      - old: _collect_file
+        new: _collect_file
+        kind: private
+        async: true
+        result: "RepositoryFile | None"
+        callers: [collector.py]
+
+      - old: _try_collect
+        new: _try_collect
+        kind: private
+        async: true
+        result: "RepositoryFile | None"
+        callers: [collector.py]
+
+      - old: _bump
+        new: _bump
+        kind: private
+        async: false
+        result: CollectionStats
+        callers: [collector.py]
+
+      - old: _record_gitignore_skip
+        new: _record_gitignore_skip
+        kind: private
+        async: false
+        result: CollectionStats
+        callers: [collector.py]
+
+    SQLiteRepositoryIndex:
+      - old: save_repository
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: save_file
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: get_file
+        new: load
+        kind: method
+        async: true
+        result: "RepositoryFile | None"
+        callers: [service/builder/context_builder.py]
+
+      - old: list_files
+        new: load_all
+        kind: method
+        async: true
+        result: "list[RepositoryFile]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_symbol
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: find_symbols
+        new: find
+        kind: method
+        async: true
+        result: "list[Symbol]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_dependency
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: get_dependencies
+        new: load_dependencies
+        kind: method
+        async: true
+        result: "list[Dependency]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_module
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: _get_connection
+        new: _get_connection
+        kind: private
+        async: false
+        result: "sqlite3.Connection"
+        callers: [sqlite_repository.py]
+
+      - old: _execute_write
+        new: _execute_write
+        kind: private
+        async: false
+        result: None
+        callers: [sqlite_repository.py]
+
+      - old: _fetch_rows
+        new: _fetch_rows
+        kind: private
+        async: false
+        result: "list[tuple[Any, ...]]"
+        callers: [sqlite_repository.py]
+
+      - old: _row_to_file
+        new: _map_row_to_file
+        kind: private
+        async: false
+        result: RepositoryFile
+        callers: [sqlite_repository.py]
+
+      - old: _row_to_symbol
+        new: _map_row_to_symbol
+        kind: private
+        async: false
+        result: Symbol
+        callers: [sqlite_repository.py]
+
+      - old: _row_to_dependency
+        new: _map_row_to_dependency
+        kind: private
+        async: false
+        result: Dependency
+        callers: [sqlite_repository.py]
+
+    MemoryRepositoryIndex:
+      - old: save_repository
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: save_file
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: get_file
+        new: load
+        kind: method
+        async: true
+        result: "RepositoryFile | None"
+        callers: [service/builder/context_builder.py]
+
+      - old: list_files
+        new: load_all
+        kind: method
+        async: true
+        result: "list[RepositoryFile]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_symbol
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: find_symbols
+        new: find
+        kind: method
+        async: true
+        result: "list[Symbol]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_dependency
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: get_dependencies
+        new: load_dependencies
+        kind: method
+        async: true
+        result: "list[Dependency]"
+        callers: [service/builder/context_builder.py]
+
+      - old: save_module
+        new: save
+        kind: method
+        async: true
+        result: None
+        callers: [service/builder/context_builder.py]
+
+# ── Infrastructure Layer ──────────────────────────────────────────────
+infrastructure:
+  classes:
+    FileOutputWriter:
+      - old: write
+        new: save
+        kind: method
+        async: false
+        result: "Result[None]"
+        callers: [application/orchestrator.py]
+
+      - old: _write_atomic
+        new: _save_atomic
+        kind: private
+        async: false
+        result: None
+        callers: [file_output_writer.py]
+
+    GitAnalyzer:
+      - old: get_branch
+        new: load_branch
+        kind: method
+        async: true
+        result: str
+        callers: []
+
+      - old: get_changed_files
+        new: load_changed_files
+        kind: method
+        async: true
+        result: "list[str]"
+        callers: []
+
+    MarkdownRenderer:
+      - old: render
+        new: render
+        kind: method
+        async: false
+        result: "Result[str]"
+        callers: [application/orchestrator.py]
+
+      - old: _build_directory_structure
+        new: _map_to_directory_structure
+        kind: private
+        async: false
+        result: str
+        callers: [renderer.py]
+
+      - old: _build_manifest
+        new: _map_to_manifest
+        kind: private
+        async: false
+        result: str
+        callers: [renderer.py]
+
+      - old: _append_collection_stats
+        new: _append_collection_stats
+        kind: private
+        async: false
+        result: None
+        callers: [renderer.py]
+
+      - old: _append_pattern_tally
+        new: _append_pattern_tally
+        kind: private
+        async: false
+        result: None
+        callers: [renderer.py]
+
+    PathFilter:
+      - old: set_explicit_paths
+        new: set_explicit_paths
+        kind: method
+        async: false
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: should_include
+        new: should_include
+        kind: method
+        async: false
+        result: bool
+        callers: [repository/filesystem/collector.py]
+
+      - old: _load_gitignore_specs
+        new: _load_gitignore_specs
+        kind: private
+        async: false
+        result: "list[tuple[Path, Any]]"
+        callers: [gitignore_filter.py]
+
+      - old: _effective_ignore_pattern
+        new: _map_to_ignore_pattern
+        kind: private
+        async: false
+        result: "str | None"
+        callers: [gitignore_filter.py]
+
+      - old: _is_within
+        new: _is_within
+        kind: private
+        async: false
+        result: bool
+        callers: [gitignore_filter.py]
+
+      - old: _is_under_explicit
+        new: _is_under_explicit
+        kind: private
+        async: false
+        result: bool
+        callers: [gitignore_filter.py]
+
+      - old: _gitignore_rejects
+        new: _gitignore_rejects
+        kind: private
+        async: false
+        result: "str | None"
+        callers: [gitignore_filter.py]
+
+# ── Bootstrap Layer ───────────────────────────────────────────────────
+bootstrap:
+  classes:
+    LoggingProgressReporter:
+      - old: on_stage_start
+        new: on_stage_start
+        kind: method
+        async: false
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: on_stage_progress
+        new: on_stage_progress
+        kind: method
+        async: false
+        result: None
+        callers: [service/builder/context_builder.py]
+
+      - old: on_stage_complete
+        new: on_stage_complete
+        kind: method
+        async: false
+        result: None
+        callers: [service/builder/context_builder.py]
+
+    StartupValidator:
+      - old: validate
+        new: validate
+        kind: method
+        async: false
+        result: "Result[None]"
+        callers: [bootstrap/application.py]
+
+# ── Module-level functions ────────────────────────────────────────────
+module_functions:
+  - old: arian.infrastructure.retry.retry_with_backoff
+    new: arian.infrastructure.retry.execute_with_retry
+    kind: function
+    async: true
+    result: "Result[T]"
+    callers: [repository/index/sqlite_repository.py]
+
+  - old: arian.infrastructure.retry.retry_sync_with_backoff
+    new: arian.infrastructure.retry.execute_with_retry_sync
+    kind: function
+    async: false
+    result: "Result[T]"
+    callers: [infrastructure/file_output_writer.py]
+
+  - old: arian.domain.shared.language.detect_language
+    new: arian.domain.shared.language.detect_language
+    kind: function
+    async: false
+    result: str
+    callers: [repository/filesystem/collector.py]
+
+  - old: arian.domain.shared.tokenizer.estimate_tokens_from_size
+    new: arian.domain.shared.tokenizer.estimate_tokens_from_size
+    kind: function
+    async: false
+    result: int
+    callers: [repository/filesystem/collector.py]
+
+  - old: arian.domain.shared.security.validate_input_path
+    new: arian.domain.shared.security.validate_input_path
+    kind: function
+    async: false
+    result: "Result[SafePath]"
+    callers: [application/validator.py]
+
+  - old: arian.domain.shared.security.redact_secrets
+    new: arian.domain.shared.security.redact_secrets
+    kind: function
+    async: false
+    result: str
+    callers: [application/orchestrator.py, service/builder/context_builder.py]
+
+  - old: arian.domain.shared.security.sanitize_error_message
+    new: arian.domain.shared.security.sanitize_error_message
+    kind: function
+    async: false
+    result: str
+    callers: [application/orchestrator.py, service/builder/context_builder.py]
+
+  - old: arian.infrastructure.output_path_resolver.resolve_output_path
+    new: arian.infrastructure.output_path_resolver.resolve_output_path
+    kind: function
+    async: false
+    result: Path
+    callers: [bootstrap/application.py]

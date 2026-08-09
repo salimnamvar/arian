@@ -65,12 +65,12 @@ class TestFileClassifier:
 
     def test_get_role(self) -> None:
         """Test get_role helper."""
-        role = self.classifier.get_role("README.md")
+        role = self.classifier.load_role("README.md")
         assert role == FileRole.README
 
     def test_get_importance(self) -> None:
         """Test get_importance helper."""
-        importance = self.classifier.get_importance("README.md")
+        importance = self.classifier.load_importance("README.md")
         assert importance == 0
 
     def test_classify_sql_file(self) -> None:

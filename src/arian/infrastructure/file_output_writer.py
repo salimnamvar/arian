@@ -10,7 +10,7 @@ import tempfile
 
 from arian.domain.shared.result import Result
 from arian.infrastructure.base import BaseInfrastructureModule
-from arian.infrastructure.retry import retry_sync_with_backoff
+from arian.infrastructure.retry import execute_with_retry_sync
 from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class FileOutputWriter(BaseInfrastructureModule):
             )
         )
 
-    def write(self, a_path: str, a_content: str) -> Result[None]:
+    def save(self, a_path: str, a_content: str) -> Result[None]:
         """Atomically write rendered content to a file.
 
         Contract: returns Result[None] with is_success and message.
@@ -74,8 +74,8 @@ class FileOutputWriter(BaseInfrastructureModule):
                 b_continue = False
 
         if b_continue:
-            retry_result = retry_sync_with_backoff(
-                self._write_atomic,
+            retry_result = execute_with_retry_sync(
+                self._save_atomic,
                 path,
                 a_content,
                 a_max_retries=3,
@@ -93,7 +93,7 @@ class FileOutputWriter(BaseInfrastructureModule):
         return result
 
     @staticmethod
-    def _write_atomic(a_path: Path, a_content: str) -> None:
+    def _save_atomic(a_path: Path, a_content: str) -> None:
         """Perform a single atomic write attempt.
 
         Logs the per-attempt failure at debug level before re-raising so

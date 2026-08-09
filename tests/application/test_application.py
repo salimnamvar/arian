@@ -25,7 +25,7 @@ class _StubOutputWriter:
     def __init__(self) -> None:
         self.calls: list[_WriteCall] = []
 
-    def write(self, a_path: str, a_content: str) -> Result[None]:
+    def save(self, a_path: str, a_content: str) -> Result[None]:
         self.calls.append(_WriteCall(path=a_path, content=a_content))
         return Result.success(None)
 
@@ -115,7 +115,7 @@ class TestCreateApplication:
 
 
 class TestApplicationBuildContext:
-    """Integration tests for Application.build_context."""
+    """Integration tests for Application.execute."""
 
     async def test_build_empty_directory(self, tmp_path: Path) -> None:
         """Verify building context for empty directory produces zero files."""
@@ -124,7 +124,7 @@ class TestApplicationBuildContext:
             paths=(str(tmp_path),),
             output_path=str(tmp_path / "out.md"),
         )
-        result = await app.build_context(request)
+        result = await app.execute(request)
         assert result.is_success
         assert result.value is not None
         assert result.value.total_files == 0
@@ -144,7 +144,7 @@ class TestApplicationBuildContext:
                 paths=("hello.py",),
                 output_path=str(tmp_path / "out.md"),
             )
-            result = await app.build_context(request)
+            result = await app.execute(request)
         finally:
             os.chdir(original_cwd)
 
@@ -164,7 +164,7 @@ class TestApplicationBuildContext:
             paths=(str(tmp_path),),
             output_path=str(tmp_path / "out.md"),
         )
-        result = await app.build_context(request)
+        result = await app.execute(request)
         assert result.is_success
         assert result.value is not None
         assert result.value.elapsed_seconds >= 0
@@ -189,7 +189,7 @@ class TestApplicationBuildContext:
                 paths=("hello.py",),
                 output_path=str(tmp_path / "out.md"),
             )
-            await app.build_context(request)
+            await app.execute(request)
         finally:
             os.chdir(original_cwd)
 

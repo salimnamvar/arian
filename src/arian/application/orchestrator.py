@@ -92,7 +92,7 @@ class Application(BaseApplicationModule):
         self._root: Path = a_root if a_root is not None else Path.cwd()
         self._validator = a_validator or ContextRequestValidator(a_root=self._root)
 
-    async def build_context(self, a_request: ContextRequest) -> Result[ContextResult]:
+    async def execute(self, a_request: ContextRequest) -> Result[ContextResult]:
         """Execute the full context generation pipeline.
 
         Pipeline:
@@ -127,11 +127,11 @@ class Application(BaseApplicationModule):
 
                 build_result: Result[tuple[ContextResult, tuple[str, ...]]]
                 if a_request.group:
-                    build_result = await self._build_grouped(root, task_enum, budget, a_request)
+                    build_result = await self._execute_grouped(root, task_enum, budget, a_request)
                 elif a_request.scope == "separate":
-                    build_result = await self._build_separate(root, task_enum, budget, a_request)
+                    build_result = await self._execute_separate(root, task_enum, budget, a_request)
                 else:
-                    build_result = await self._build_merged(root, task_enum, budget, input_paths, a_request)
+                    build_result = await self._execute_merged(root, task_enum, budget, input_paths, a_request)
 
                 if not build_result.is_success:
                     result = Result[ContextResult].failure(build_result.message)
@@ -167,7 +167,7 @@ class Application(BaseApplicationModule):
 
         return result
 
-    async def _build_merged(
+    async def _execute_merged(
         self,
         a_root: Path,
         a_task: ContextTask,
@@ -193,7 +193,7 @@ class Application(BaseApplicationModule):
         explicit_paths: frozenset[Path] = (
             frozenset(a_root / p for p in a_request.paths) if a_request.paths else frozenset()
         )
-        build_plan_result = await self._builder.build(
+        build_plan_result = await self._builder.execute(
             BuildRequest(
                 path=a_root,
                 task=a_task,
@@ -213,7 +213,7 @@ class Application(BaseApplicationModule):
             plan = build_plan_result.success_value()
 
         if b_continue:
-            materialize_result = await self._materialize_render_write(
+            materialize_result = await self._materialize_render_save(
                 a_plan=plan,
                 a_root=a_root,
                 a_request=a_request,
@@ -224,7 +224,7 @@ class Application(BaseApplicationModule):
 
         return result
 
-    async def _build_separate(
+    async def _execute_separate(
         self,
         a_root: Path,
         a_task: ContextTask,
@@ -253,7 +253,7 @@ class Application(BaseApplicationModule):
         input_paths: list[Path] = [a_root / p for p in a_request.paths] if a_request.paths else [a_root]
         for input_path in input_paths:
             if b_continue:
-                build_plan_result = await self._builder.build(
+                build_plan_result = await self._builder.execute(
                     BuildRequest(
                         path=input_path,
                         task=a_task,
@@ -274,7 +274,7 @@ class Application(BaseApplicationModule):
                     else:
                         rel_name: Path = input_path.relative_to(a_root)
                         sep_output = output_base.parent / f"{rel_name}_context.md"
-                    materialize_result = await self._materialize_render_write(
+                    materialize_result = await self._materialize_render_save(
                         a_plan=plan,
                         a_root=a_root,
                         a_request=a_request,
@@ -307,7 +307,7 @@ class Application(BaseApplicationModule):
 
         return result
 
-    async def _build_grouped(
+    async def _execute_grouped(
         self,
         a_root: Path,
         a_task: ContextTask,
@@ -336,7 +336,7 @@ class Application(BaseApplicationModule):
         for group_spec in a_request.group:
             if b_continue:
                 group_paths: list[Path] = [a_root / p for p in group_spec]
-                build_plan_result = await self._builder.build(
+                build_plan_result = await self._builder.execute(
                     BuildRequest(
                         path=a_root,
                         task=a_task,
@@ -356,7 +356,7 @@ class Application(BaseApplicationModule):
                     group_label: str = "_".join(group_names) if len(group_names) > 1 else group_names[0]
                     group_output = output_base.parent / f"{group_label}_context.md"
                     input_names: list[str] = [str(p.relative_to(a_root)) for p in group_paths]
-                    materialize_result = await self._materialize_render_write(
+                    materialize_result = await self._materialize_render_save(
                         a_plan=plan,
                         a_root=a_root,
                         a_request=a_request,
@@ -389,7 +389,7 @@ class Application(BaseApplicationModule):
 
         return result
 
-    async def _materialize_render_write(
+    async def _materialize_render_save(
         self,
         a_plan: ContextPlan,
         a_root: Path,
@@ -414,7 +414,7 @@ class Application(BaseApplicationModule):
         result: Result[tuple[ContextResult, tuple[str, ...]]] = Result.failure("uninitialized")
         b_continue: bool = True
         stats: CollectionStats = self._builder.collection_stats
-        plan: ContextPlan = self._with_metadata(
+        plan: ContextPlan = self._map_to_plan_with_metadata(
             a_plan,
             a_root,
             a_request,
@@ -422,7 +422,7 @@ class Application(BaseApplicationModule):
             a_paths=a_paths,
             a_stats=stats,
         )
-        content_load_result = await self._builder.load_content(a_plan=plan, a_root=a_root)
+        content_load_result = await self._builder.load(a_plan=plan, a_root=a_root)
         if not content_load_result.is_success or content_load_result.value is None:
             result = Result.failure(content_load_result.message)
             b_continue = False
@@ -456,7 +456,7 @@ class Application(BaseApplicationModule):
                 )
 
         if b_continue:
-            write_result = self._output.write(str(a_output_path), rendered)
+            write_result = self._output.save(str(a_output_path), rendered)
             if not write_result.is_success:
                 result = Result.failure(write_result.message)
                 b_continue = False
@@ -485,7 +485,7 @@ class Application(BaseApplicationModule):
         return result
 
     @staticmethod
-    def _with_metadata(
+    def _map_to_plan_with_metadata(
         a_plan: ContextPlan,
         a_root: Path,
         a_request: ContextRequest,

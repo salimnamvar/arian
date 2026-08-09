@@ -125,10 +125,10 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.execute(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         assert build_result.is_success
 
-        stored_files = await index.list_files()
+        stored_files = await index.load_all()
         for f in stored_files:
             assert f.hash == ""
 
@@ -152,10 +152,10 @@ class TestHashLifecycle:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.execute(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         assert build_result.is_success
         plan = build_result.value
-        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        load_result = await builder.load(a_plan=plan, a_root=tmp_path)
         assert load_result.is_success
         content_map = load_result.value.content
 
@@ -187,7 +187,7 @@ class TestSingleReadVerification:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.execute(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         assert build_result.is_success
         plan = build_result.value
 
@@ -200,7 +200,7 @@ class TestSingleReadVerification:
             return original_read_bytes(self, *args, **kwargs)
 
         with patch.object(Path, "read_bytes", counting_read_bytes):
-            load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+            load_result = await builder.load(a_plan=plan, a_root=tmp_path)
 
         assert load_result.is_success
         content_map = load_result.value.content

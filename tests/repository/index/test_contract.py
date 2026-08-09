@@ -50,7 +50,7 @@ class TestRepositoryContract:
                     size_bytes=500,
                 )
                 await repo.save_file(file)
-                result = await repo.get_file("src/main.py")
+                result = await repo.load("src/main.py")
                 assert result is not None, f"[{impl}] file not found"
                 assert result.path == "src/main.py", f"[{impl}] wrong path"
                 assert result.language == "python", f"[{impl}] wrong language"
@@ -62,7 +62,7 @@ class TestRepositoryContract:
         """Retrieving a non-existent path returns None."""
         for impl in _IMPLS:
             with _make_repository(impl) as repo:
-                result = await repo.get_file("nonexistent.py")
+                result = await repo.load("nonexistent.py")
                 assert result is None, f"[{impl}] expected None"
 
     async def test_list_files(self) -> None:
@@ -75,14 +75,14 @@ class TestRepositoryContract:
                 ]
                 for f in files:
                     await repo.save_file(f)
-                result = await repo.list_files()
+                result = await repo.load_all()
                 assert len(result) == 2, f"[{impl}] expected 2 files, got {len(result)}"
 
     async def test_list_files_empty(self) -> None:
         """Listing files on a fresh index returns empty list."""
         for impl in _IMPLS:
             with _make_repository(impl) as repo:
-                result = await repo.list_files()
+                result = await repo.load_all()
                 assert result == [], f"[{impl}] expected empty list"
 
     async def test_save_file_overwrites(self) -> None:
@@ -93,7 +93,7 @@ class TestRepositoryContract:
                 v2 = RepositoryFile(path="a.py", language="python", role=FileRole.UTILITY, tokens=20, hash="h2")
                 await repo.save_file(v1)
                 await repo.save_file(v2)
-                result = await repo.get_file("a.py")
+                result = await repo.load("a.py")
                 assert result is not None, f"[{impl}] file missing"
                 assert result.hash == "h2", f"[{impl}] expected overwrite"
                 assert result.tokens == 20, f"[{impl}] expected updated tokens"
@@ -112,7 +112,7 @@ class TestRepositoryContract:
                     line_end=25,
                 )
                 await repo.save_symbol(symbol)
-                result = await repo.find_symbols("MyClass")
+                result = await repo.find("MyClass")
                 assert len(result) == 1, f"[{impl}] expected 1 symbol"
                 assert result[0].name == "MyClass", f"[{impl}] wrong name"
                 assert result[0].kind == SymbolKind.CLASS, f"[{impl}] wrong kind"
@@ -123,7 +123,7 @@ class TestRepositoryContract:
         """Finding a symbol that was never saved returns empty list."""
         for impl in _IMPLS:
             with _make_repository(impl) as repo:
-                result = await repo.find_symbols("Nonexistent")
+                result = await repo.find("Nonexistent")
                 assert result == [], f"[{impl}] expected empty list"
 
     async def test_find_multiple_symbols_same_name(self) -> None:
@@ -134,7 +134,7 @@ class TestRepositoryContract:
                 s2 = Symbol(name="foo", kind=SymbolKind.FUNCTION, file_path="b.py", signature="def foo():")
                 await repo.save_symbol(s1)
                 await repo.save_symbol(s2)
-                result = await repo.find_symbols("foo")
+                result = await repo.find("foo")
                 assert len(result) == 2, f"[{impl}] expected 2 symbols"
 
     async def test_save_and_get_dependency(self) -> None:
@@ -147,7 +147,7 @@ class TestRepositoryContract:
                     kind=DependencyKind.IMPORT,
                 )
                 await repo.save_dependency(dep)
-                result = await repo.get_dependencies("src/main.py")
+                result = await repo.load_dependencies("src/main.py")
                 assert len(result) == 1, f"[{impl}] expected 1 dep"
                 assert result[0].source_path == "src/main.py", f"[{impl}] wrong source"
                 assert result[0].target_path == "src/utils.py", f"[{impl}] wrong target"
@@ -157,7 +157,7 @@ class TestRepositoryContract:
         """Querying dependencies for an unknown path returns empty list."""
         for impl in _IMPLS:
             with _make_repository(impl) as repo:
-                result = await repo.get_dependencies("nonexistent.py")
+                result = await repo.load_dependencies("nonexistent.py")
                 assert result == [], f"[{impl}] expected empty list"
 
     async def test_save_module_no_crash(self) -> None:
@@ -180,7 +180,7 @@ class TestRepositoryContract:
                     ),
                 )
                 await repo.save_repository(repository)
-                result = await repo.list_files()
+                result = await repo.load_all()
                 assert len(result) == 2, f"[{impl}] expected 2 files from repo"
 
     async def test_save_repository_empty(self) -> None:
@@ -189,5 +189,5 @@ class TestRepositoryContract:
             with _make_repository(impl) as repo:
                 repository = Repository(path="/empty", name="empty")
                 await repo.save_repository(repository)
-                result = await repo.list_files()
+                result = await repo.load_all()
                 assert result == [], f"[{impl}] expected empty"

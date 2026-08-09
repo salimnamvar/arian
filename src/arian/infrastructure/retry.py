@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-async def retry_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
+async def execute_with_retry(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     a_func: Callable[..., Awaitable[T]],
     *args: object,
     a_max_retries: int = 3,
@@ -75,7 +75,7 @@ async def retry_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     return result
 
 
-def retry_sync_with_backoff(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
+def execute_with_retry_sync(  # noqa: UP047 — PEP 695 breaks Python 3.10/3.11
     a_func: Callable[..., T],
     *args: object,
     a_max_retries: int = 3,

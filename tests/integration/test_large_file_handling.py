@@ -63,10 +63,10 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=10000, per_chunk_target=500)
-        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.execute(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         assert build_result.is_success
         plan = build_result.value
-        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        load_result = await builder.load(a_plan=plan, a_root=tmp_path)
         assert load_result.is_success
         content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)
@@ -114,12 +114,12 @@ class TestLargeFileHandling:
         renderer = MarkdownRenderer()
 
         budget = TokenBudget(max_tokens=5000)
-        build_result = await builder.build(
+        build_result = await builder.execute(
             BuildRequest(path=tmp_path, task=ContextTask.BUG_FIX, budget=budget, query="authentication timeout")
         )
         assert build_result.is_success
         plan = build_result.value
-        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        load_result = await builder.load(a_plan=plan, a_root=tmp_path)
         assert load_result.is_success
         content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)
@@ -159,10 +159,10 @@ class TestLargeFileHandling:
         )
 
         budget = TokenBudget(max_tokens=5000)
-        build_result = await builder.build(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
+        build_result = await builder.execute(BuildRequest(path=tmp_path, task=ContextTask.GENERAL, budget=budget))
         assert build_result.is_success
         plan = build_result.value
-        load_result = await builder.load_content(a_plan=plan, a_root=tmp_path)
+        load_result = await builder.load(a_plan=plan, a_root=tmp_path)
         assert load_result.is_success
         content_map = load_result.value.content
         materialized = materializer.materialize(plan, content_map)

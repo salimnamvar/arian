@@ -57,7 +57,7 @@ class FileClassifier(BaseServiceModule):
 
         return role, importance, compression
 
-    def get_role(self, a_path: str) -> FileRole:
+    def load_role(self, a_path: str) -> FileRole:
         """Get the file role for a path.
 
         Args:
@@ -72,7 +72,7 @@ class FileClassifier(BaseServiceModule):
         role, _importance, _compression = self.classify(a_path)
         return role
 
-    def get_importance(self, a_path: str) -> int:
+    def load_importance(self, a_path: str) -> int:
         """Get the importance score for a path.
 
         Args:

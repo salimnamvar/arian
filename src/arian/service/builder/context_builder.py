@@ -126,10 +126,10 @@ class ContextBuilder(BaseServiceModule):
 
     @property
     def collection_stats(self) -> CollectionStats:
-        """Return collection statistics from the last build() call."""
+        """Return collection statistics from the last execute() call."""
         return self._collection_stats
 
-    async def build(
+    async def execute(
         self,
         a_request: BuildRequest,
     ) -> Result[ContextPlan]:
@@ -227,7 +227,7 @@ class ContextBuilder(BaseServiceModule):
 
         return result
 
-    async def load_content(
+    async def load(
         self,
         a_plan: ContextPlan,
         a_root: Path,

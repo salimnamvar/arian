@@ -128,7 +128,7 @@ def context(  # a-prefix-ignore: Typer CLI public names
         application = create_application(config)
         # Note: asyncio.run() is used here because the CLI is a sync entry point.
         # For ASGI (future MCP server), use async_lifespan instead.
-        build_result = asyncio.run(application.build_context(request))
+        build_result = asyncio.run(application.execute(request))
 
         if not build_result.is_success or build_result.value is None:
             logger.error("Context generation failed: %s", build_result.message)

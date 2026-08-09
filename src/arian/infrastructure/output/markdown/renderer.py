@@ -113,8 +113,8 @@ class MarkdownRenderer(RendererProtocol, BaseInfrastructureModule):
                     }
                 )
 
-            directory_structure: str = self._build_directory_structure(a_plan.repository_files)
-            manifest: str = self._build_manifest(a_plan, total_files)
+            directory_structure: str = self._map_to_directory_structure(a_plan.repository_files)
+            manifest: str = self._map_to_manifest(a_plan, total_files)
 
             rendered: str = self._template.render(
                 manifest=manifest,
@@ -132,7 +132,7 @@ class MarkdownRenderer(RendererProtocol, BaseInfrastructureModule):
 
         return result
 
-    def _build_directory_structure(
+    def _map_to_directory_structure(
         self,
         a_repository_files: tuple[str, ...],
     ) -> str:
@@ -171,7 +171,7 @@ class MarkdownRenderer(RendererProtocol, BaseInfrastructureModule):
         result: str = "\n".join(lines)
         return result
 
-    def _build_manifest(self, a_plan: ContextPlan, a_total_files: int) -> str:
+    def _map_to_manifest(self, a_plan: ContextPlan, a_total_files: int) -> str:
         """Build a YAML manifest for the context.
 
         Args:

@@ -43,7 +43,7 @@ class FileClassifierProtocol(Protocol):
 
     def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]: ...
 
-    def get_role(self, a_path: str) -> FileRole: ...
+    def load_role(self, a_path: str) -> FileRole: ...
 
 
 class ContextPlannerProtocol(Protocol):
@@ -82,14 +82,14 @@ class ContextBuilderProtocol(Protocol):
 
     @property
     def collection_stats(self) -> CollectionStats:
-        """Return collection statistics from the last build() call."""
+        """Return collection statistics from the last execute() call."""
         ...
 
-    async def build(self, a_request: BuildRequest) -> Result[ContextPlan]:
+    async def execute(self, a_request: BuildRequest) -> Result[ContextPlan]:
         """Build a context plan from a build request value object."""
         ...
 
-    async def load_content(
+    async def load(
         self,
         a_plan: ContextPlan,
         a_root: Path,

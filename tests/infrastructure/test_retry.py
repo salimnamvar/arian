@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-from arian.infrastructure.retry import retry_sync_with_backoff
-from arian.infrastructure.retry import retry_with_backoff
+from arian.infrastructure.retry import execute_with_retry_sync
+from arian.infrastructure.retry import execute_with_retry
 
 
 class TestRetrySyncWithBackoff:
-    """Tests for retry_sync_with_backoff()."""
+    """Tests for execute_with_retry_sync()."""
 
     def test_success_on_first_attempt(self) -> None:
         """Verify sync function succeeds without retry."""
@@ -17,7 +17,7 @@ class TestRetrySyncWithBackoff:
         def ok() -> str:
             return "done"
 
-        result = retry_sync_with_backoff(ok)
+        result = execute_with_retry_sync(ok)
         assert result.is_success
         assert result.value == "done"
 
@@ -33,7 +33,7 @@ class TestRetrySyncWithBackoff:
                 raise OSError(msg)
             return "recovered"
 
-        result = retry_sync_with_backoff(
+        result = execute_with_retry_sync(
             flaky,
             a_max_retries=3,
             a_base_delay=0.01,
@@ -50,7 +50,7 @@ class TestRetrySyncWithBackoff:
             msg = "permanent"
             raise OSError(msg)
 
-        result = retry_sync_with_backoff(
+        result = execute_with_retry_sync(
             always_fail,
             a_max_retries=2,
             a_base_delay=0.01,
@@ -66,7 +66,7 @@ class TestRetrySyncWithBackoff:
             msg = "wrong type"
             raise TypeError(msg)
 
-        result = retry_sync_with_backoff(
+        result = execute_with_retry_sync(
             type_error,
             a_max_retries=3,
             a_base_delay=0.01,
@@ -81,13 +81,13 @@ class TestRetrySyncWithBackoff:
         def add(a: int, b: int) -> int:
             return a + b
 
-        result = retry_sync_with_backoff(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
+        result = execute_with_retry_sync(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
         assert result.is_success
         assert result.value == 7
 
 
 class TestRetryWithBackoff:
-    """Tests for retry_with_backoff()."""
+    """Tests for execute_with_retry()."""
 
     async def test_success_on_first_attempt(self) -> None:
         """Verify function succeeds without retry."""
@@ -95,7 +95,7 @@ class TestRetryWithBackoff:
         async def ok() -> str:
             return "done"
 
-        result = await retry_with_backoff(ok)
+        result = await execute_with_retry(ok)
         assert result.is_success
         assert result.value == "done"
 
@@ -111,7 +111,7 @@ class TestRetryWithBackoff:
                 raise OSError(msg)
             return "recovered"
 
-        result = await retry_with_backoff(
+        result = await execute_with_retry(
             flaky,
             a_max_retries=3,
             a_base_delay=0.01,
@@ -128,7 +128,7 @@ class TestRetryWithBackoff:
             msg = "permanent"
             raise OSError(msg)
 
-        result = await retry_with_backoff(
+        result = await execute_with_retry(
             always_fail,
             a_max_retries=2,
             a_base_delay=0.01,
@@ -144,7 +144,7 @@ class TestRetryWithBackoff:
             msg = "wrong type"
             raise TypeError(msg)
 
-        result = await retry_with_backoff(
+        result = await execute_with_retry(
             type_error,
             a_max_retries=3,
             a_base_delay=0.01,
@@ -159,7 +159,7 @@ class TestRetryWithBackoff:
         async def add(a: int, b: int) -> int:
             return a + b
 
-        result = await retry_with_backoff(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
+        result = await execute_with_retry(add, 3, 4, a_max_retries=1, a_base_delay=0.01)
         assert result.is_success
         assert result.value == 7
 
@@ -172,7 +172,7 @@ class TestRetryWithBackoff:
             msg = "fail"
             raise OSError(msg)
 
-        result = await retry_with_backoff(
+        result = await execute_with_retry(
             track_time,
             a_max_retries=3,
             a_base_delay=0.05,

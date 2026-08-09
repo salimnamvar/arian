@@ -64,12 +64,12 @@ class PythonAnalyzer(BaseServiceModule):
         if b_continue and tree is not None:
             for node in ast.iter_child_nodes(tree):
                 if isinstance(node, ast.ClassDef):
-                    symbols.append(self._make_class_symbol(node, a_path))
+                    symbols.append(self._map_node_to_class_symbol(node, a_path))
                     for item in ast.iter_child_nodes(node):
                         if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
-                            symbols.append(self._make_method_symbol(item, a_path, node.name))
+                            symbols.append(self._map_node_to_method_symbol(item, a_path, node.name))
                 elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                    symbols.append(self._make_function_symbol(node, a_path))
+                    symbols.append(self._map_node_to_function_symbol(node, a_path))
 
         return symbols
 
@@ -277,7 +277,7 @@ class PythonAnalyzer(BaseServiceModule):
         result: str = "\n".join(lines)
         return result
 
-    def _make_class_symbol(self, a_node: ast.ClassDef, a_path: Path) -> Symbol:
+    def _map_node_to_class_symbol(self, a_node: ast.ClassDef, a_path: Path) -> Symbol:
         """Create a Symbol from a class AST node.
 
         Args:
@@ -310,7 +310,7 @@ class PythonAnalyzer(BaseServiceModule):
         )
         return result
 
-    def _make_function_symbol(
+    def _map_node_to_function_symbol(
         self,
         a_node: ast.FunctionDef | ast.AsyncFunctionDef,
         a_path: Path,
@@ -343,7 +343,7 @@ class PythonAnalyzer(BaseServiceModule):
         )
         return result
 
-    def _make_method_symbol(
+    def _map_node_to_method_symbol(
         self,
         a_node: ast.FunctionDef | ast.AsyncFunctionDef,
         a_path: Path,

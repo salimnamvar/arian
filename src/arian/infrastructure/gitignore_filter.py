@@ -126,7 +126,7 @@ class PathFilter:
         return specs
 
     @staticmethod
-    def _effective_ignore_pattern(a_spec: Any, a_relative: str) -> str | None:
+    def _map_to_ignore_pattern(a_spec: Any, a_relative: str) -> str | None:
         """Return the gitignore pattern that caused ``a_relative`` to be ignored.
 
         Gitignore rules are applied in order, and the *last* matching
@@ -213,7 +213,7 @@ class PathFilter:
                 continue
             relative: str = str(resolved.relative_to(spec_root))
             if spec.match_file(relative):
-                result = self._effective_ignore_pattern(spec, relative)
+                result = self._map_to_ignore_pattern(spec, relative)
                 break
         return result
 

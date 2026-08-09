@@ -34,7 +34,7 @@ class RepositoryIndexProtocol(Protocol):
         """
         ...
 
-    async def get_file(self, a_path: str) -> RepositoryFile | None:
+    async def load(self, a_path: str) -> RepositoryFile | None:
         """Retrieve a file by path.
 
         Args:
@@ -45,7 +45,7 @@ class RepositoryIndexProtocol(Protocol):
         """
         ...
 
-    async def list_files(self) -> list[RepositoryFile]:
+    async def load_all(self) -> list[RepositoryFile]:
         """List all indexed files.
 
         Returns:
@@ -61,7 +61,7 @@ class RepositoryIndexProtocol(Protocol):
         """
         ...
 
-    async def find_symbols(self, a_name: str) -> list[Symbol]:
+    async def find(self, a_name: str) -> list[Symbol]:
         """Find symbols by name.
 
         Args:
@@ -80,7 +80,7 @@ class RepositoryIndexProtocol(Protocol):
         """
         ...
 
-    async def get_dependencies(self, a_path: str) -> list[Dependency]:
+    async def load_dependencies(self, a_path: str) -> list[Dependency]:
         """Get dependencies for a file.
 
         Args:

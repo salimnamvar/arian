@@ -125,7 +125,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         return result
 
     @staticmethod
-    def _row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:
+    def _map_row_to_file(a_row: tuple[Any, ...]) -> RepositoryFile:
         """Map a files-table row to a domain model.
 
         Args:
@@ -144,7 +144,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         )
 
     @staticmethod
-    def _row_to_symbol(a_row: tuple[Any, ...]) -> Symbol:
+    def _map_row_to_symbol(a_row: tuple[Any, ...]) -> Symbol:
         """Map a symbols-table row to a domain model.
 
         Args:
@@ -164,7 +164,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
         )
 
     @staticmethod
-    def _row_to_dependency(a_row: tuple[Any, ...]) -> Dependency:
+    def _map_row_to_dependency(a_row: tuple[Any, ...]) -> Dependency:
         """Map a dependencies-table row to a domain model.
 
         Args:
@@ -199,7 +199,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             (a_file.path, a_file.language, a_file.role.value, a_file.tokens, a_file.hash, a_file.size_bytes),
         )
 
-    async def get_file(self, a_path: str) -> RepositoryFile | None:
+    async def load(self, a_path: str) -> RepositoryFile | None:
         """Retrieve a file by path.
 
         Args:
@@ -212,10 +212,10 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             "SELECT path, language, role, tokens, hash, size_bytes FROM files WHERE path = ?",
             (a_path,),
         )
-        result: RepositoryFile | None = self._row_to_file(rows[0]) if rows else None
+        result: RepositoryFile | None = self._map_row_to_file(rows[0]) if rows else None
         return result
 
-    async def list_files(self) -> list[RepositoryFile]:
+    async def load_all(self) -> list[RepositoryFile]:
         """List all indexed files.
 
         Returns:
@@ -225,7 +225,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             "SELECT path, language, role, tokens, hash, size_bytes FROM files",
             (),
         )
-        result: list[RepositoryFile] = [self._row_to_file(row) for row in rows]
+        result: list[RepositoryFile] = [self._map_row_to_file(row) for row in rows]
         return result
 
     async def save_symbol(self, a_symbol: Symbol) -> None:
@@ -248,7 +248,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             ),
         )
 
-    async def find_symbols(self, a_name: str) -> list[Symbol]:
+    async def find(self, a_name: str) -> list[Symbol]:
         """Find symbols by name.
 
         Args:
@@ -261,7 +261,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             "SELECT name, kind, file_path, signature, docstring, line_start, line_end FROM symbols WHERE name = ?",
             (a_name,),
         )
-        result: list[Symbol] = [self._row_to_symbol(row) for row in rows]
+        result: list[Symbol] = [self._map_row_to_symbol(row) for row in rows]
         return result
 
     async def save_dependency(self, a_dep: Dependency) -> None:
@@ -275,7 +275,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             (a_dep.source_path, a_dep.target_path, a_dep.kind.value),
         )
 
-    async def get_dependencies(self, a_path: str) -> list[Dependency]:
+    async def load_dependencies(self, a_path: str) -> list[Dependency]:
         """Get dependencies for a file.
 
         Args:
@@ -288,7 +288,7 @@ class SQLiteRepositoryIndex(BaseRepositoryModule):
             "SELECT source_path, target_path, kind FROM dependencies WHERE source_path = ? OR target_path = ?",
             (a_path, a_path),
         )
-        result: list[Dependency] = [self._row_to_dependency(row) for row in rows]
+        result: list[Dependency] = [self._map_row_to_dependency(row) for row in rows]
         return result
 
     async def save_module(self, a_module: Module) -> None:

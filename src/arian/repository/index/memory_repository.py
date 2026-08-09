@@ -46,7 +46,7 @@ class MemoryRepositoryIndex:
         """
         self._files[a_file.path] = a_file
 
-    async def get_file(self, a_path: str) -> RepositoryFile | None:
+    async def load(self, a_path: str) -> RepositoryFile | None:
         """Retrieve a file by path.
 
         Args:
@@ -58,7 +58,7 @@ class MemoryRepositoryIndex:
         result: RepositoryFile | None = self._files.get(a_path)
         return result
 
-    async def list_files(self) -> list[RepositoryFile]:
+    async def load_all(self) -> list[RepositoryFile]:
         """List all indexed files.
 
         Returns:
@@ -75,7 +75,7 @@ class MemoryRepositoryIndex:
         """
         self._symbols.setdefault(a_symbol.name, []).append(a_symbol)
 
-    async def find_symbols(self, a_name: str) -> list[Symbol]:
+    async def find(self, a_name: str) -> list[Symbol]:
         """Find symbols by name.
 
         Args:
@@ -95,7 +95,7 @@ class MemoryRepositoryIndex:
         """
         self._dependencies.setdefault(a_dep.source_path, []).append(a_dep)
 
-    async def get_dependencies(self, a_path: str) -> list[Dependency]:
+    async def load_dependencies(self, a_path: str) -> list[Dependency]:
         """Get dependencies for a file.
 
         Args:

@@ -17,13 +17,13 @@ class TestSummaryService:
 
     def test_empty_symbols(self) -> None:
         """Test summary with no symbols."""
-        result = self.service.generate([], FileRole.DOMAIN)
+        result = self.service.render([], FileRole.DOMAIN)
         assert result == ""
 
     def test_with_imports(self) -> None:
         """Test summary with imports."""
         imports = ("from typing import List", "import os")
-        result = self.service.generate([], FileRole.DOMAIN, a_imports=imports)
+        result = self.service.render([], FileRole.DOMAIN, a_imports=imports)
         assert "## Imports" in result
         assert "`from typing import List`" in result
         assert "`import os`" in result
@@ -39,7 +39,7 @@ class TestSummaryService:
                 docstring="Handles authentication",
             ),
         ]
-        result = self.service.generate(symbols, FileRole.SERVICE)
+        result = self.service.render(symbols, FileRole.SERVICE)
         assert "## Classes" in result
         assert "**AuthService**" in result
         assert "Handles authentication" in result
@@ -55,7 +55,7 @@ class TestSummaryService:
                 docstring="Validates JWT token",
             ),
         ]
-        result = self.service.generate(symbols, FileRole.SERVICE)
+        result = self.service.render(symbols, FileRole.SERVICE)
         assert "## Functions" in result
         assert "`validate_token`" in result
         assert "Validates JWT token" in result
@@ -70,7 +70,7 @@ class TestSummaryService:
                 signature="def login(self)",
             ),
         ]
-        result = self.service.generate(symbols, FileRole.SERVICE)
+        result = self.service.render(symbols, FileRole.SERVICE)
         assert "## Methods" in result
         assert "`login`" in result
 
@@ -84,8 +84,8 @@ class TestSummaryService:
                 signature="class Parser",
             ),
         ]
-        result1 = self.service.generate(symbols, FileRole.DOMAIN)
-        result2 = self.service.generate(symbols, FileRole.DOMAIN)
+        result1 = self.service.render(symbols, FileRole.DOMAIN)
+        result2 = self.service.render(symbols, FileRole.DOMAIN)
         assert result1 == result2
 
     def test_no_llm_calls(self) -> None:
@@ -105,7 +105,7 @@ class TestSummaryService:
                 signature="def process",
             ),
         ]
-        result = self.service.generate(symbols, FileRole.SERVICE)
+        result = self.service.render(symbols, FileRole.SERVICE)
         assert "## Classes" in result
         assert "## Functions" in result
         assert "**Service**" in result
