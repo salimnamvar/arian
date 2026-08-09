@@ -70,7 +70,7 @@ class ContextBuilder(BaseServiceModule):
 
     Pipeline: collect -> plan -> load -> materialize -> render -> write.
 
-    Extension points (see PipelineStageProtocol):
+    Extension points:
       Each stage is a constructor-injected collaborator. To add or replace a
       stage:
         1. Create a service implementing the desired logic.

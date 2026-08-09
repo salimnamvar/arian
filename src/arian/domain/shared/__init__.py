@@ -6,9 +6,7 @@ from arian.domain.shared.enums import DependencyKind
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
-from arian.domain.shared.events import ErrorHook
 from arian.domain.shared.events import PipelineProgressProtocol
-from arian.domain.shared.events import PipelineStageProtocol
 from arian.domain.shared.language import detect_language
 from arian.domain.shared.language import lang_extensions
 from arian.domain.shared.output import OutputWriterProtocol
@@ -26,11 +24,9 @@ __all__ = [
     "ConcurrencyPolicy",
     "DependencyKind",
     "EnvironmentSecretProvider",
-    "ErrorHook",
     "FileRole",
     "OutputWriterProtocol",
     "PipelineProgressProtocol",
-    "PipelineStageProtocol",
     "RendererProtocol",
     "SafePath",
     "SecretProvider",

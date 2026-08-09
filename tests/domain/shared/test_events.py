@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from arian.domain.shared.events import ErrorHook
 from arian.domain.shared.events import PipelineProgressProtocol
-from arian.domain.shared.events import PipelineStageProtocol
 
 
 def test_pipeline_progress_protocol() -> None:
@@ -28,72 +26,3 @@ def test_pipeline_progress_protocol() -> None:
     reporter.on_stage_progress("load", 1, 3)
     reporter.on_stage_complete("load")
     assert reporter.stages == ["start:load:3", "progress:load:1/3", "complete:load"]
-
-
-def test_pipeline_stage_protocol() -> None:
-    """Test PipelineStageProtocol structural subtyping."""
-
-    class Stage:
-        @property
-        def name(self) -> str:
-            return "collect"
-
-    stage: PipelineStageProtocol = Stage()
-    assert stage.name == "collect"
-
-
-def test_error_hook_is_protocol() -> None:
-    """Test ErrorHook is a Protocol."""
-    from typing import Protocol
-
-    assert issubclass(ErrorHook, Protocol)
-
-
-def test_error_hook_structural_subtyping() -> None:
-    """Test a concrete class satisfies ErrorHook via structural subtyping."""
-
-    class Recorder:
-        """Stub error recorder."""
-
-        def __init__(self) -> None:
-            self.errors: list[tuple[str, Exception]] = []
-
-        def on_error(self, a_stage: str, a_error: Exception) -> None:
-            self.errors.append((a_stage, a_error))
-
-    recorder: ErrorHook = Recorder()
-    exc = ValueError("bad input")
-    recorder.on_error("parsing", exc)
-
-    assert recorder.errors == [("parsing", exc)]
-
-
-def test_error_hook_def() -> None:
-    """Test a plain function satisfies ErrorHook."""
-    calls: list[tuple[str, Exception]] = []
-
-    def hook(a_stage: str, a_error: Exception) -> None:
-        calls.append((a_stage, a_error))
-
-    exc = RuntimeError("timeout")
-    hook("network", exc)
-    assert calls == [("network", exc)]
-
-
-def test_error_hook_multiple_calls() -> None:
-    """Test a recorder accumulates multiple error calls."""
-
-    class Recorder:
-        """Stub error recorder."""
-
-        def __init__(self) -> None:
-            self.errors: list[tuple[str, Exception]] = []
-
-        def on_error(self, a_stage: str, a_error: Exception) -> None:
-            self.errors.append((a_stage, a_error))
-
-    hook: ErrorHook = Recorder()
-    hook.on_error("a", ValueError("v1"))
-    hook.on_error("b", RuntimeError("v2"))
-
-    assert len(hook.errors) == 2
