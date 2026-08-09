@@ -4,6 +4,7 @@ Provides domain entities, enums, and exceptions.
 Zero external dependencies — only stdlib imports.
 """
 
+from arian.domain.base import BaseDomainModule
 from arian.domain.context import BuildRequest
 from arian.domain.context import ContextChunk
 from arian.domain.context import ContextPlan
@@ -67,6 +68,7 @@ from arian.domain.shared import validate_input_path
 
 __all__ = [
     "AnalysisError",
+    "BaseDomainModule",
     "BinaryFileError",
     "BuildRequest",
     "CancellationError",

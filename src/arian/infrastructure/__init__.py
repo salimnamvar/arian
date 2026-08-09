@@ -4,6 +4,7 @@ Provides configuration, gitignore filtering, token counting,
 and git analysis utilities.
 """
 
+from arian.infrastructure.base import BaseInfrastructureModule
 from arian.infrastructure.config import AnalyzerConfig
 from arian.infrastructure.config import ArianConfig
 from arian.infrastructure.config import BootstrapConfig
@@ -28,6 +29,7 @@ from arian.infrastructure.tokenizer import count_tokens
 __all__ = [
     "AnalyzerConfig",
     "ArianConfig",
+    "BaseInfrastructureModule",
     "BootstrapConfig",
     "ClassifierConfig",
     "ControllerConfig",
