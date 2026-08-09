@@ -15,12 +15,14 @@ from arian.domain.context.models import ContextPlan
 from arian.domain.context.models import MaterializedChunk
 from arian.domain.shared.output import RendererProtocol
 from arian.domain.shared.result import Result
+from arian.infrastructure.base import BaseInfrastructureModule
 from arian.infrastructure.config import RendererConfig
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class MarkdownRenderer(RendererProtocol):
+class MarkdownRenderer(RendererProtocol, BaseInfrastructureModule):
     """Renders materialized chunks as Markdown output.
 
     Uses Jinja2 templates for flexible output formatting.
@@ -37,6 +39,14 @@ class MarkdownRenderer(RendererProtocol):
         Args:
             a_config: Renderer configuration (template location).
         """
+        BaseInfrastructureModule.__init__(
+            self,
+            a_metadata=ModuleMetadata(
+                name="arian.infrastructure.markdown_renderer",
+                layer="infrastructure",
+                capabilities=frozenset({"sync"}),
+            ),
+        )
         self._environment: Environment = Environment(
             loader=FileSystemLoader(str(a_config.template_dir)),
             trim_blocks=True,

@@ -9,18 +9,30 @@ from pathlib import Path
 import tempfile
 
 from arian.domain.shared.result import Result
+from arian.infrastructure.base import BaseInfrastructureModule
 from arian.infrastructure.retry import retry_sync_with_backoff
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class FileOutputWriter:
+class FileOutputWriter(BaseInfrastructureModule):
     """Writes rendered content to files on disk using atomic rename.
 
     Strategy: write to a temporary file in the same directory, then
     ``os.replace`` onto the target path. This prevents partial output
     if the process crashes mid-write. Transient OS errors are retried.
     """
+
+    def __init__(self) -> None:
+        """Initialize file output writer."""
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.infrastructure.file_output_writer",
+                layer="infrastructure",
+                capabilities=frozenset({"sync"}),
+            )
+        )
 
     def write(self, a_path: str, a_content: str) -> Result[None]:
         """Atomically write rendered content to a file.

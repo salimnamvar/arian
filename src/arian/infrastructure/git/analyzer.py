@@ -6,15 +6,28 @@ import asyncio
 import logging
 from pathlib import Path
 
+from arian.infrastructure.base import BaseInfrastructureModule
+from arian.util.base import ModuleMetadata
+
 logger = logging.getLogger(__name__)
 
 
-class GitAnalyzer:
+class GitAnalyzer(BaseInfrastructureModule):
     """Analyzes git repository metadata.
 
     Provides async methods to extract git-specific information
     like branch, commit history, and changed files.
     """
+
+    def __init__(self) -> None:
+        """Initialize git analyzer."""
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.infrastructure.git_analyzer",
+                layer="infrastructure",
+                capabilities=frozenset({"async"}),
+            )
+        )
 
     async def get_branch(self, a_path: Path) -> str:
         """Get the current git branch name.
