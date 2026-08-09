@@ -75,7 +75,7 @@ class ContextBuilder(BaseServiceModule):
       stage:
         1. Create a service implementing the desired logic.
         2. Inject it via the constructor (or extend this class).
-        3. Call it from ``build()``, ``load_content()``, or ``materialize()``.
+        3. Call it from ``execute()``, ``load()``, or ``materialize()``.
         4. Optionally attach a PipelineProgressProtocol for visibility.
 
     Pipeline Stages:

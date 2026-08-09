@@ -321,6 +321,7 @@ _EXEMPT_CLASSES: set[str] = {
     "RendererConfig",
     "ControllerConfig",
     "RetryConfig",
+    "GitConfig",
     "AnalyzerConfig",
     "ClassifierConfig",
     "MaterializerConfig",

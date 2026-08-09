@@ -71,7 +71,7 @@ class ContextMaterializerProtocol(Protocol):
 
 @dataclass(frozen=True)
 class ContentLoadData:
-    """Data returned by load_content() on success."""
+    """Data returned by load() on success."""
 
     content: dict[str, FileContent]
     skipped: tuple[str, ...]

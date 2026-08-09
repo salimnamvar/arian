@@ -7,11 +7,10 @@ import logging
 from pathlib import Path
 
 from arian.infrastructure.base import BaseInfrastructureModule
+from arian.infrastructure.config import GitConfig
 from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
-
-_GIT_TIMEOUT_SECONDS: float = 30.0
 
 
 class GitAnalyzer(BaseInfrastructureModule):
@@ -21,8 +20,12 @@ class GitAnalyzer(BaseInfrastructureModule):
     like branch, commit history, and changed files.
     """
 
-    def __init__(self) -> None:
-        """Initialize git analyzer."""
+    def __init__(self, a_config: GitConfig = GitConfig()) -> None:
+        """Initialize git analyzer.
+
+        Args:
+            a_config: Git subprocess operation configuration.
+        """
         super().__init__(
             a_metadata=ModuleMetadata(
                 name="arian.infrastructure.git_analyzer",
@@ -30,6 +33,7 @@ class GitAnalyzer(BaseInfrastructureModule):
                 capabilities=frozenset({"async"}),
             )
         )
+        self._config: GitConfig = a_config
 
     async def load_branch(self, a_path: Path) -> str:
         """Get the current git branch name.
@@ -56,7 +60,7 @@ class GitAnalyzer(BaseInfrastructureModule):
             _stderr: bytes
             stdout, _stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=_GIT_TIMEOUT_SECONDS,
+                timeout=self._config.timeout_seconds,
             )
             if process.returncode == 0:
                 result = stdout.decode().strip()
@@ -92,7 +96,7 @@ class GitAnalyzer(BaseInfrastructureModule):
             _stderr: bytes
             stdout, _stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=_GIT_TIMEOUT_SECONDS,
+                timeout=self._config.timeout_seconds,
             )
             if process.returncode == 0:
                 result = [f for f in stdout.decode().strip().splitlines() if f]

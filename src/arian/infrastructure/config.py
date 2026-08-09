@@ -552,6 +552,25 @@ class RetryConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Infrastructure: git operations
+# ---------------------------------------------------------------------------
+
+
+class GitConfig(BaseModel):
+    """Git subprocess operation configuration.
+
+    Attributes:
+        timeout_seconds: Maximum seconds to wait for a git subprocess
+            before killing it. Protects against hangs on large or
+            corrupted repositories.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    timeout_seconds: float = Field(default=30.0, gt=0.0, description="Git subprocess timeout in seconds.")
+
+
+# ---------------------------------------------------------------------------
 # Service: analyzer (Python source patterns)
 # ---------------------------------------------------------------------------
 
@@ -854,6 +873,7 @@ class ArianConfig(BaseModel):
         renderer: Markdown template location.
         controller: CLI input-validation tables.
         retry: File-read retry policy.
+        git: Git subprocess operation configuration.
         analyzer: Python source pattern configuration.
         classifier: File-role classification tables.
         materializer: Fragment merging threshold.
@@ -872,6 +892,7 @@ class ArianConfig(BaseModel):
     renderer: RendererConfig = Field(default_factory=RendererConfig)
     controller: ControllerConfig = Field(default_factory=ControllerConfig)
     retry: RetryConfig = Field(default_factory=RetryConfig)
+    git: GitConfig = Field(default_factory=GitConfig)
     analyzer: AnalyzerConfig = Field(default_factory=AnalyzerConfig)
     classifier: ClassifierConfig = Field(default_factory=ClassifierConfig)
     materializer: MaterializerConfig = Field(default_factory=MaterializerConfig)
