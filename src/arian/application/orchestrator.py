@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import time
 
+from arian.application.base import BaseApplicationModule
 from arian.application.context import ContextRequest
 from arian.application.context import ContextResult
 from arian.application.validator import ContextRequestValidator
@@ -29,11 +30,12 @@ from arian.domain.shared.result import Result
 from arian.domain.shared.security import redact_secrets
 from arian.domain.shared.security import sanitize_error_message
 from arian.infrastructure.config import SecurityConfig
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class Application:
+class Application(BaseApplicationModule):
     """Use case orchestrator — builds context from a repository.
 
     Responsibilities:
@@ -75,6 +77,13 @@ class Application:
             a_root: Repository root. Defaults to current working directory
                 only when bootstrap does not inject one.
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.application.orchestrator",
+                layer="application",
+                capabilities=frozenset({"async"}),
+            )
+        )
         self._builder: ContextBuilderProtocol = a_builder
         self._renderer: RendererProtocol = a_renderer
         self._output: OutputWriterProtocol = a_output

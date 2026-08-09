@@ -5,17 +5,19 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from arian.application.base import BaseApplicationModule
 from arian.application.context import ContextRequest
 from arian.domain.shared.result import Result
 from arian.domain.shared.security import validate_input_path
 from arian.infrastructure.config import ControllerConfig
 from arian.infrastructure.config import DomainLimitsConfig
 from arian.infrastructure.config import SecurityConfig
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class ContextRequestValidator:
+class ContextRequestValidator(BaseApplicationModule):
     """Validates ContextRequest fields before pipeline execution.
 
     Attributes:
@@ -40,6 +42,13 @@ class ContextRequestValidator:
             a_security: Security configuration (path-length cap).
             a_controller: Controller-level validation tables.
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.application.validator",
+                layer="application",
+                capabilities=frozenset({"sync"}),
+            )
+        )
         self._root: Path | None = a_root
         self._limits: DomainLimitsConfig = a_limits
         self._security: SecurityConfig = a_security
