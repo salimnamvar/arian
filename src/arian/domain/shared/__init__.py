@@ -9,7 +9,6 @@ from arian.domain.shared.enums import TokenBudget
 from arian.domain.shared.events import ErrorHook
 from arian.domain.shared.events import PipelineProgressProtocol
 from arian.domain.shared.events import PipelineStageProtocol
-from arian.domain.shared.events import ProgressHook
 from arian.domain.shared.language import detect_language
 from arian.domain.shared.language import lang_extensions
 from arian.domain.shared.output import OutputWriterProtocol
@@ -32,7 +31,6 @@ __all__ = [
     "OutputWriterProtocol",
     "PipelineProgressProtocol",
     "PipelineStageProtocol",
-    "ProgressHook",
     "RendererProtocol",
     "SafePath",
     "SecretProvider",
