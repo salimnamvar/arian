@@ -44,9 +44,7 @@ def _is_exempt_import(module: str) -> bool:
     """Return True if *module* is a shared config or utility module."""
     if module == CONFIG_MODULE or module.startswith(f"{CONFIG_MODULE}."):
         return True
-    if module == UTIL_MODULE or module.startswith(f"{UTIL_MODULE}."):
-        return True
-    return False
+    return module == UTIL_MODULE or module.startswith(f"{UTIL_MODULE}.")
 
 
 def _get_layer(file_path: Path) -> str | None:
