@@ -12,11 +12,13 @@ from arian.domain.protocols import LanguageAnalyzerProtocol
 from arian.domain.repository.models import FileContent
 from arian.domain.shared.enums import CompressionLevel
 from arian.infrastructure.config import MaterializerConfig
+from arian.service.base import BaseServiceModule
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class ContextMaterializer:
+class ContextMaterializer(BaseServiceModule):
     """Applies ContextPlan decisions to produce materialized content.
 
     Takes a ContextPlan (what to include) and FileContent (actual content),
@@ -38,6 +40,13 @@ class ContextMaterializer:
             a_analyzer: Language analyzer for content compression.
             a_config: Materializer configuration (fragment merge threshold).
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.materializer",
+                layer="service",
+                capabilities=frozenset({"sync"}),
+            )
+        )
         self._analyzer: LanguageAnalyzerProtocol = a_analyzer
         self._config: MaterializerConfig = a_config
 

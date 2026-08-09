@@ -18,12 +18,14 @@ from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
 from arian.domain.shared.enums import TokenBudget
 from arian.infrastructure.config import PlannerConfig
+from arian.service.base import BaseServiceModule
 from arian.service.classifier.file_classifier import FileClassifier
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class ContextPlanner:
+class ContextPlanner(BaseServiceModule):
     """Plans context generation based on task type and token budget.
 
     Selects files, decides compression levels, and organizes chunks
@@ -45,6 +47,13 @@ class ContextPlanner:
             a_classifier: Optional file classifier (defaults to new instance).
             a_config: Planner configuration (role ordering, task boosts).
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.planner",
+                layer="service",
+                capabilities=frozenset({"sync"}),
+            )
+        )
         self._classifier: FileClassifierProtocol = a_classifier if a_classifier is not None else FileClassifier()
         self._config: PlannerConfig = a_config
 

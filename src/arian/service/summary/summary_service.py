@@ -5,9 +5,11 @@ from __future__ import annotations
 from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import FileRole
 from arian.domain.shared.enums import SymbolKind
+from arian.service.base import BaseServiceModule
+from arian.util.base import ModuleMetadata
 
 
-class SummaryService:
+class SummaryService(BaseServiceModule):
     """Generates deterministic file summaries from extracted symbols.
 
     Produces structured summaries without LLM calls. For Python files,
@@ -17,6 +19,16 @@ class SummaryService:
     This service is stateless and deterministic — same inputs always
     produce the same output.
     """
+
+    def __init__(self) -> None:
+        """Initialize summary service."""
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.summary",
+                layer="service",
+                capabilities=frozenset({"sync"}),
+            )
+        )
 
     def generate(
         self,

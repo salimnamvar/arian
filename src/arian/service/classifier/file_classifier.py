@@ -7,9 +7,11 @@ from pathlib import Path
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import FileRole
 from arian.infrastructure.config import ClassifierConfig
+from arian.service.base import BaseServiceModule
+from arian.util.base import ModuleMetadata
 
 
-class FileClassifier:
+class FileClassifier(BaseServiceModule):
     """Classifies files by role and importance for context planning.
 
     Analyzes file paths and names to determine their role in the
@@ -25,6 +27,13 @@ class FileClassifier:
         Args:
             a_config: Classification lookup tables (names, suffixes, parts).
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.classifier",
+                layer="service",
+                capabilities=frozenset({"sync"}),
+            )
+        )
         self._config: ClassifierConfig = a_config
 
     def classify(self, a_path: str) -> tuple[FileRole, int, CompressionLevel]:

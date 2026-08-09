@@ -31,6 +31,8 @@ from arian.infrastructure.config import RetryConfig
 from arian.infrastructure.config import SecurityConfig
 from arian.repository.filesystem.protocols import FileCollectorProtocol
 from arian.repository.index.protocols import RepositoryIndexProtocol
+from arian.service.base import BaseServiceModule
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class ContextBuilderOptions:
     security: SecurityConfig = field(default_factory=SecurityConfig)
 
 
-class ContextBuilder:
+class ContextBuilder(BaseServiceModule):
     """Builds context by collecting, analyzing, planning, materializing, and rendering.
 
     Pipeline: collect -> plan -> load -> materialize -> render -> write.
@@ -108,6 +110,13 @@ class ContextBuilder:
             a_options: Concurrency / progress / retry options. See
                 :class:`ContextBuilderOptions`.
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.builder",
+                layer="service",
+                capabilities=frozenset({"async", "sync"}),
+            )
+        )
         self._collector: FileCollectorProtocol = a_collector
         self._index: RepositoryIndexProtocol = a_index
         self._planner: ContextPlannerProtocol = a_planner

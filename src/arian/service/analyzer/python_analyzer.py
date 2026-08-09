@@ -10,11 +10,13 @@ from arian.domain.repository.models import Symbol
 from arian.domain.shared.enums import CompressionLevel
 from arian.domain.shared.enums import SymbolKind
 from arian.infrastructure.config import AnalyzerConfig
+from arian.service.base import BaseServiceModule
+from arian.util.base import ModuleMetadata
 
 logger = logging.getLogger(__name__)
 
 
-class PythonAnalyzer:
+class PythonAnalyzer(BaseServiceModule):
     """Python-specific code analyzer using stdlib ast.
 
     Extracts symbols, imports, and public API from Python source code.
@@ -30,6 +32,13 @@ class PythonAnalyzer:
         Args:
             a_config: Analyzer configuration (regex patterns, thresholds).
         """
+        super().__init__(
+            a_metadata=ModuleMetadata(
+                name="arian.service.analyzer",
+                layer="service",
+                capabilities=frozenset({"sync"}),
+            )
+        )
         self._config: AnalyzerConfig = a_config
 
     def extract_symbols(self, a_content: str, a_path: Path) -> list[Symbol]:
