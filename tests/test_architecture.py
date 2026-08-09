@@ -224,3 +224,181 @@ def test_no_duplicate_protocol_names() -> None:
     assert not duplicates, "Duplicate protocol names found:\n" + "\n".join(
         f"  {name}: {files}" for name, files in sorted(duplicates.items())
     )
+
+
+# Classes that are exempt from inheriting Base<Layer>Module.
+# These are pure value objects, protocols, enums, exceptions, or framework subclasses.
+_EXEMPT_CLASSES: set[str] = {
+    # util
+    "BaseModule",
+    "ModuleMetadata",
+    "ModuleState",
+    "ExecutionMode",
+    "ConcurrencyMode",
+    "SyncFunctionProtocol",
+    "AsyncFunctionProtocol",
+    # domain — value objects, enums, exceptions, protocols
+    "BuildRequest",
+    "ContextPlan",
+    "ContextChunk",
+    "PlannedFile",
+    "ContextResult",
+    "MaterializedEntry",
+    "MaterializedChunk",
+    "FileFragment",
+    "Provenance",
+    "Repository",
+    "RepositoryFile",
+    "FileContent",
+    "Module",
+    "Symbol",
+    "Dependency",
+    "CollectionStats",
+    "TokenBudget",
+    "SafePath",
+    "ContentLoadData",
+    "FileRole",
+    "SymbolKind",
+    "DependencyKind",
+    "CompressionLevel",
+    "ConcurrencyPolicy",
+    "ContextTask",
+    "Result",
+    "ProjectBaseError",
+    "ConfigurationError",
+    "InputError",
+    "InputNotFoundError",
+    "InvalidTaskError",
+    "ValidationError",
+    "ProcessingError",
+    "ContextBuilderError",
+    "PlanningError",
+    "MaterializationError",
+    "RenderingError",
+    "ClassificationError",
+    "AnalysisError",
+    "TokenizationError",
+    "RepositoryError",
+    "CollectionError",
+    "RepositoryIndexError",
+    "DatabaseConnectionError",
+    "SecurityError",
+    "PathTraversalError",
+    "SymlinkLoopError",
+    "BinaryFileError",
+    "ResourceError",
+    "ResourceNotFoundError",
+    "OutOfMemoryError",
+    "OperationTimeoutError",
+    "CancellationError",
+    "ExternalServiceError",
+    "GitError",
+    "PartialResultError",
+    "NoDocumentsError",
+    # domain — protocols
+    "LanguageAnalyzerProtocol",
+    "FileClassifierProtocol",
+    "ContextPlannerProtocol",
+    "ContextMaterializerProtocol",
+    "ContextBuilderProtocol",
+    "OutputWriterProtocol",
+    "RendererProtocol",
+    "PipelineProgressProtocol",
+    "SecretProvider",
+    # repository — protocols
+    "RepositoryIndexProtocol",
+    "PathFilterProtocol",
+    "FileCollectorProtocol",
+    # infrastructure — config value objects
+    "ArianConfig",
+    "LoggingConfig",
+    "FileCollectorConfig",
+    "DomainLimitsConfig",
+    "LanguageConfig",
+    "SecurityConfig",
+    "BootstrapConfig",
+    "RepositoryConfig",
+    "RendererConfig",
+    "ControllerConfig",
+    "RetryConfig",
+    "AnalyzerConfig",
+    "ClassifierConfig",
+    "MaterializerConfig",
+    "PlannerConfig",
+    "GitignoreOptions",
+    # application — value objects
+    "ContextRequest",
+    # service — value objects
+    "ContextBuilderOptions",
+    # infrastructure — Pydantic BaseModel subclasses (config)
+    "BaseModel",
+    # bootstrap — framework subclasses
+    "RunContextFilter",
+    "IsoUtcFormatter",
+    "ResourceFilter",
+    "DiagnosticLevelFilter",
+    "LoggingProgressReporter",
+    "StartupValidator",
+    # stateless adapters (no lifecycle, no resources)
+    "EnvironmentSecretProvider",
+    "PathFilter",
+    "MemoryRepositoryIndex",
+    # template — no concrete classes
+}
+
+# Base class names that indicate proper adoption
+_BASE_NAMES = {
+    "BaseDomainModule",
+    "BaseApplicationModule",
+    "BaseServiceModule",
+    "BaseRepositoryModule",
+    "BaseInfrastructureModule",
+    "BaseControllerModule",
+    "BaseBootstrapModule",
+    "BaseTemplateModule",
+    "BaseModule",
+}
+
+
+def _get_base_names(node: ast.ClassDef) -> list[str]:
+    """Extract base class names from a class definition."""
+    names: list[str] = []
+    for base in node.bases:
+        if isinstance(base, ast.Name):
+            names.append(base.id)
+        elif isinstance(base, ast.Attribute):
+            names.append(base.attr)
+    return names
+
+
+def test_all_concrete_classes_adopt_base_or_are_exempt() -> None:
+    """Verify every concrete class either inherits a Base<Layer>Module or is exempt.
+
+    This prevents marker-class theater: production classes must either
+    adopt the contract or be classified as value objects, protocols,
+    enums, exceptions, or framework subclasses.
+    """
+    violations: list[str] = []
+
+    for py_file in sorted(SRC.rglob("*.py")):
+        if py_file.name == "__pycache__":
+            continue
+        if "/base.py" in str(py_file):
+            continue
+        try:
+            tree = ast.parse(py_file.read_text())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            class_name = node.name
+            if class_name in _EXEMPT_CLASSES:
+                continue
+            bases = _get_base_names(node)
+            has_base = any(b in _BASE_NAMES for b in bases)
+            if not has_base:
+                rel = py_file.relative_to(SRC)
+                violations.append(f"  {rel}:{node.lineno} class {class_name} (bases: {bases})")
+
+    assert not violations, "Concrete classes missing Base<Layer>Module adoption:\n" + "\n".join(violations)
