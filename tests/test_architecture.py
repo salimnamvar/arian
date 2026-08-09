@@ -37,11 +37,16 @@ FORBIDDEN: dict[str, set[str]] = {
 # and it may depend on ``arian.domain`` enums. It is exempt from the
 # boundary and cycle checks below.
 CONFIG_MODULE = "arian.infrastructure.config"
+UTIL_MODULE = "arian.util"
 
 
-def _is_config_import(module: str) -> bool:
-    """Return True if *module* is the shared configuration module."""
-    return module == CONFIG_MODULE or module.startswith(f"{CONFIG_MODULE}.")
+def _is_exempt_import(module: str) -> bool:
+    """Return True if *module* is a shared config or utility module."""
+    if module == CONFIG_MODULE or module.startswith(f"{CONFIG_MODULE}."):
+        return True
+    if module == UTIL_MODULE or module.startswith(f"{UTIL_MODULE}."):
+        return True
+    return False
 
 
 def _get_layer(file_path: Path) -> str | None:
@@ -83,7 +88,7 @@ def test_layer_boundaries(layer: str, forbidden: set[str]) -> None:
         if py_file.name == "__pycache__":
             continue
         for import_module in _get_imports(py_file):
-            if _is_config_import(import_module):
+            if _is_exempt_import(import_module):
                 continue
             imported_layer = _import_to_layer(import_module)
             if imported_layer in forbidden:
@@ -101,7 +106,7 @@ def test_domain_layer_is_pure() -> None:
         if py_file.name == "__pycache__":
             continue
         for import_module in _get_imports(py_file):
-            if _is_config_import(import_module):
+            if _is_exempt_import(import_module):
                 continue
             if import_module.startswith("arian.") and not import_module.startswith("arian.domain."):
                 rel = py_file.relative_to(SRC)
@@ -118,7 +123,7 @@ def test_no_circular_layer_imports() -> None:
             if py_file.name == "__pycache__":
                 continue
             for import_module in _get_imports(py_file):
-                if _is_config_import(import_module):
+                if _is_exempt_import(import_module):
                     continue
                 imported_layer = _import_to_layer(import_module)
                 if imported_layer and imported_layer != layer:
